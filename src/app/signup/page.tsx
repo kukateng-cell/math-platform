@@ -1,7 +1,10 @@
 import Link from 'next/link'
+import { createCaptcha } from '@/lib/captcha'
 import SignupForm from '@/components/signup-form'
 
-export default function SignupPage() {
+export default async function SignupPage() {
+  const captcha = await createCaptcha()
+
   return (
     <main className="flex flex-1 items-center justify-center p-6">
       <div className="w-full max-w-sm">
@@ -11,7 +14,7 @@ export default function SignupPage() {
             註冊後即可為孩子建立學習檔案
           </p>
         </div>
-        <SignupForm />
+        <SignupForm initialCaptcha={captcha} />
         <p className="mt-6 text-center text-sm text-neutral-600">
           已經有帳號了？{' '}
           <Link href="/login" className="font-medium text-blue-600 hover:underline">

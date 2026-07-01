@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession, deleteSession, getSession } from '@/lib/session'
+import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
+import { generateOtp, verifyOtp, createTempToken, verifyTempToken } from '@/lib/otp'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
 import { revalidatePath } from 'next/cache'
 
@@ -20,7 +22,7 @@ function checkRateLimit(key: string, max = 5, windowMs = 60_000) {
   return entry.count <= max
 }
 
-// ============ 註冊 ============
+// ============ 註冊（含 CAPTCHA）============
 export async function signup(state: FormState, formData: FormData): Promise<FormState> {
   const validated = SignupFormSchema.safeParse({
     name: formData.get('name'),
@@ -28,13 +30,20 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
     password: formData.get('password'),
   })
   if (!validated.success) {
-    return { errors: validated.error.flatten().fieldErrors }
+    return { errors: validated.error.flatten().fieldErrors, captcha: await createCaptcha() }
   }
   const { name, email, password } = validated.data
 
+  // CAPTCHA 驗證
+  const captchaToken = String(formData.get('captchaToken') || '')
+  const captchaAnswer = String(formData.get('captchaAnswer') || '')
+  if (!(await verifyCaptcha(captchaToken, captchaAnswer))) {
+    return { message: '驗證碼錯誤，請重新作答', captcha: await createCaptcha() }
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
-    return { errors: { email: ['這個 Email 已經註冊過了'] } }
+    return { errors: { email: ['這個 Email 已經註冊過了'] }, captcha: await createCaptcha() }
   }
 
   const passwordHash = await bcrypt.hash(password, 10)
@@ -46,25 +55,67 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
   redirect('/dashboard')
 }
 
-// ============ 登入 ============
+// ============ 登入 Step 1：驗證帳密 + CAPTCHA → 發送 OTP ============
 export async function login(state: FormState, formData: FormData): Promise<FormState> {
   const validated = LoginFormSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
   })
   if (!validated.success) {
-    return { errors: validated.error.flatten().fieldErrors }
+    return { errors: validated.error.flatten().fieldErrors, captcha: await createCaptcha() }
   }
   const { email, password } = validated.data
 
+  // CAPTCHA 驗證
+  const captchaToken = String(formData.get('captchaToken') || '')
+  const captchaAnswer = String(formData.get('captchaAnswer') || '')
+  if (!(await verifyCaptcha(captchaToken, captchaAnswer))) {
+    return { message: '驗證碼錯誤，請重新作答', captcha: await createCaptcha() }
+  }
+
   if (!checkRateLimit(email)) {
-    return { message: '嘗試次數過多，請稍後再試' }
+    return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
   const user = await prisma.user.findUnique({ where: { email } })
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    return { message: 'Email 或密碼不正確' }
+    return { message: 'Email 或密碼不正確', captcha: await createCaptcha() }
   }
+
+  // 產生 OTP 驗證碼
+  const otpCode = generateOtp(user.id)
+  // 開發階段輸出到 console，正式環境應改為寄 Email
+  console.log(`[OTP for ${user.email}] 驗證碼：${otpCode}`)
+
+  const tempToken = await createTempToken(user.id)
+
+  return {
+    otpRequired: true,
+    tempToken,
+    message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
+  }
+}
+
+// ============ 登入 Step 2：驗證 OTP → 建立 Session ============
+export async function verifyLoginOtp(state: FormState, formData: FormData): Promise<FormState> {
+  const tempToken = String(formData.get('tempToken') || '')
+  const otpCode = String(formData.get('otpCode') || '')
+
+  if (!tempToken || !otpCode) {
+    return { message: '缺少必要參數' }
+  }
+
+  const userId = await verifyTempToken(tempToken)
+  if (!userId) {
+    return { message: '驗證已過期，請重新登入' }
+  }
+
+  if (!verifyOtp(userId, otpCode)) {
+    return { message: '驗證碼錯誤或已過期' }
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) return { message: '使用者不存在' }
 
   await createSession({ userId: user.id, email: user.email, role: user.role })
   redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')

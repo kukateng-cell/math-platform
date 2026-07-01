@@ -32,5 +32,10 @@ export type FormState =
       errors?: Record<string, string[]>
       message?: string
       ok?: boolean
+      // 人機驗證
+      captcha?: { question: string; token: string }
+      // OTP 雙步驟登入
+      otpRequired?: boolean
+      tempToken?: string
     }
   | undefined
