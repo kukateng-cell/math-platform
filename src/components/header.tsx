@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getCurrentUser, logout } from '@/actions/auth'
+import ReducedMotionToggle from './reduced-motion-toggle'
 
 export default async function Header() {
   const user = await getCurrentUser()
@@ -12,6 +13,7 @@ export default async function Header() {
           <span>數學小達人</span>
         </Link>
         <nav className="flex items-center gap-4 text-sm">
+          <ReducedMotionToggle />
           {user ? (
             <>
               {user.role === 'ADMIN' ? (
