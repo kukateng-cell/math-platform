@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession, deleteSession, getSession } from '@/lib/session'
 import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
-import { generateOtp, verifyOtp, createTempToken, verifyTempToken } from '@/lib/otp'
+import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds } from '@/lib/otp'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
 import { revalidatePath } from 'next/cache'
 
@@ -84,14 +84,15 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
 
   // 產生 OTP 驗證碼
   const otpCode = generateOtp(user.id)
-  // 開發階段輸出到 console，正式環境應改為寄 Email
-  console.log(`[OTP for ${user.email}] 驗證碼：${otpCode}`)
+  // 開發階段直接回傳給前端顯示（正式環境應改為寄 Email）
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
 
   const tempToken = await createTempToken(user.id)
 
   return {
     otpRequired: true,
     tempToken,
+    devOtp,
     message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }
@@ -119,6 +120,42 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
 
   await createSession({ userId: user.id, email: user.email, role: user.role })
   redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')
+}
+
+// ============ 重新發送 OTP ============
+export async function resendOtp(state: FormState, formData: FormData): Promise<FormState> {
+  const tempToken = String(formData.get('tempToken') || '')
+
+  if (!tempToken) {
+    return { message: '階段已過期，請重新登入' }
+  }
+
+  const userId = await verifyTempToken(tempToken)
+  if (!userId) {
+    return { message: '階段已過期，請重新登入' }
+  }
+
+  // 檢查冷卻時間
+  if (!canResendOtp(userId)) {
+    const cooldown = getResendCooldownSeconds(userId)
+    return { message: `請 ${cooldown} 秒後再重新發送` }
+  }
+
+  // 產生新 OTP
+  const otpCode = generateOtp(userId)
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  const emailMasked = user
+    ? user.email.replace(/(.{3}).+@/, '$1***@')
+    : '您的信箱'
+
+  return {
+    otpRequired: true,
+    tempToken,
+    devOtp,
+    message: `新驗證碼已發送至 ${emailMasked}`,
+  }
 }
 
 // ============ 登出 ============
@@ -158,6 +195,52 @@ export async function deleteChild(formData: FormData) {
   // 確認是這名家長的孩子，避免越權刪除
   await prisma.childProfile.deleteMany({
     where: { id: childId, parentId: session.userId },
+  })
+  revalidatePath('/dashboard')
+}
+
+// ============ 孩子 PIN 碼管理 ============
+export async function setChildPin(formData: FormData) {
+  const session = await getSession()
+  if (!session) throw new Error('未授權')
+
+  const childId = String(formData.get('childId') || '')
+  const pin = String(formData.get('pin') || '').trim()
+
+  if (!/^\d{4}$/.test(pin)) {
+    throw new Error('PIN 碼必須是 4 位數字')
+  }
+
+  // 確認是這名家長的孩子
+  const child = await prisma.childProfile.findFirst({
+    where: { id: childId, parentId: session.userId },
+  })
+  if (!child) throw new Error('找不到孩子檔案')
+
+  // 檢查 PIN 是否與其他孩子重複
+  const existing = await prisma.childProfile.findFirst({
+    where: { pin, id: { not: childId } },
+  })
+  if (existing) {
+    throw new Error('此 PIN 碼已被其他孩子使用，請換一組')
+  }
+
+  await prisma.childProfile.update({
+    where: { id: childId },
+    data: { pin },
+  })
+  revalidatePath('/dashboard')
+}
+
+export async function removeChildPin(formData: FormData) {
+  const session = await getSession()
+  if (!session) throw new Error('未授權')
+
+  const childId = String(formData.get('childId') || '')
+
+  await prisma.childProfile.updateMany({
+    where: { id: childId, parentId: session.userId },
+    data: { pin: null },
   })
   revalidatePath('/dashboard')
 }

@@ -1,17 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
-// 受保護路徑：家長端、管理端、學生練習
-const PROTECTED = ['/dashboard', '/admin', '/practice', '/children', '/result']
+// 受保護路徑：家長端、管理端
+const PROTECTED = ['/dashboard', '/admin', '/children']
+// 孩子練習路由（可用孩子 session 或家長 session）
+const CHILD_ROUTES = ['/practice']
 // 已登入者不該再看到：登入、註冊
 const AUTH_PAGES = ['/login', '/signup']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get('math-session')?.value
+  const childToken = request.cookies.get('math-child')?.value
 
   let isAuthenticated = false
   let role: string | undefined
+
   if (token) {
     try {
       const key = new TextEncoder().encode(process.env.SESSION_SECRET)
@@ -21,6 +25,27 @@ export async function proxy(request: NextRequest) {
     } catch {
       isAuthenticated = false
     }
+  }
+
+  // 檢查孩子 session（僅對練習路由有效）
+  let isChildAuthenticated = false
+  if (childToken && CHILD_ROUTES.some((p) => pathname.startsWith(p))) {
+    try {
+      const key = new TextEncoder().encode(process.env.SESSION_SECRET)
+      await jwtVerify(childToken, key, { algorithms: ['HS256'] })
+      isChildAuthenticated = true
+    } catch {
+      isChildAuthenticated = false
+    }
+  }
+
+  // 孩子練習路由：孩子 session 或家長 session 皆可
+  if (CHILD_ROUTES.some((p) => pathname.startsWith(p))) {
+    if (isAuthenticated || isChildAuthenticated) {
+      return NextResponse.next()
+    }
+    const url = new URL('/child-login', request.url)
+    return NextResponse.redirect(url)
   }
 
   // 受保護頁面但未登入 → 導向登入頁
@@ -40,6 +65,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // 排除靜態資源與 API
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
