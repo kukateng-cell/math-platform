@@ -1,0 +1,54 @@
+import Link from 'next/link'
+import { getCurrentUser } from '@/actions/auth'
+import { getAdminStats } from '@/actions/admin'
+
+export default async function AdminPage() {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'ADMIN') return null
+
+  const stats = await getAdminStats()
+
+  const cards = [
+    { label: '技能', value: stats.skills, href: '/admin/skills', icon: '🎯' },
+    { label: '啟用題目', value: stats.questions, href: '/admin/questions', icon: '📝' },
+    { label: '作答紀錄', value: stats.attempts, href: '/admin/attempts', icon: '📊' },
+    { label: '孩子檔案', value: stats.children, href: '#', icon: '🧒' },
+  ]
+
+  return (
+    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
+      <h1 className="mb-6 text-2xl font-bold">管理後台</h1>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((c) => (
+          <Link
+            key={c.label}
+            href={c.href}
+            className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow"
+          >
+            <div className="mb-2 text-2xl">{c.icon}</div>
+            <div className="text-2xl font-bold">{c.value}</div>
+            <div className="text-sm text-neutral-500">{c.label}</div>
+          </Link>
+        ))}
+      </div>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        <Link
+          href="/admin/skills"
+          className="rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-blue-300"
+        >
+          <h3 className="font-semibold">🎯 技能管理</h3>
+          <p className="mt-1 text-sm text-neutral-500">新增、修改、停用技能與前置關係</p>
+        </Link>
+        <Link
+          href="/admin/questions"
+          className="rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-blue-300"
+        >
+          <h3 className="font-semibold">📝 題目管理</h3>
+          <p className="mt-1 text-sm text-neutral-500">新增題目、參數化模板、停用問題題目</p>
+        </Link>
+      </div>
+    </main>
+  )
+}
