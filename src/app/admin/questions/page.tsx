@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session'
 import { toggleQuestion } from '@/actions/admin'
 import QuestionForm from '@/components/admin/question-form'
 import QuestionActions from '@/components/admin/question-actions'
+import SkillFilter from '@/components/admin/skill-filter'
 
 const TYPE_LABEL: Record<string, string> = {
   DIRECT: '直接',
@@ -107,29 +108,11 @@ export default async function AdminQuestionsPage({
 
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-neutral-500">技能篩選</label>
-          <form className="flex gap-2">
-            <select
-              name="skillId"
-              defaultValue={filterSkillId}
-              className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-              onChange={(e) => {
-                const val = e.target.value
-                const params = new URLSearchParams()
-                if (query) params.set('q', query)
-                if (val) params.set('skillId', val)
-                params.set('page', '1')
-                const qs = params.toString()
-                window.location.href = `/admin/questions${qs ? `?${qs}` : ''}`
-              }}
-            >
-              <option value="">全部技能</option>
-              {skills.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </form>
+          <SkillFilter
+            skills={skills}
+            defaultValue={filterSkillId}
+            query={query}
+          />
         </div>
       </div>
 

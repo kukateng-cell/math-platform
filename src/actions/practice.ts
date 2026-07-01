@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { generateQuestion } from '@/lib/question'
+import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation } from '@/lib/mastery'
 
 const QUESTIONS_PER_SESSION = 10
@@ -38,8 +38,8 @@ export async function startSession(childId: string, skillId: string) {
     throw new Error('這個技能目前沒有題目，請聯繫管理員')
   }
 
-  // 伺服器端生成題目實例（不夠就重複取樣），存成快照供驗證
-  const templates = skill.questions
+  // 伺服器端生成題目實例（打亂模板順序，讓每次練習不同）
+  const templates = shuffle(skill.questions)
   const generated: StoredQuestion[] = []
   for (let i = 0; i < QUESTIONS_PER_SESSION; i++) {
     const t = templates[i % templates.length]
