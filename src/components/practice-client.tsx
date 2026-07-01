@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { submitAnswer, type SubmitResult } from '@/actions/practice'
-import type { QuestionInstance } from '@/lib/question'
 
 type Props = {
   questions: { templateId: string; prompt: string; answer: string; options?: string[] }[]
@@ -29,6 +28,7 @@ export default function PracticeClient({
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
   const completionLinkRef = useRef<HTMLAnchorElement | null>(null)
+  const submittingRef = useRef(false) // 防止 Enter 重複觸發
 
   const current = questions[index]
   const progress = Math.round((index / questions.length) * 100)
@@ -41,30 +41,35 @@ export default function PracticeClient({
     }
   }, [index])
 
-  // 鍵盤快捷鍵處理
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      // 數字鍵 1-4 選擇對應選項
-      if (current.options && e.key >= '1' && e.key <= '4') {
-        const optIndex = Number(e.key) - 1
-        if (optIndex < current.options.length) {
-          choose(current.options[optIndex])
-        }
-        return
+  // 完成頁自動聚焦「查看學習概覽」
+  useEffect(() => {
+    if (index >= questions.length && completionLinkRef.current) {
+      completionLinkRef.current.focus()
+    }
+  }, [index, questions.length])
+
+  // 鍵盤快捷鍵處理（使用 ref guard 防止 Enter 重複觸發）
+  function handleKeyDown(e: React.KeyboardEvent) {
+    // 數字鍵 1-4 選擇對應選項
+    if (current.options && e.key >= '1' && e.key <= '4') {
+      const optIndex = Number(e.key) - 1
+      if (optIndex < current.options.length) {
+        choose(current.options[optIndex])
       }
-      // Enter: 送出答案或下一題
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        if (lastResult) {
-          nextQuestion()
-        } else {
-          handleSubmit()
-        }
+      return
+    }
+    // Enter: 送出答案或下一題（用 submittingRef 防止 race condition）
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (submittingRef.current) return // 已在處理中，忽略
+      if (lastResult) {
+        nextQuestion()
+      } else {
+        submittingRef.current = true
+        handleSubmit()
       }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [current, lastResult, submitting, selected],
-  )
+    }
+  }
 
   function choose(val: string) {
     if (submitting || lastResult) return
@@ -92,6 +97,7 @@ export default function PracticeClient({
       setError('送出失敗，請再試一次')
     } finally {
       setSubmitting(false)
+      submittingRef.current = false
     }
   }
 
@@ -142,9 +148,10 @@ export default function PracticeClient({
         <div
           className="h-2 w-full rounded-full bg-neutral-200"
           role="progressbar"
-          aria-valuenow={index}
-          aria-valuemin={0}
+          aria-valuenow={index + 1}
+          aria-valuemin={1}
           aria-valuemax={totalQuestions}
+          aria-valuetext={`第 ${index + 1} 題，共 ${totalQuestions} 題`}
           aria-label={`練習進度：第 ${index + 1} 題，共 ${totalQuestions} 題`}
         >
           <div
@@ -181,6 +188,7 @@ export default function PracticeClient({
                 onClick={() => choose(opt)}
                 disabled={!!lastResult}
                 aria-pressed={selected === opt}
+                aria-keyshortcuts={`${optIdx + 1}`}
                 className={`rounded-xl border-2 px-4 py-5 text-2xl font-bold transition ${cls}`}
               >
                 {opt}

@@ -8,15 +8,23 @@ export default function ReducedMotionToggle() {
 
   useEffect(() => {
     setMounted(true)
-    const stored = localStorage.getItem('reduced-motion') === 'true'
-    setReduced(stored)
-    document.documentElement.classList.toggle('reduce-motion', stored)
+    try {
+      const stored = localStorage.getItem('reduced-motion') === 'true'
+      setReduced(stored)
+      document.documentElement.classList.toggle('reduce-motion', stored)
+    } catch {
+      // localStorage 不可用（私密瀏覽等），忽略
+    }
   }, [])
 
   function toggle() {
     const next = !reduced
     setReduced(next)
-    localStorage.setItem('reduced-motion', String(next))
+    try {
+      localStorage.setItem('reduced-motion', String(next))
+    } catch {
+      // 儲存失敗，不影響功能
+    }
     document.documentElement.classList.toggle('reduce-motion', next)
   }
 
@@ -27,6 +35,7 @@ export default function ReducedMotionToggle() {
 
   return (
     <button
+      type="button"
       onClick={toggle}
       className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition hover:bg-neutral-100"
       aria-label={reduced ? '關閉減少動畫模式' : '開啟減少動畫模式'}
