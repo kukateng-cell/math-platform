@@ -101,9 +101,10 @@ model QuestionTemplate {
 }
 
 enum QuestionType {
-  DIRECT // 直接題目
-  ADD    // 參數化加法
-  SUB    // 參數化減法
+  DIRECT       // 直接題目
+  ADD          // 參數化加法
+  SUB          // 參數化減法
+  WORD_PROBLEM // 參數化生活情境文字題
 }
 
 // ============ 練習 ============

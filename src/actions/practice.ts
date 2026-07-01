@@ -14,6 +14,7 @@ type StoredQuestion = {
   prompt: string
   answer: string
   options?: string[]
+  explanation?: string
 }
 
 // 開始一次練習：在伺服器生成題目快照後建立 session
@@ -55,6 +56,7 @@ export async function startSession(childId: string, skillId: string) {
       prompt: q.prompt,
       answer: q.answer,
       options: q.options,
+      explanation: t.explanation ?? undefined,
     })
   }
 
@@ -181,7 +183,7 @@ export async function submitAnswer(payload: {
   revalidatePath('/dashboard')
   revalidatePath('/children')
 
-  return { correct, correctAnswer, finished, sessionId: payload.sessionId }
+  return { correct, correctAnswer, finished, sessionId: payload.sessionId, explanation: q.explanation }
 }
 
 // 取得孩子的技能選單與推薦

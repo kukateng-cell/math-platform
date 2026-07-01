@@ -13,7 +13,7 @@ export type QuestionInstance = {
 
 type RawTemplate = {
   id?: string
-  type: 'DIRECT' | 'ADD' | 'SUB'
+  type: 'DIRECT' | 'ADD' | 'SUB' | 'WORD_PROBLEM'
   prompt: string
   paramsJson: string | null
   answer: string
@@ -42,17 +42,17 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
 
   // 參數化題目
   const params = template.paramsJson ? safeParse(template.paramsJson) : {}
-  const aMin = params.aMin ?? 1
-  const aMax = params.aMax ?? 5
-  const bMin = params.bMin ?? 1
-  const bMax = params.bMax ?? 5
+  const aMin = Number(params.aMin ?? 1)
+  const aMax = Number(params.aMax ?? 5)
+  const bMin = Number(params.bMin ?? 1)
+  const bMax = Number(params.bMax ?? 5)
 
   let a = randInt(aMin, aMax)
   let b = randInt(bMin, bMax)
 
   if (template.type === 'ADD') {
     // 加法：保證和不超過 sumMax。若參數本身就矛盾（aMin+bMin>sumMax）則降級處理
-    const sumMax = params.sumMax ?? aMax + bMax
+    const sumMax = Number(params.sumMax ?? aMax + bMax)
     let tries = 0
     while (a + b > sumMax && tries < 20) {
       // 嘗試把 b 縮到合法且不超過 sumMax 的範圍
@@ -75,6 +75,39 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
     }
     // 保險：重抽失敗就直接令 a = max(a,b)
     if (a < b) [a, b] = [Math.max(a, b), Math.min(a, b)]
+  } else if (template.type === 'WORD_PROBLEM') {
+    // 文字題：內部根據 operation 決定用加法或減法邏輯
+    const operation: 'add' | 'sub' = params.operation === 'sub' ? 'sub' : 'add'
+    const wpSumMax = Number(params.sumMax ?? (operation === 'add' ? aMax + bMax : aMax))
+
+    let tries = 0
+    if (operation === 'add') {
+      while (a + b > wpSumMax && tries < 20) {
+        const bCeiling = Math.max(bMin, Math.min(bMax, wpSumMax - a))
+        b = randInt(bMin, bCeiling)
+        if (a + b > wpSumMax) {
+          const aCeiling = Math.max(aMin, Math.min(aMax, wpSumMax - b))
+          a = randInt(aMin, aCeiling)
+        }
+        tries++
+      }
+    } else {
+      while (a < b && tries < 20) {
+        a = randInt(Math.max(aMin, bMin), aMax)
+        b = randInt(bMin, Math.min(bMax, a))
+        tries++
+      }
+      if (a < b) [a, b] = [Math.max(a, b), Math.min(a, b)]
+    }
+
+    const answer = operation === 'add' ? a + b : a - b
+
+    const prompt = template.prompt.replace('{a}', String(a)).replace('{b}', String(b))
+
+    const distractors = generateDistractors(answer, 3)
+    const options = shuffle([answer, ...distractors]).map(String)
+
+    return { prompt, answer: String(answer), options, templateId: template.id, _a: a, _b: b }
   }
 
   const answer = template.type === 'ADD' ? a + b : a - b
@@ -89,7 +122,7 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
 }
 
 // 安全 JSON parse
-function safeParse(json: string): Record<string, number> {
+function safeParse(json: string): Record<string, unknown> {
   try {
     return JSON.parse(json)
   } catch {
