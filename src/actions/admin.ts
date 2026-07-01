@@ -68,7 +68,10 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   }
 
   // 參數化題（ADD/SUB）必須有合法 JSON 參數
-  if ((type === 'ADD' || type === 'SUB') && paramsJson) {
+  if (type === 'ADD' || type === 'SUB') {
+    if (!paramsJson) {
+      return { message: '參數化題型（ADD/SUB）必須填寫參數 JSON' }
+    }
     try {
       const parsed = JSON.parse(paramsJson)
       if (typeof parsed.aMin !== 'number' || typeof parsed.aMax !== 'number' ||

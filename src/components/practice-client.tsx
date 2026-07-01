@@ -141,6 +141,13 @@ export default function PracticeClient({
         </div>
       ) : null}
 
+      {/* 錯誤提示 */}
+      {error && (
+        <div className="rounded-xl bg-red-50 p-3 text-center text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
       {/* 回饋 */}
       {lastResult && (
         <div
