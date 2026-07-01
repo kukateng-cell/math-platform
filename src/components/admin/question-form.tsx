@@ -1,24 +1,51 @@
 'use client'
 
 import { useActionState } from 'react'
-import { createQuestion, type AdminFormState } from '@/actions/admin'
+import { createQuestion, updateQuestion, type AdminFormState } from '@/actions/admin'
 
-export default function QuestionForm({
-  skills,
-}: {
-  skills: { id: string; name: string }[]
-}) {
-  const [state, action, pending] = useActionState<AdminFormState, FormData>(createQuestion, undefined)
+type BaseSkill = { id: string; name: string }
+type Question = {
+  id: string
+  skillId: string
+  type: string
+  prompt: string
+  answer: string
+  options: string | null
+  paramsJson: string | null
+  explanation: string | null
+}
+
+type Props =
+  | { mode: 'create'; skills: BaseSkill[]; question?: never; onDone?: () => void }
+  | { mode: 'edit'; skills: BaseSkill[]; question: Question; onDone: () => void }
+
+export default function QuestionForm(props: Props) {
+  const { skills, mode } = props
+
+  const actionFn = mode === 'create' ? createQuestion : updateQuestion
+  const [state, action, pending] = useActionState<AdminFormState, FormData>(actionFn, undefined)
+
+  if (state?.ok && mode === 'edit' && props.onDone) {
+    props.onDone()
+  }
 
   return (
     <form action={action} className="flex flex-col gap-3">
+      {mode === 'edit' && <input type="hidden" name="id" value={props.question.id} />}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium">技能 *</label>
-          <select name="skillId" defaultValue="" className="rounded-lg border border-neutral-300 px-3 py-2">
-            <option value="" disabled>
-              選擇技能
-            </option>
+          <select
+            name="skillId"
+            defaultValue={mode === 'edit' ? props.question.skillId : ''}
+            className="rounded-lg border border-neutral-300 px-3 py-2"
+          >
+            {mode === 'create' && (
+              <option value="" disabled>
+                選擇技能
+              </option>
+            )}
             {skills.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -28,11 +55,24 @@ export default function QuestionForm({
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium">題型</label>
-          <select name="type" defaultValue="DIRECT" className="rounded-lg border border-neutral-300 px-3 py-2">
-            <option value="DIRECT">直接題目</option>
-            <option value="ADD">參數化加法</option>
-            <option value="SUB">參數化減法</option>
-          </select>
+          {mode === 'edit' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={props.question.type === 'DIRECT' ? '直接題目' : props.question.type === 'ADD' ? '參數化加法' : '參數化減法'}
+                readOnly
+                disabled
+                className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400"
+              />
+              <span className="text-xs text-neutral-400">不可變更</span>
+            </div>
+          ) : (
+            <select name="type" defaultValue="DIRECT" className="rounded-lg border border-neutral-300 px-3 py-2">
+              <option value="DIRECT">直接題目</option>
+              <option value="ADD">參數化加法</option>
+              <option value="SUB">參數化減法</option>
+            </select>
+          )}
         </div>
       </div>
 
@@ -40,6 +80,7 @@ export default function QuestionForm({
         <label className="text-sm font-medium">題目 *</label>
         <input
           name="prompt"
+          defaultValue={mode === 'edit' ? props.question.prompt : undefined}
           placeholder="直接題目：3 + 4 = ?　參數化：{a} + {b} = ?"
           className="rounded-lg border border-neutral-300 px-3 py-2"
         />
@@ -50,6 +91,7 @@ export default function QuestionForm({
           <label className="text-sm font-medium">答案 *</label>
           <input
             name="answer"
+            defaultValue={mode === 'edit' ? props.question.answer : undefined}
             placeholder="直接題：7　參數化：{a+b}"
             className="rounded-lg border border-neutral-300 px-3 py-2"
           />
@@ -58,6 +100,7 @@ export default function QuestionForm({
           <label className="text-sm font-medium">選項（選擇題用，逗號分隔）</label>
           <input
             name="options"
+            defaultValue={mode === 'edit' ? (props.question.options ?? '') : undefined}
             placeholder="留空為填答題"
             className="rounded-lg border border-neutral-300 px-3 py-2"
           />
@@ -68,6 +111,7 @@ export default function QuestionForm({
         <label className="text-sm font-medium">參數 JSON（參數化題用）</label>
         <input
           name="paramsJson"
+          defaultValue={mode === 'edit' ? (props.question.paramsJson ?? '') : undefined}
           placeholder='{"aMin":1,"aMax":5,"bMin":1,"bMax":5,"sumMax":10}'
           className="rounded-lg border border-neutral-300 px-3 py-2 font-mono text-xs"
         />
@@ -75,19 +119,34 @@ export default function QuestionForm({
 
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium">解析</label>
-        <input name="explanation" className="rounded-lg border border-neutral-300 px-3 py-2" />
+        <input
+          name="explanation"
+          defaultValue={mode === 'edit' ? (props.question.explanation ?? '') : undefined}
+          className="rounded-lg border border-neutral-300 px-3 py-2"
+        />
       </div>
 
       {state?.message && <p className="text-sm text-red-500">{state.message}</p>}
-      {state?.ok && <p className="text-sm text-green-600">已建立！</p>}
+      {state?.ok && <p className="text-sm text-green-600">{mode === 'edit' ? '已更新！' : '已建立！'}</p>}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-      >
-        {pending ? '建立中…' : '+ 新增題目'}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className="self-start rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        >
+          {pending ? '儲存中…' : mode === 'edit' ? '✓ 儲存變更' : '+ 新增題目'}
+        </button>
+        {mode === 'edit' && (
+          <button
+            type="button"
+            onClick={props.onDone}
+            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            取消
+          </button>
+        )}
+      </div>
     </form>
   )
 }
