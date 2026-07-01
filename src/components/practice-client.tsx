@@ -26,7 +26,7 @@ export default function PracticeClient({
   const [correctCount, setCorrectCount] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const startTimeRef = useRef<number>(Date.now())
+  const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
 
   const current = questions[index]
   const progress = Math.round((index / questions.length) * 100)
@@ -155,7 +155,12 @@ export default function PracticeClient({
             lastResult.correct ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
           }`}
         >
-          {lastResult.correct ? '✓ 答對了！' : `✗ 正確答案是 ${lastResult.correctAnswer}`}
+          <p className="text-lg font-bold">
+            {lastResult.correct ? '✓ 答對了！' : `✗ 正確答案是 ${lastResult.correctAnswer}`}
+          </p>
+          {lastResult.explanation && (
+            <p className="mt-2 text-sm opacity-80">💡 {lastResult.explanation}</p>
+          )}
         </div>
       )}
 
