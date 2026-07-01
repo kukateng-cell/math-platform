@@ -32,6 +32,9 @@ export default async function Header() {
             </>
           ) : (
             <>
+              <Link href="/child-login" className="text-neutral-500 hover:text-neutral-700">
+                🧒 孩子練習
+              </Link>
               <Link href="/login" className="text-neutral-600 hover:text-neutral-900">
                 登入
               </Link>

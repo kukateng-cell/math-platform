@@ -39,6 +39,8 @@ model ChildProfile {
   parentId  String
   nickname  String
   gradeLevel String // K, G1, G2 ...
+  // 4 位數 PIN 碼，讓孩子可直接進入練習模式（家長可設定/重設）
+  pin       String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

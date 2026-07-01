@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/actions/auth'
 import { prisma } from '@/lib/prisma'
 import AddChildForm from '@/components/add-child-form'
 import DeleteChildButton from '@/components/delete-child-button'
+import ChildPinManager from '@/components/child-pin-manager'
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()
@@ -21,7 +22,15 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold">我的孩子</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">我的孩子</h1>
+        <Link
+          href="/child-login"
+          className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 transition hover:bg-neutral-50"
+        >
+          🧒 孩子練習模式
+        </Link>
+      </div>
 
       {children.length === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center">
@@ -67,6 +76,9 @@ export default async function DashboardPage() {
               >
                 學習概覽
               </Link>
+              <div className="mb-2">
+                <ChildPinManager childId={child.id} currentPin={child.pin ?? null} />
+              </div>
               <DeleteChildButton childId={child.id} nickname={child.nickname} />
             </div>
           ))}

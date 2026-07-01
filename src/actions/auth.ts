@@ -199,6 +199,52 @@ export async function deleteChild(formData: FormData) {
   revalidatePath('/dashboard')
 }
 
+// ============ 孩子 PIN 碼管理 ============
+export async function setChildPin(formData: FormData) {
+  const session = await getSession()
+  if (!session) throw new Error('未授權')
+
+  const childId = String(formData.get('childId') || '')
+  const pin = String(formData.get('pin') || '').trim()
+
+  if (!/^\d{4}$/.test(pin)) {
+    throw new Error('PIN 碼必須是 4 位數字')
+  }
+
+  // 確認是這名家長的孩子
+  const child = await prisma.childProfile.findFirst({
+    where: { id: childId, parentId: session.userId },
+  })
+  if (!child) throw new Error('找不到孩子檔案')
+
+  // 檢查 PIN 是否與其他孩子重複
+  const existing = await prisma.childProfile.findFirst({
+    where: { pin, id: { not: childId } },
+  })
+  if (existing) {
+    throw new Error('此 PIN 碼已被其他孩子使用，請換一組')
+  }
+
+  await prisma.childProfile.update({
+    where: { id: childId },
+    data: { pin },
+  })
+  revalidatePath('/dashboard')
+}
+
+export async function removeChildPin(formData: FormData) {
+  const session = await getSession()
+  if (!session) throw new Error('未授權')
+
+  const childId = String(formData.get('childId') || '')
+
+  await prisma.childProfile.updateMany({
+    where: { id: childId, parentId: session.userId },
+    data: { pin: null },
+  })
+  revalidatePath('/dashboard')
+}
+
 export async function getCurrentUser() {
   const session = await getSession()
   if (!session) return null
