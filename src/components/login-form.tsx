@@ -19,7 +19,8 @@ export default function LoginForm({ initialCaptcha }: Props) {
   const captcha = loginState?.captcha || initialCaptcha
   const isOtpMode = loginState?.otpRequired
   const tempToken = loginState?.tempToken || ''
-  const devOtp = loginState?.devOtp
+  // 開發模式 OTP：從 login 或 resend 回傳中取得
+  const devOtp = loginState?.devOtp || resendState?.devOtp
 
   // OTP 模式啟動時開始倒數
   useEffect(() => {
@@ -110,11 +111,24 @@ export default function LoginForm({ initialCaptcha }: Props) {
 
           {/* ═══ 開發模式：直接顯示驗證碼 ═══ */}
           {displayOtp && (
-            <div className="mt-3 rounded-lg bg-white/80 px-4 py-3">
+            <div className="mt-3 rounded-xl bg-white/80 px-4 py-3">
               <p className="mb-1 text-xs text-blue-500">🔧 開發模式 — 驗證碼</p>
-              <p className="select-all text-3xl font-bold tracking-[0.3em] text-blue-900">
+              <p className="mb-2 select-all text-3xl font-bold tracking-[0.3em] text-blue-900">
                 {displayOtp}
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.getElementById('otpCode') as HTMLInputElement
+                  if (input) {
+                    input.value = displayOtp
+                    input.dispatchEvent(new Event('input', { bubbles: true }))
+                  }
+                }}
+                className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+              >
+                一鍵填入
+              </button>
             </div>
           )}
 
