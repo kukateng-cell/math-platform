@@ -48,65 +48,104 @@ export type Recommendation = {
 }
 
 export function getRecommendation(
-  skills: { id: string; prerequisiteId: string | null }[],
+  skills: { id: string; prerequisiteId: string | null; name?: string }[],
   mastery: { skillId: string; recentCorrect: number; recentTotal: number; masteryLevel: number }[]
 ): Recommendation {
   // 還沒練過任何技能 → 從第一個開始
   if (mastery.length === 0) {
     const first = skills[0]
     if (!first) return { type: 'START_FIRST', reason: '尚未有可用技能' }
-    const skill = first as { id: string; prerequisiteId: string | null; name?: string }
     return {
       type: 'START_FIRST',
-      skillId: skill.id,
-      skillName: skill.name ?? '第一個技能',
+      skillId: first.id,
+      skillName: first.name ?? '第一個技能',
       reason: '建議從第一個技能開始建立基礎',
     }
   }
 
-  // 找出當前正在練、且掌握度未達 100% 的最低順序技能
+  // 找出「當前正在練」的技能：最近有作答紀錄、且正確率未達掌握門檻的最低順序技能
+  // 如果所有技能都已掌握 → ALL_DONE
+  let allMastered = true
+  let currentSkill: (typeof skills)[0] | null = null
+  let currentMastery: (typeof mastery)[0] | null = null
+
   for (const skill of skills) {
     const m = mastery.find((x) => x.skillId === skill.id)
-    if (!m) continue
-
-    const rate = m.recentTotal > 0 ? m.recentCorrect / m.recentTotal : 0
-
-    // 規則 1：正確率過低 → 回前置技能
-    if (m.recentTotal >= 5 && rate < 0.4 && skill.prerequisiteId) {
-      const prereq = skills.find((s) => s.id === skill.prerequisiteId)
-      return {
-        type: 'PRACTICE_PREREQ',
-        skillId: skill.prerequisiteId,
-        skillName: (prereq as { name?: string })?.name ?? '前置技能',
-        reason: '最近表現偏低，建議先複習前置技能打好基礎',
+    if (!m || m.recentTotal === 0) {
+      // 還沒練過這個技能：如果前面的技能都掌握了，這就是下一個目標
+      if (allMastered) {
+        currentSkill = skill
+        currentMastery = null
+        break
       }
+      continue
     }
 
-    // 規則 2：完全答對 → 晉級下一個技能
-    if (m.recentTotal >= 5 && rate === 1) {
-      const next = skills.find((s) => s.prerequisiteId === skill.id)
-      if (next) {
-        return {
-          type: 'ADVANCE',
-          skillId: next.id,
-          skillName: (next as { name?: string })?.name ?? '下一個技能',
-          reason: '表現優異，可以挑戰下一個技能！',
-        }
-      }
-      // 已是最後一個技能且都掌握
-      return { type: 'ALL_DONE', reason: '太棒了！目前所有技能都已掌握 🎉' }
-    }
+    const rate = m.recentCorrect / m.recentTotal
 
-    // 規則 3：中間值 → 保持當前技能
-    if (rate < 1) {
-      return {
-        type: 'KEEP',
-        skillId: skill.id,
-        skillName: (skill as { name?: string })?.name ?? '當前技能',
-        reason: '繼續保持，多練一組會更熟練',
-      }
+    // 正確率 >= 95% 視為掌握
+    if (rate >= 0.95) continue
+
+    // 正確率 < 95% → 這是當前需要練習的技能
+    allMastered = false
+    currentSkill = skill
+    currentMastery = m
+    break
+  }
+
+  // 所有技能都掌握（或沒任何技能）
+  if (!currentSkill) {
+    return allMastered
+      ? { type: 'ALL_DONE', reason: '太棒了！目前所有技能都已掌握 🎉' }
+      : { type: 'KEEP', reason: '繼續加油！' }
+  }
+
+  // 沒有 mastery 紀錄 → 當前技能是下一個要練的
+  if (!currentMastery) {
+    return {
+      type: 'KEEP',
+      skillId: currentSkill.id,
+      skillName: currentSkill.name ?? '下一個技能',
+      reason: '準備好了嗎？試試這個新技能！',
     }
   }
 
-  return { type: 'KEEP', reason: '繼續加油！' }
+  const rate = currentMastery.recentTotal > 0
+    ? currentMastery.recentCorrect / currentMastery.recentTotal
+    : 0
+
+  // 規則 1：正確率過低（< 40%）且有足夠樣本數 → 回前置技能
+  if (currentMastery.recentTotal >= 5 && rate < 0.4 && currentSkill.prerequisiteId) {
+    const prereq = skills.find((s) => s.id === currentSkill.prerequisiteId)
+    return {
+      type: 'PRACTICE_PREREQ',
+      skillId: currentSkill.prerequisiteId,
+      skillName: prereq?.name ?? '前置技能',
+      reason: '最近表現偏低，建議先複習前置技能打好基礎',
+    }
+  }
+
+  // 規則 2：掌握（rate >= 95%）且樣本夠 → 晉級下一個技能
+  if (currentMastery.recentTotal >= 5 && rate >= 0.95) {
+    const next = skills.find((s) => s.prerequisiteId === currentSkill!.id)
+    if (next) {
+      return {
+        type: 'ADVANCE',
+        skillId: next.id,
+        skillName: next.name ?? '下一個技能',
+        reason: '表現優異，可以挑戰下一個技能！',
+      }
+    }
+    return { type: 'ALL_DONE', reason: '太棒了！目前所有技能都已掌握 🎉' }
+  }
+
+  // 規則 3：中間值（有練習但未掌握）→ 保持當前技能
+  return {
+    type: 'KEEP',
+    skillId: currentSkill.id,
+    skillName: currentSkill.name ?? '當前技能',
+    reason: rate >= 0.6
+      ? '繼續保持，多練一組會更熟練'
+      : '再加把勁，多練習幾次就會了',
+  }
 }

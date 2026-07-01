@@ -117,6 +117,8 @@ model PracticeSession {
   completedAt DateTime?
   totalQuestions Int    @default(0)
   correctCount   Int    @default(0)
+  // 伺服器生成的題目快照（JSON），供 submitAnswer 驗證用，避免信任前端
+  questionsJson String?
 
   child    ChildProfile     @relation(fields: [childId], references: [id], onDelete: Cascade)
   skill    Skill            @relation(fields: [skillId], references: [id])

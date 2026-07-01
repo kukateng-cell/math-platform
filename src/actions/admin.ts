@@ -67,6 +67,19 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
     return { message: '技能、題目、答案為必填' }
   }
 
+  // 參數化題（ADD/SUB）必須有合法 JSON 參數
+  if ((type === 'ADD' || type === 'SUB') && paramsJson) {
+    try {
+      const parsed = JSON.parse(paramsJson)
+      if (typeof parsed.aMin !== 'number' || typeof parsed.aMax !== 'number' ||
+          typeof parsed.bMin !== 'number' || typeof parsed.bMax !== 'number') {
+        return { message: '參數 JSON 需包含 aMin, aMax, bMin, bMax 數字欄位' }
+      }
+    } catch {
+      return { message: '參數 JSON 格式無效，請檢查語法' }
+    }
+  }
+
   await prisma.questionTemplate.create({
     data: { skillId, type, prompt, answer, options, explanation, paramsJson },
   })

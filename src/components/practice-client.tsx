@@ -5,7 +5,7 @@ import { submitAnswer, type SubmitResult } from '@/actions/practice'
 import type { QuestionInstance } from '@/lib/question'
 
 type Props = {
-  questions: (QuestionInstance & { templateId: string })[]
+  questions: { templateId: string; prompt: string; answer: string; options?: string[] }[]
   sessionId: string
   skillName: string
   childNickname: string
@@ -25,6 +25,7 @@ export default function PracticeClient({
   const [assisted, setAssisted] = useState(false)
   const [correctCount, setCorrectCount] = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const startTimeRef = useRef<number>(Date.now())
 
   const current = questions[index]
@@ -38,21 +39,25 @@ export default function PracticeClient({
   async function handleSubmit() {
     if (!selected || submitting) return
     setSubmitting(true)
+    setError(null)
     const durationMs = Date.now() - startTimeRef.current
 
-    const result = await submitAnswer({
-      sessionId,
-      questionId: current.templateId,
-      questionPrompt: current.prompt,
-      userAnswer: selected,
-      correctAnswer: current.answer,
-      assisted,
-      durationMs,
-    })
+    try {
+      const result = await submitAnswer({
+        sessionId,
+        questionIndex: index,
+        userAnswer: selected,
+        assisted,
+        durationMs,
+      })
 
-    setLastResult(result)
-    if (result.correct && !assisted) setCorrectCount((c) => c + 1)
-    setSubmitting(false)
+      setLastResult(result)
+      if (result.correct && !assisted) setCorrectCount((c) => c + 1)
+    } catch {
+      setError('送出失敗，請再試一次')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function nextQuestion() {

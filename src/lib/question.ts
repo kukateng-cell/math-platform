@@ -6,6 +6,9 @@ export type QuestionInstance = {
   answer: string
   options?: string[]
   templateId?: string
+  // 參數化題目用：實際抽到的運算元（供伺服器驗證重算）
+  _a?: number
+  _b?: number
 }
 
 type RawTemplate = {
@@ -38,31 +41,83 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
   }
 
   // 參數化題目
-  const params = template.paramsJson ? JSON.parse(template.paramsJson) : {}
-  let a = randInt(params.aMin ?? 1, params.aMax ?? 5)
-  let b = randInt(params.bMin ?? 1, params.bMax ?? 5)
+  const params = template.paramsJson ? safeParse(params, template.paramsJson) : {}
+  const aMin = params.aMin ?? 1
+  const aMax = params.aMax ?? 5
+  const bMin = params.bMin ?? 1
+  const bMax = params.bMax ?? 5
 
-  // 加法：保證和不超過 sumMax；減法：保證差 ≥ 0
-  if (template.type === 'ADD' && params.sumMax && a + b > params.sumMax) {
-    b = Math.max(params.bMin ?? 1, params.sumMax - a)
-    if (a + b > params.sumMax) {
-      a = Math.max(params.aMin ?? 1, params.sumMax - b)
+  let a = randInt(aMin, aMax)
+  let b = randInt(bMin, bMax)
+
+  if (template.type === 'ADD') {
+    // 加法：保證和不超過 sumMax。若參數本身就矛盾（aMin+bMin>sumMax）則降級處理
+    const sumMax = params.sumMax ?? aMax + bMax
+    let tries = 0
+    while (a + b > sumMax && tries < 20) {
+      // 嘗試把 b 縮到合法且不超過 sumMax 的範圍
+      const bCeiling = Math.max(bMin, Math.min(bMax, sumMax - a))
+      b = randInt(bMin, bCeiling)
+      // 若仍超，連帶縮 a
+      if (a + b > sumMax) {
+        const aCeiling = Math.max(aMin, Math.min(aMax, sumMax - b))
+        a = randInt(aMin, aCeiling)
+      }
+      tries++
     }
-  }
-  if (template.type === 'SUB' && b > a) {
-    ;[a, b] = [b, a] // 確保被減數 ≥ 減數，差不為負
+  } else if (template.type === 'SUB') {
+    // 減法：確保 a >= b（差不為負），在合法範圍內重抽而非強制交換
+    let tries = 0
+    while (a < b && tries < 20) {
+      a = randInt(Math.max(aMin, bMin), aMax)
+      b = randInt(bMin, Math.min(bMax, a))
+      tries++
+    }
+    // 保險：重抽失敗就直接令 a = max(a,b)
+    if (a < b) [a, b] = [Math.max(a, b), Math.min(a, b)]
   }
 
   const answer = template.type === 'ADD' ? a + b : a - b
 
   const prompt = template.prompt.replace('{a}', String(a)).replace('{b}', String(b))
-  // 產生選項：把正確答案與幾個干擾項混在一起
-  const distractors = new Set<number>()
-  while (distractors.size < 3) {
-    const d = answer + randInt(-2, 2)
-    if (d >= 0 && d !== answer) distractors.add(d)
-  }
+
+  // 產生選項：正確答案 + 干擾項，避免無限迴圈
+  const distractors = generateDistractors(answer, 3)
   const options = shuffle([answer, ...distractors]).map(String)
 
-  return { prompt, answer: String(answer), options, templateId: template.id }
+  return { prompt, answer: String(answer), options, templateId: template.id, _a: a, _b: b }
+}
+
+// 安全 JSON parse
+function safeParse(_placeholder: unknown, json: string): Record<string, number> {
+  try {
+    return JSON.parse(json)
+  } catch {
+    return {}
+  }
+}
+
+// 產生不重複的干擾項（保證收斂）
+function generateDistractors(answer: number, count: number): number[] {
+  const result = new Set<number>()
+  const spread = Math.max(3, Math.ceil(answer * 0.5) + 2)
+  let tries = 0
+  while (result.size < count && tries < 50) {
+    // 在 answer 附近隨機取，含小幅度與大幅度
+    const delta = randInt(-spread, spread)
+    const d = answer + delta
+    if (d >= 0 && d !== answer) result.add(d)
+    tries++
+  }
+  // 補不夠的：用 answer±1, ±2 補到滿
+  let offset = 1
+  while (result.size < count) {
+    const cands = [answer + offset, answer - offset].filter((x) => x >= 0 && x !== answer && !result.has(x))
+    for (const c of cands) {
+      if (result.size < count) result.add(c)
+    }
+    offset++
+    if (offset > 20) break
+  }
+  return [...result]
 }

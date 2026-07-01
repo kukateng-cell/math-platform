@@ -11,11 +11,13 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get('math-session')?.value
 
   let isAuthenticated = false
+  let role: string | undefined
   if (token) {
     try {
       const key = new TextEncoder().encode(process.env.SESSION_SECRET)
-      await jwtVerify(token, key, { algorithms: ['HS256'] })
+      const { payload } = await jwtVerify(token, key, { algorithms: ['HS256'] })
       isAuthenticated = true
+      role = payload.role as string | undefined
     } catch {
       isAuthenticated = false
     }
@@ -28,9 +30,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // 已登入還跑到登入/註冊 → 導向 dashboard（管理員到 admin）
+  // 已登入還跑到登入/註冊 → 按角色導向
   if (AUTH_PAGES.includes(pathname) && isAuthenticated) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    const target = role === 'ADMIN' ? '/admin' : '/dashboard'
+    return NextResponse.redirect(new URL(target, request.url))
   }
 
   return NextResponse.next()

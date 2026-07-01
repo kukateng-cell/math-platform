@@ -18,7 +18,7 @@ export default async function PracticeQuestionPage({
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
       <PracticeClient
-        questions={data.questions.map((q) => ({ ...q, templateId: q.templateId! }))}
+        questions={data.questions}
         sessionId={sessionId}
         skillName={data.skillName}
         childNickname={data.childNickname}
