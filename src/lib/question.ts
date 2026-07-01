@@ -24,7 +24,7 @@ function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-function shuffle<T>(arr: T[]): T[] {
+export function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
@@ -36,7 +36,9 @@ function shuffle<T>(arr: T[]): T[] {
 // 根據模板產生一個具體題目實例
 export function generateQuestion(template: RawTemplate): QuestionInstance {
   if (template.type === 'DIRECT') {
-    const options = template.options ? template.options.split(',').map((s) => s.trim()) : undefined
+    const options = template.options
+      ? shuffle(template.options.split(',').map((s) => s.trim()))
+      : undefined
     return { prompt: template.prompt, answer: template.answer, options, templateId: template.id }
   }
 
