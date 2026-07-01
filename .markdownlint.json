@@ -4,5 +4,7 @@
   "no-inline-html": false,
   "first-line-heading": false,
   "no-emphasis-as-heading": false,
-  "no-alt-text": false
+  "no-alt-text": false,
+  "blanks-around-lists": false,
+  "no-blanks-blockquote": false
 }
