@@ -182,6 +182,10 @@ async function main() {
   })
 
   // ============ 題目模板 ============
+  // 必須按外鍵依賴順序清除，避免 SQLite 外鍵約束錯誤
+  await prisma.attempt.deleteMany({})
+  await prisma.practiceSession.deleteMany({})
+  await prisma.masterySnapshot.deleteMany({})
   await prisma.questionTemplate.deleteMany({})
 
   // ───────── 1. 數數（count-objects）: 20+ 題 ─────────
