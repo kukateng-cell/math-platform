@@ -1,10 +1,11 @@
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCurrentUser } from '@/actions/auth'
 import { getAdminStats } from '@/actions/admin'
 
 export default async function AdminPage() {
   const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return null
+  if (!user || user.role !== 'ADMIN') redirect('/dashboard')
 
   const stats = await getAdminStats()
 

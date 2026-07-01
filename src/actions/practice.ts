@@ -89,9 +89,15 @@ export async function getSessionQuestions(
   // 驗證家長擁有這個孩子
   if (practiceSession.child.parentId !== session.userId) return null
 
-  const questions: StoredQuestion[] = practiceSession.questionsJson
-    ? JSON.parse(practiceSession.questionsJson)
-    : []
+  // 相容舊 session：若無 questionsJson，回傳空陣列讓前端顯示提示
+  let questions: StoredQuestion[] = []
+  if (practiceSession.questionsJson) {
+    try {
+      questions = JSON.parse(practiceSession.questionsJson)
+    } catch {
+      questions = []
+    }
+  }
 
   return {
     questions,
