@@ -107,6 +107,8 @@ enum QuestionType {
   ADD          // 參數化加法
   SUB          // 參數化減法
   WORD_PROBLEM // 參數化生活情境文字題
+  MUL          // 參數化乘法
+  DIV          // 參數化除法
 }
 
 // ============ 練習 ============

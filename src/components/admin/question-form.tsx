@@ -59,7 +59,14 @@ export default function QuestionForm(props: Props) {
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                value={props.question.type === 'DIRECT' ? '直接題目' : props.question.type === 'ADD' ? '參數化加法' : '參數化減法'}
+                value={
+                  props.question.type === 'DIRECT' ? '直接題目' :
+                  props.question.type === 'ADD' ? '參數化加法' :
+                  props.question.type === 'SUB' ? '參數化減法' :
+                  props.question.type === 'MUL' ? '參數化乘法' :
+                  props.question.type === 'DIV' ? '參數化除法' :
+                  props.question.type === 'WORD_PROBLEM' ? '參數化文字題' : props.question.type
+                }
                 readOnly
                 disabled
                 className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400"
@@ -71,6 +78,8 @@ export default function QuestionForm(props: Props) {
               <option value="DIRECT">直接題目</option>
               <option value="ADD">參數化加法</option>
               <option value="SUB">參數化減法</option>
+              <option value="MUL">參數化乘法</option>
+              <option value="DIV">參數化除法</option>
             </select>
           )}
         </div>
