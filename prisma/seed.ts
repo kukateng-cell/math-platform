@@ -1072,6 +1072,28 @@ async function main() {
     },
   })
 
+  // ============ 成就徽章 ============
+  const badges = [
+    { code: 'first-practice', name: '第一次練習', icon: '🌟', condition: '完成首次練習' },
+    { code: 'streak-7', name: '練習一週', icon: '🔥', condition: '連續 7 天練習' },
+    { code: 'streak-14', name: '練習兩週', icon: '💪', condition: '連續 14 天練習' },
+    { code: 'streak-30', name: '練習一個月', icon: '🏆', condition: '連續 30 天練習' },
+    { code: 'stars-50', name: '收集 50 星', icon: '⭐', condition: '累計 50 顆星星' },
+    { code: 'stars-100', name: '收集 100 星', icon: '⭐⭐', condition: '累計 100 顆星星' },
+    { code: 'perfect-score', name: '完美得分', icon: '🎯', condition: '一次練習全對' },
+    { code: 'all-skills', name: '全能學習者', icon: '📚', condition: '所有技能都練過至少一次' },
+    { code: 'addition-master', name: '加法達人', icon: '🧮', condition: '加法技能正確率 ≥ 90%（最近 20 題）' },
+  ]
+
+  for (const badge of badges) {
+    await prisma.badge.upsert({
+      where: { code: badge.code },
+      update: { name: badge.name, icon: badge.icon, condition: badge.condition },
+      create: badge,
+    })
+  }
+
+  console.log(`  ✓ Badges: ${badges.length} seeded`)
   console.log('  ✓ Skills: 12, Questions seeded')
   console.log('✅ Done!')
 }

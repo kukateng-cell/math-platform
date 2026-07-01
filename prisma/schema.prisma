@@ -70,6 +70,7 @@ model ChildProfile {
   parentLinks       ParentChild[]     @relation("ChildLinks")
   masterySnapshots  MasterySnapshot[]
   sessions          PracticeSession[]
+  badges            ChildBadge[]
 
   @@index([parentId])
   @@index([email])
@@ -199,5 +200,30 @@ model MasterySnapshot {
   skill Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
   @@unique([childId, skillId])
+  @@index([childId])
+}
+
+// ============ 成就徽章 ============
+
+model Badge {
+  id        String   @id @default(cuid())
+  code      String   @unique // e.g. "first-practice", "streak-7"
+  name      String
+  icon      String   // emoji
+  condition String   // 解鎖條件描述
+
+  childBadges ChildBadge[]
+}
+
+model ChildBadge {
+  id        String   @id @default(cuid())
+  childId   String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  child ChildProfile @relation(fields: [childId], references: [id], onDelete: Cascade)
+  badge Badge       @relation(fields: [badgeId], references: [id])
+
+  @@unique([childId, badgeId])
   @@index([childId])
 }
