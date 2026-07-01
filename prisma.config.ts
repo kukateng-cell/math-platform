@@ -7,4 +7,8 @@ export default defineConfig({
   datasource: {
     url: `file:${path.join(process.cwd(), 'prisma', 'dev.db')}`,
   },
+  migrations: {
+    seed: 'node --experimental-strip-types prisma/seed.ts',
+  },
+  schema: 'prisma/schema.prisma',
 })

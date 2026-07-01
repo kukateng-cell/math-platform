@@ -25,7 +25,7 @@ export async function childLogin(state: ChildLoginState, formData: FormData): Pr
 
   await createChildSession({
     childId: child.id,
-    parentId: child.parentId,
+    parentId: child.parentId ?? '',
     nickname: child.nickname,
   })
 

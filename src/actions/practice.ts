@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation } from '@/lib/mastery'
+import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
 
 const QUESTIONS_PER_SESSION = 10
 
@@ -216,6 +217,28 @@ export async function submitAnswer(payload: {
       data: { completedAt: new Date() },
     })
     await updateMastery(payload.sessionId)
+
+    // ============ 遊戲化 ============
+    const childId = practiceSession.childId
+    // 查詢本次練習的正確數（不計 assisted）= 星星數
+    const sessionAttempts = await prisma.attempt.findMany({
+      where: { sessionId: payload.sessionId },
+    })
+    const starsEarned = sessionAttempts.filter(
+      (a) => a.isCorrect && !a.assisted
+    ).length
+    const allCorrect = sessionAttempts.every(
+      (a) => a.isCorrect
+    )
+
+    await updateStars(childId, starsEarned)
+    await updateStreak(childId)
+    await checkBadges({
+      childId,
+      sessionCorrectCount: starsEarned,
+      sessionTotalQuestions: total,
+      allCorrect,
+    })
   }
 
   revalidatePath('/dashboard')
