@@ -182,3 +182,129 @@ export async function parentRegisterStudent(state: StudentState, formData: FormD
 function composePin(formData: FormData): string {
   return [0, 1, 2, 3].map((i) => String(formData.get(`d${i}`) || '')).join('')
 }
+
+// ============ 自學模式驗證 ============
+const SelfStudySchema = z.object({
+  email: z.string().email('請輸入有效的 Email').trim(),
+  password: z.string().min(4, '密碼至少 4 個字元').trim(),
+  nickname: z.string().min(1, '請輸入暱稱').max(20).trim(),
+  gradeLevel: z.enum(['K', 'G1', 'G2']),
+})
+
+type SelfStudyState = {
+  error?: string
+  otpRequired?: boolean
+  tempToken?: string
+  captcha?: { question: string; token: string }
+  devOtp?: string
+  message?: string
+} | undefined
+
+// ============ 自學模式 Step 1：註冊 + CAPTCHA → 發送 OTP ============
+export async function selfStudySignup(state: SelfStudyState, formData: FormData): Promise<SelfStudyState> {
+  const { createCaptcha, verifyCaptcha } = await import('@/lib/captcha')
+  const { generateOtp, createTempToken } = await import('@/lib/otp')
+
+  const validated = SelfStudySchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+    nickname: formData.get('nickname'),
+    gradeLevel: formData.get('gradeLevel'),
+  })
+  if (!validated.success) {
+    const e = Object.values(validated.error.flatten().fieldErrors).flat()[0]
+    return { error: e || '資料錯誤', captcha: await createCaptcha() }
+  }
+
+  // CAPTCHA 驗證
+  const captchaToken = String(formData.get('captchaToken') || '')
+  const captchaAnswer = String(formData.get('captchaAnswer') || '')
+  if (!(await verifyCaptcha(captchaToken, captchaAnswer))) {
+    return { error: '驗證碼錯誤', captcha: await createCaptcha() }
+  }
+
+  const { email, password, nickname, gradeLevel } = validated.data
+
+  // 檢查 Email 是否已被使用
+  const existing = await prisma.childProfile.findUnique({ where: { email } })
+  if (existing) return { error: '此 Email 已被註冊', captcha: await createCaptcha() }
+
+  // 先建立帳號（尚未啟用 session，等 OTP 驗證後才登入）
+  const passwordHash = await bcrypt.hash(password, 10)
+  const child = await prisma.childProfile.create({
+    data: { email, passwordHash, nickname, gradeLevel, mode: 'SELF_STUDY' },
+  })
+
+  // 發送 OTP
+  const otpCode = generateOtp(child.id)
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  const tempToken = await createTempToken(child.id)
+
+  return {
+    otpRequired: true,
+    tempToken,
+    devOtp,
+    message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
+  }
+}
+
+// ============ 自學模式 Step 2：驗證 OTP → 登入 ============
+export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormData): Promise<SelfStudyState> {
+  const { verifyOtp, verifyTempToken } = await import('@/lib/otp')
+
+  const tempToken = String(formData.get('tempToken') || '')
+  const otpCode = String(formData.get('otpCode') || '')
+
+  if (!tempToken || !otpCode) return { error: '缺少必要參數' }
+
+  const childId = await verifyTempToken(tempToken)
+  if (!childId) return { error: '驗證已過期，請重新註冊' }
+
+  if (!verifyOtp(childId, otpCode)) return { error: '驗證碼錯誤或已過期' }
+
+  const child = await prisma.childProfile.findUnique({ where: { id: childId } })
+  if (!child) return { error: '帳號不存在' }
+
+  await createChildSession({ childId: child.id, parentId: '', nickname: child.nickname })
+  redirect(`/practice/${child.id}`)
+}
+
+// ============ 自學模式登入 Step 1：帳密 + CAPTCHA → OTP ============
+export async function selfStudyLogin(state: SelfStudyState, formData: FormData): Promise<SelfStudyState> {
+  const { createCaptcha, verifyCaptcha } = await import('@/lib/captcha')
+  const { generateOtp, createTempToken } = await import('@/lib/otp')
+
+  const email = String(formData.get('email') || '').trim()
+  const password = String(formData.get('password') || '')
+
+  if (!email || !password) return { error: '請填寫 Email 和密碼', captcha: await createCaptcha() }
+
+  // CAPTCHA
+  const captchaToken = String(formData.get('captchaToken') || '')
+  const captchaAnswer = String(formData.get('captchaAnswer') || '')
+  if (!(await verifyCaptcha(captchaToken, captchaAnswer))) {
+    return { error: '驗證碼錯誤', captcha: await createCaptcha() }
+  }
+
+  const child = await prisma.childProfile.findUnique({ where: { email } })
+  if (!child || !child.passwordHash || child.mode !== 'SELF_STUDY') {
+    return { error: 'Email 或密碼不正確', captcha: await createCaptcha() }
+  }
+
+  if (!(await bcrypt.compare(password, child.passwordHash))) {
+    return { error: 'Email 或密碼不正確', captcha: await createCaptcha() }
+  }
+
+  const otpCode = generateOtp(child.id)
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  const tempToken = await createTempToken(child.id)
+
+  return {
+    otpRequired: true,
+    tempToken,
+    devOtp,
+    message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
+  }
+}
+
+// 自學模式登入 Step 2 直接複用 selfStudyVerifyOtp

@@ -61,6 +61,8 @@ model ChildProfile {
 
   // 可選：由家長建立時才有 parentId；學生自主註冊時為 null
   parentId  String?
+  // 學習模式：STANDARD(需 PIN,可綁家長) | SELF_STUDY(免 PIN,用驗證碼登入)
+  mode      ChildMode @default(STANDARD)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -71,6 +73,11 @@ model ChildProfile {
 
   @@index([parentId])
   @@index([email])
+}
+
+enum ChildMode {
+  STANDARD   // 需 PIN,可綁家長
+  SELF_STUDY // 免 PIN,用驗證碼登入,自主學習
 }
 
 // ============ 技能 ============
