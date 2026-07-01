@@ -85,6 +85,59 @@ export default function QuestionForm(props: Props) {
         </div>
       </div>
 
+      {/* 互動模式 */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium">互動模式</label>
+          {mode === 'edit' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={(() => {
+                  const p = mode === 'edit' ? props.question.paramsJson : null
+                  if (!p) return '選擇題'
+                  try {
+                    const parsed = JSON.parse(p)
+                    return parsed.interaction === 'numberline' ? '數字線' : parsed.interaction === 'fillin' ? '填答鍵盤' : '選擇題'
+                  } catch { return '選擇題' }
+                })()}
+                readOnly
+                disabled
+                className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400"
+              />
+              <span className="text-xs text-neutral-400">不可變更</span>
+            </div>
+          ) : (
+            <select
+              name="interaction"
+              defaultValue="choice"
+              className="rounded-lg border border-neutral-300 px-3 py-2"
+              onChange={(e) => {
+                const hint = document.querySelector<HTMLInputElement>('input[name="paramsJson"]')
+                if (e.target.value === 'numberline' && hint && !hint.value) {
+                  hint.placeholder = '{"interaction":"numberline","rangeMin":0,"rangeMax":10}'
+                } else if (e.target.value === 'fillin' && hint && !hint.value) {
+                  hint.placeholder = '{"interaction":"fillin"}'
+                }
+              }}
+            >
+              <option value="choice">選擇題</option>
+              <option value="numberline">數字線</option>
+              <option value="fillin">填答鍵盤</option>
+            </select>
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium">選項（選擇題用，逗號分隔）</label>
+          <input
+            name="options"
+            defaultValue={mode === 'edit' ? (props.question.options ?? '') : undefined}
+            placeholder="留空為填答題"
+            className="rounded-lg border border-neutral-300 px-3 py-2"
+          />
+        </div>
+      </div>
+
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium">題目 *</label>
         <input
