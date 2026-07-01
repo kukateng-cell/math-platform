@@ -1,20 +1,100 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { getCurrentUser } from '@/actions/auth'
+import { notFound, redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { getChildSkills } from '@/actions/practice'
+import type { Recommendation } from '@/lib/mastery'
 
+// ============ 相對時間輔助 ============
+function relativeTime(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  const now = Date.now()
+  const diff = now - d.getTime()
+  const mins = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (mins < 1) return '剛剛'
+  if (mins < 60) return `${mins} 分鐘前`
+  if (hours < 24) return `${hours} 小時前`
+  if (days < 7) return `${days} 天前`
+  return d.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
+}
+
+// ============ 年級中文 ============
+function gradeLabel(level: string): string {
+  const map: Record<string, string> = { K: '幼兒園', G1: '一年級', G2: '二年級' }
+  return map[level] ?? level
+}
+
+// ============ 推薦區塊 ============
+function RecommendationBanner({
+  rec,
+  childId,
+}: {
+  rec: Recommendation
+  childId: string
+}) {
+  if (rec.type === 'ALL_DONE') {
+    return (
+      <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-green-400 to-emerald-500 p-6 text-center text-white shadow-lg">
+        <div className="mb-2 text-5xl">🎉</div>
+        <h3 className="text-xl font-bold">{rec.reason}</h3>
+        <p className="mt-1 text-green-100">所有技能都已掌握，非常厲害！</p>
+      </div>
+    )
+  }
+
+  const config: Record<string, { bg: string; icon: string }> = {
+    START_FIRST: { bg: 'from-blue-500 to-indigo-600', icon: '🚀' },
+    KEEP: { bg: 'from-blue-500 to-indigo-600', icon: '💪' },
+    ADVANCE: { bg: 'from-purple-500 to-pink-500', icon: '🎉' },
+    PRACTICE_PREREQ: { bg: 'from-amber-500 to-orange-600', icon: '📚' },
+  }
+
+  const c = config[rec.type] ?? config.KEEP
+
+  return (
+    <div className={`mb-8 rounded-2xl bg-gradient-to-r ${c.bg} p-6 text-white shadow-lg`}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-2xl">{c.icon}</span>
+            <span className="text-sm font-medium uppercase tracking-wide opacity-80">
+              系統推薦
+            </span>
+          </div>
+          <p className="text-lg font-bold">{rec.reason}</p>
+        </div>
+        {rec.skillId && (
+          <form action="/actions/practice/start" method="POST">
+            {/* 用 client component 替代 form action */}
+            <Link
+              href={`/practice/${childId}`}
+              className="inline-block whitespace-nowrap rounded-xl bg-white/20 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:bg-white/30"
+            >
+              開始練習 →
+            </Link>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ============ 主頁面 ============
 export default async function ChildOverviewPage({
   params,
 }: {
   params: Promise<{ childId: string }>
 }) {
   const { childId } = await params
-  const user = await getCurrentUser()
-  if (!user) return null
+
+  // 權限檢查
+  const session = await getSession()
+  if (!session) redirect('/login')
 
   const child = await prisma.childProfile.findFirst({
-    where: { id: childId, parentId: user.id },
+    where: { id: childId, parentId: session.userId },
     include: {
       sessions: {
         orderBy: { startedAt: 'desc' },
@@ -26,89 +106,231 @@ export default async function ChildOverviewPage({
   if (!child) notFound()
 
   const skillsData = await getChildSkills(childId)
+  const lastSession = child.sessions[0]
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
-      <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-900">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
+      {/* ============ 頂部導覽 ============ */}
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center gap-1 text-sm text-neutral-500 transition hover:text-neutral-900"
+      >
         ← 返回孩子列表
       </Link>
 
-      <div className="mt-2 mb-8 flex items-center gap-3">
-        <span className="text-4xl">🧒</span>
-        <div>
-          <h1 className="text-2xl font-bold">{child.nickname}</h1>
-          <p className="text-sm text-neutral-500">
-            {child.gradeLevel === 'K' ? '幼兒園' : `${child.gradeLevel.replace('G', '')}年級`}
-          </p>
+      {/* ============ 孩子資訊 ============ */}
+      <div className="mt-3 mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-4xl">
+            🧒
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold">{child.nickname}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-neutral-500">
+              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
+                {gradeLabel(child.gradeLevel)}
+              </span>
+              {lastSession ? (
+                <span>上次練習 {relativeTime(lastSession.startedAt)}</span>
+              ) : (
+                <span>尚未開始練習</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Link
+            href={`/practice/${childId}`}
+            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+          >
+            開始新練習
+          </Link>
         </div>
       </div>
 
-      {/* 推薦 */}
+      {/* ============ 系統推薦 ============ */}
       {skillsData?.recommendation && (
-        <div className="mb-8 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <p className="text-sm font-medium text-blue-700">💡 下一步建議</p>
-          <p className="mt-1 text-blue-900">{skillsData.recommendation.reason}</p>
-        </div>
+        <RecommendationBanner rec={skillsData.recommendation} childId={childId} />
       )}
 
-      {/* 技能掌握度 */}
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">技能掌握度</h2>
-        <div className="space-y-3">
-          {skillsData?.skills.map((skill) => {
-            const pct = skill.recentTotal > 0 ? Math.round(skill.masteryLevel * 100) : 0
-            return (
-              <div key={skill.id} className="rounded-xl border border-neutral-200 bg-white p-4">
-                <div className="mb-1 flex justify-between">
-                  <span className="font-medium">{skill.name}</span>
-                  <span className="text-sm text-neutral-500">
-                    {skill.recentTotal > 0 ? `${pct}%` : '未練習'}
-                  </span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-neutral-200">
-                  <div
-                    className={`h-2 rounded-full transition-all ${
-                      pct >= 80 ? 'bg-green-500' : pct >= 40 ? 'bg-blue-500' : 'bg-amber-500'
-                    }`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </section>
+      {/* ============ 技能掌握度 ============ */}
+      <section className="mb-10">
+        <h2 className="mb-4 text-lg font-semibold">技能掌握度</h2>
 
-      {/* 最近練習 */}
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">最近練習紀錄</h2>
-        {child.sessions.length === 0 ? (
-          <p className="rounded-xl border border-neutral-200 bg-white p-6 text-center text-neutral-400">
-            尚未練習
-          </p>
+        {!skillsData || skillsData.skills.every((s) => s.recentTotal === 0) ? (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center">
+            <div className="mb-3 text-5xl">📝</div>
+            <p className="mb-1 text-lg font-medium text-neutral-700">
+              還沒有練習紀錄
+            </p>
+            <p className="mb-5 text-sm text-neutral-400">
+              開始第一次練習吧！
+            </p>
+            <Link
+              href={`/practice/${childId}`}
+              className="inline-block rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              開始練習 →
+            </Link>
+          </div>
         ) : (
-          <div className="space-y-2">
-            {child.sessions.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm"
-              >
-                <div>
-                  <span className="font-medium">{s.skill.name}</span>
-                  <span className="ml-2 text-neutral-400">
-                    {new Date(s.startedAt).toLocaleDateString('zh-TW')}
-                  </span>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {skillsData.skills.map((skill) => {
+              const pct = skill.recentTotal > 0
+                ? Math.round(skill.masteryLevel * 100)
+                : 0
+              const hasData = skill.recentTotal > 0
+
+              let colorClass: string
+              let statusLabel: string
+              let barColor: string
+              if (!hasData) {
+                colorClass = 'border-neutral-200'
+                statusLabel = '未練習'
+                barColor = 'bg-neutral-300'
+              } else if (pct >= 95) {
+                colorClass = 'border-green-200 bg-green-50/50'
+                statusLabel = '✅ 已掌握'
+                barColor = 'bg-green-500'
+              } else if (pct >= 60) {
+                colorClass = 'border-amber-200 bg-amber-50/50'
+                statusLabel = '🟡 練習中'
+                barColor = 'bg-amber-500'
+              } else {
+                colorClass = 'border-red-200 bg-red-50/50'
+                statusLabel = '🔴 需加強'
+                barColor = 'bg-red-500'
+              }
+
+              return (
+                <div
+                  key={skill.id}
+                  className={`rounded-xl border ${colorClass} bg-white p-5 shadow-sm transition hover:shadow`}
+                >
+                  <div className="mb-3 flex items-start justify-between">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate font-semibold">{skill.name}</h3>
+                      {skill.description && (
+                        <p className="mt-0.5 truncate text-xs text-neutral-400">
+                          {skill.description}
+                        </p>
+                      )}
+                    </div>
+                    <span className="ml-2 shrink-0 text-xs font-medium">
+                      {statusLabel}
+                    </span>
+                  </div>
+
+                  {hasData && (
+                    <>
+                      <div className="mb-1 flex justify-between text-xs text-neutral-500">
+                        <span>
+                          最近 {skill.recentTotal} 題答對 {skill.recentCorrect} 題
+                        </span>
+                        <span className="font-bold">{pct}%</span>
+                      </div>
+                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-neutral-100">
+                        <div
+                          className={`h-full rounded-full transition-all ${barColor}`}
+                          style={{ width: `${Math.max(pct, 4)}%` }}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
-                <span className={s.completedAt ? 'text-green-600' : 'text-amber-500'}>
-                  {s.completedAt
-                    ? `${s.correctCount}/${s.totalQuestions} 正確`
-                    : '未完成'}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
+
+      {/* ============ 最近練習紀錄 ============ */}
+      <section>
+        <h2 className="mb-4 text-lg font-semibold">最近練習紀錄</h2>
+
+        {child.sessions.length === 0 ? (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center">
+            <div className="mb-2 text-4xl">📋</div>
+            <p className="text-sm text-neutral-400">尚無練習紀錄</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-neutral-100 bg-neutral-50 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
+                  <th className="px-4 py-3 pl-5">時間</th>
+                  <th className="px-4 py-3">技能</th>
+                  <th className="px-4 py-3">作答</th>
+                  <th className="px-4 py-3 text-right pr-5">狀態</th>
+                </tr>
+              </thead>
+              <tbody>
+                {child.sessions.map((s) => {
+                  const correctRate =
+                    s.totalQuestions > 0
+                      ? Math.round((s.correctCount / s.totalQuestions) * 100)
+                      : 0
+                  return (
+                    <tr
+                      key={s.id}
+                      className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50/50"
+                    >
+                      <td className="whitespace-nowrap px-4 py-3 pl-5 text-neutral-400">
+                        {relativeTime(s.startedAt)}
+                      </td>
+                      <td className="px-4 py-3 font-medium">{s.skill.name}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-neutral-800">
+                          {s.correctCount}/{s.totalQuestions}
+                        </span>
+                        <span
+                          className={`ml-1.5 text-xs ${
+                            correctRate >= 60
+                              ? 'text-green-500'
+                              : correctRate > 0
+                                ? 'text-amber-500'
+                                : 'text-red-500'
+                          }`}
+                        >
+                          ({correctRate}%)
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right pr-5">
+                        {s.completedAt ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                            完成
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                            未完成
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ============ 底部操作 ============ */}
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Link
+          href="/dashboard"
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+        >
+          ← 返回孩子列表
+        </Link>
+        <Link
+          href={`/practice/${childId}`}
+          className="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+        >
+          開始新練習 →
+        </Link>
+      </div>
     </main>
   )
 }

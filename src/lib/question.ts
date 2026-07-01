@@ -41,7 +41,7 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
   }
 
   // 參數化題目
-  const params = template.paramsJson ? safeParse(params, template.paramsJson) : {}
+  const params = template.paramsJson ? safeParse(template.paramsJson) : {}
   const aMin = params.aMin ?? 1
   const aMax = params.aMax ?? 5
   const bMin = params.bMin ?? 1
@@ -89,7 +89,7 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
 }
 
 // 安全 JSON parse
-function safeParse(_placeholder: unknown, json: string): Record<string, number> {
+function safeParse(json: string): Record<string, number> {
   try {
     return JSON.parse(json)
   } catch {
