@@ -15,6 +15,11 @@ type StoredQuestion = {
   answer: string
   options?: string[]
   explanation?: string
+  /** 互動模式：choice (預設) / numberline / fillin */
+  interaction?: string
+  /** 數字線範圍 */
+  rangeMin?: number
+  rangeMax?: number
 }
 
 // 開始一次練習：在伺服器生成題目快照後建立 session
@@ -51,12 +56,29 @@ export async function startSession(childId: string, skillId: string) {
       answer: t.answer,
       options: t.options,
     })
+
+    // 解析互動模式（從 paramsJson）
+    let interaction: string | undefined
+    let rangeMin: number | undefined
+    let rangeMax: number | undefined
+    if (t.paramsJson) {
+      try {
+        const parsed = JSON.parse(t.paramsJson)
+        interaction = parsed.interaction
+        rangeMin = parsed.rangeMin
+        rangeMax = parsed.rangeMax
+      } catch { /* ignore */ }
+    }
+
     generated.push({
       templateId: q.templateId!,
       prompt: q.prompt,
       answer: q.answer,
       options: q.options,
       explanation: t.explanation ?? undefined,
+      interaction,
+      rangeMin,
+      rangeMax,
     })
   }
 
@@ -76,15 +98,25 @@ export async function startSession(childId: string, skillId: string) {
 // 取得一次練習要做的題目（從 session 的伺服器快照讀取，確保與驗證一致）
 export async function getSessionQuestions(
   sessionId: string
-): Promise<{ questions: StoredQuestion[]; skillName: string; childNickname: string } | null> {
+): Promise<{
+  questions: (StoredQuestion & { interaction?: string; rangeMin?: number; rangeMax?: number })[]
+  skillName: string
+  childNickname: string
+} | null> {
   const session = await getSession()
-  if (!session) return null
+  if (!session) {
+    console.error('getSessionQuestions: no session')
+    return null
+  }
 
   const practiceSession = await prisma.practiceSession.findUnique({
     where: { id: sessionId },
     include: { skill: true, child: true },
   })
-  if (!practiceSession) return null
+  if (!practiceSession) {
+    console.error('Session not found in DB:', sessionId)
+    return null
+  }
 
   // 驗證家長擁有這個孩子
   if (practiceSession.child.parentId !== session.userId) return null
