@@ -22,6 +22,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   childProfiles ChildProfile[]
+  childLinks    ParentChild[]  @relation("ParentLinks")
   sessions      PracticeSession[]
 
   @@index([email])
@@ -32,23 +33,44 @@ enum Role {
   ADMIN
 }
 
-// ============ 孩子檔案 ============
+// ============ 親子關聯（學生可主動綁定家長，家長也可綁定學生）============
+model ParentChild {
+  id        String   @id @default(cuid())
+  parentId  String
+  childId   String
+  createdAt DateTime @default(now())
+
+  parent User          @relation("ParentLinks", fields: [parentId], references: [id], onDelete: Cascade)
+  child  ChildProfile  @relation("ChildLinks", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+  @@index([parentId])
+  @@index([childId])
+}
+
+// ============ 孩子檔案 / 學生帳號 ============
 
 model ChildProfile {
   id        String   @id @default(cuid())
-  parentId  String
-  nickname  String
-  gradeLevel String // K, G1, G2 ...
-  // 4 位數 PIN 碼，讓孩子可直接進入練習模式（家長可設定/重設）
-  pin       String?
+  // 學生可以有自己的帳號密碼獨立登入
+  email        String?  @unique
+  passwordHash String?
+  pin          String?  // 4 位數 PIN 碼
+  nickname     String
+  gradeLevel   String   // K, G1, G2 ...
+
+  // 可選：由家長建立時才有 parentId；學生自主註冊時為 null
+  parentId  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  parent            User              @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parent            User?             @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parentLinks       ParentChild[]     @relation("ChildLinks")
   masterySnapshots  MasterySnapshot[]
   sessions          PracticeSession[]
 
   @@index([parentId])
+  @@index([email])
 }
 
 // ============ 技能 ============
