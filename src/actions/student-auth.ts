@@ -7,6 +7,7 @@ import { createChildSession } from '@/lib/child-session'
 import { getSession } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { sendOtpEmail } from '@/lib/email'
 
 // ============ 驗證 ============
 const StudentSignupSchema = z.object({
@@ -237,6 +238,7 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
 
   // 發送 OTP
   const otpCode = generateOtp(child.id)
+  sendOtpEmail(email, otpCode)
   const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
   const tempToken = await createTempToken(child.id)
 
@@ -296,6 +298,7 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
   }
 
   const otpCode = generateOtp(child.id)
+  sendOtpEmail(email, otpCode)
   const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
   const tempToken = await createTempToken(child.id)
 

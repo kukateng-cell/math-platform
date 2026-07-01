@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { createSession, deleteSession, getSession } from '@/lib/session'
 import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
 import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds } from '@/lib/otp'
+import { sendOtpEmail } from '@/lib/email'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
 import { revalidatePath } from 'next/cache'
 
@@ -85,10 +86,10 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   // 產生 OTP 驗證碼
   const otpCode = generateOtp(user.id)
 
-  // 開發階段：只有管理員帳號才顯示驗證碼（便於測試）
-  const devOtp = process.env.NODE_ENV === 'development' && user.role === 'ADMIN'
-    ? otpCode
-    : undefined
+  // 發送郵件（非同步，不阻斷流程）
+  sendOtpEmail(user.email, otpCode)
+  // 開發階段也直接顯示在前端
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
 
   const tempToken = await createTempToken(user.id)
 
@@ -148,14 +149,14 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
   const otpCode = generateOtp(userId)
 
   const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (user) sendOtpEmail(user.email, otpCode)
+
   const emailMasked = user
     ? user.email.replace(/(.{3}).+@/, '$1***@')
     : '您的信箱'
 
-  // 開發階段：只有管理員才顯示驗證碼
-  const devOtp = process.env.NODE_ENV === 'development' && user?.role === 'ADMIN'
-    ? otpCode
-    : undefined
+  // 開發階段直接顯示驗證碼
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
 
   return {
     otpRequired: true,
