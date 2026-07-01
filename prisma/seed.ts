@@ -116,6 +116,9 @@ async function main() {
   })
 
   // ============ 題目模板 ============
+  // 先刪除作答紀錄與練習（外鍵約束）
+  await prisma.attempt.deleteMany({})
+  await prisma.practiceSession.deleteMany({})
   await prisma.questionTemplate.deleteMany({})
 
   // ───────── 1. 數數（count-objects）: 20+ 題 ─────────
@@ -496,6 +499,145 @@ async function main() {
       },
     })
   }
+
+  // ───────── 互動模式題目 ─────────
+  // 數字線題目（數數技能）— 提示文字包含實際符號讓孩子數
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: countObjects.id,
+      type: 'DIRECT',
+      prompt: '🍎 🍎 🍎 🍎 🍎  樹上共有幾顆蘋果？請在數字線上點選答案。',
+      answer: '5',
+      paramsJson: JSON.stringify({ interaction: 'numberline', rangeMin: 1, rangeMax: 10 }),
+      explanation: '數一數 🍎 的數量，1、2、3、4、5，共 5 顆蘋果。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: countObjects.id,
+      type: 'DIRECT',
+      prompt: '🐟 🐟 🐟 🐟 🐟 🐟 🐟 🐟  池塘裡有幾條魚？請在數字線上點選答案。',
+      answer: '8',
+      paramsJson: JSON.stringify({ interaction: 'numberline', rangeMin: 1, rangeMax: 10 }),
+      explanation: '數一數 🐟 的數量，1、2、3、4、5、6、7、8，共 8 條魚。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: countObjects.id,
+      type: 'DIRECT',
+      prompt: '📖 📖 📖  桌上有幾本書？請在數字線上點選答案。',
+      answer: '3',
+      paramsJson: JSON.stringify({ interaction: 'numberline', rangeMin: 1, rangeMax: 10 }),
+      explanation: '3 在數字線靠左邊的位置，介於 1 和 5 之間。',
+    },
+  })
+
+  // 數字線題目（數量比較技能）
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: countCompare.id,
+      type: 'DIRECT',
+      prompt: '7 和 10，哪個數字比較大？請在數字線上點選較大的數。',
+      answer: '10',
+      paramsJson: JSON.stringify({ interaction: 'numberline', rangeMin: 1, rangeMax: 10 }),
+      explanation: '在數字線上，越往右邊的數字越大。10 在 7 的右邊，所以 10 比較大。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: countCompare.id,
+      type: 'DIRECT',
+      prompt: '4 和 2，哪個數字比較小？請在數字線上點選較小的數。',
+      answer: '2',
+      paramsJson: JSON.stringify({ interaction: 'numberline', rangeMin: 1, rangeMax: 10 }),
+      explanation: '在數字線上，越往左邊的數字越小。2 在 4 的左邊，所以 2 比較小。',
+    },
+  })
+
+  // 更多視覺數字線題目
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: countObjects.id,
+      type: 'DIRECT',
+      prompt: '⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐  天上有幾顆星星？請在數字線上點選答案。',
+      answer: '7',
+      paramsJson: JSON.stringify({ interaction: 'numberline', rangeMin: 1, rangeMax: 10 }),
+      explanation: '數一數 ⭐ 的數量，總共有 7 顆星星。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: countObjects.id,
+      type: 'DIRECT',
+      prompt: '🌸 🌸 🌸 🌸  花園裡有幾朵花？請在數字線上點選答案。',
+      answer: '4',
+      paramsJson: JSON.stringify({ interaction: 'numberline', rangeMin: 1, rangeMax: 10 }),
+      explanation: '數一數 🌸 的數量，總共有 4 朵花。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: countCompare.id,
+      type: 'DIRECT',
+      prompt: '🍎🍎🍎🍎🍎  vs  🍊🍊🍊  蘋果和橘子，哪一種比較多？請在數字線上點選數量多的那個數字。',
+      answer: '5',
+      paramsJson: JSON.stringify({ interaction: 'numberline', rangeMin: 1, rangeMax: 10 }),
+      explanation: '蘋果有 5 顆，橘子有 3 顆，5 > 3，所以蘋果比較多。',
+    },
+  })
+
+  // 填答鍵盤題目（10 以內加法技能）
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: addWithin10.id,
+      type: 'DIRECT',
+      prompt: '5 + 3 = ? （請用鍵盤輸入答案）',
+      answer: '8',
+      paramsJson: JSON.stringify({ interaction: 'fillin' }),
+      explanation: '5 加 3 等於 8，把兩個數合起來。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: addWithin10.id,
+      type: 'DIRECT',
+      prompt: '2 + 6 = ? （請用鍵盤輸入答案）',
+      answer: '8',
+      paramsJson: JSON.stringify({ interaction: 'fillin' }),
+      explanation: '2 加 6 等於 8。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: addWithin10.id,
+      type: 'DIRECT',
+      prompt: '4 + 4 = ? （請用鍵盤輸入答案）',
+      answer: '8',
+      paramsJson: JSON.stringify({ interaction: 'fillin' }),
+      explanation: '4 加 4 等於 8。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: subWithin10.id,
+      type: 'DIRECT',
+      prompt: '7 - 3 = ? （請用鍵盤輸入答案）',
+      answer: '4',
+      paramsJson: JSON.stringify({ interaction: 'fillin' }),
+      explanation: '7 減 3 等於 4，從 7 裡面拿走 3 個。',
+    },
+  })
+  await prisma.questionTemplate.create({
+    data: {
+      skillId: subWithin10.id,
+      type: 'DIRECT',
+      prompt: '9 - 5 = ? （請用鍵盤輸入答案）',
+      answer: '4',
+      paramsJson: JSON.stringify({ interaction: 'fillin' }),
+      explanation: '9 減 5 等於 4。',
+    },
+  })
 
   console.log('  ✓ Skills: 7, Questions seeded')
   console.log('✅ Done!')

@@ -1,11 +1,23 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { submitAnswer, type SubmitResult } from '@/actions/practice'
-import type { QuestionInstance } from '@/lib/question'
+import NumberPad from './number-pad'
+import NumberLine from './number-line'
+
+type QuestionItem = {
+  templateId: string
+  prompt: string
+  answer: string
+  options?: string[]
+  explanation?: string
+  interaction?: string
+  rangeMin?: number
+  rangeMax?: number
+}
 
 type Props = {
-  questions: { templateId: string; prompt: string; answer: string; options?: string[] }[]
+  questions: QuestionItem[]
   sessionId: string
   skillName: string
   childNickname: string
@@ -21,15 +33,58 @@ export default function PracticeClient({
 }: Props) {
   const [index, setIndex] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
+  const [fillValue, setFillValue] = useState('')
+  const [lineValue, setLineValue] = useState<number | null>(null)
   const [lastResult, setLastResult] = useState<SubmitResult | null>(null)
   const [assisted, setAssisted] = useState(false)
   const [correctCount, setCorrectCount] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
+  const focusRef = useRef<HTMLDivElement>(null)
 
   const current = questions[index]
   const progress = Math.round((index / questions.length) * 100)
+
+  // 判斷互動模式
+  // 沒有選項且未指定互動模式 → 預設填答鍵盤
+  const interaction = current.interaction || (!current.options || current.options.length === 0 ? 'fillin' : 'choice')
+
+  // 取得當前作答值（依模式不同）
+  const currentAnswer = interaction === 'numberline'
+    ? lineValue !== null ? String(lineValue) : null
+    : interaction === 'fillin'
+    ? fillValue || null
+    : selected
+
+  // 自動聚焦
+  useEffect(() => {
+    focusRef.current?.focus()
+  }, [index])
+
+  // 鍵盤快捷鍵
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (submitting || lastResult) return
+
+      if (interaction === 'choice' && current.options) {
+        const num = parseInt(e.key)
+        if (num >= 1 && num <= current.options.length) {
+          e.preventDefault()
+          choose(current.options[num - 1])
+        }
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        if (lastResult) nextQuestion()
+        else if (currentAnswer) handleSubmit()
+      }
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [interaction, submitting, lastResult, currentAnswer, current])
 
   function choose(val: string) {
     if (submitting || lastResult) return
@@ -37,7 +92,7 @@ export default function PracticeClient({
   }
 
   async function handleSubmit() {
-    if (!selected || submitting) return
+    if (!currentAnswer || submitting) return
     setSubmitting(true)
     setError(null)
     const durationMs = Date.now() - startTimeRef.current
@@ -46,7 +101,7 @@ export default function PracticeClient({
       const result = await submitAnswer({
         sessionId,
         questionIndex: index,
-        userAnswer: selected,
+        userAnswer: currentAnswer,
         assisted,
         durationMs,
       })
@@ -62,6 +117,8 @@ export default function PracticeClient({
 
   function nextQuestion() {
     setSelected(null)
+    setFillValue('')
+    setLineValue(null)
     setLastResult(null)
     setAssisted(false)
     startTimeRef.current = Date.now()
@@ -76,6 +133,9 @@ export default function PracticeClient({
         <h2 className="text-2xl font-bold">{childNickname} 完成了！</h2>
         <p className="text-lg text-neutral-600">
           答對 <span className="font-bold text-green-600">{correctCount}</span> / {questions.length} 題
+        </p>
+        <p className="text-sm text-neutral-400">
+          正確率 {Math.round((correctCount / questions.length) * 100)}%
         </p>
         <div className="flex gap-3">
           <a
@@ -95,6 +155,8 @@ export default function PracticeClient({
     )
   }
 
+  const submitDisabled = !currentAnswer || submitting
+
   return (
     <div className="flex w-full flex-col gap-6">
       {/* 進度條 */}
@@ -105,21 +167,23 @@ export default function PracticeClient({
         </div>
         <div className="h-2 w-full rounded-full bg-neutral-200">
           <div
-            className="h-2 rounded-full bg-blue-600 transition-all"
+            className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
       </div>
 
       {/* 題目 */}
-      <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-        <p className="text-3xl font-bold tracking-wide">{current.prompt}</p>
+      <div ref={focusRef} tabIndex={-1} role="region" aria-label={`題目 ${index + 1}`} className="outline-none">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+          <p className="text-3xl font-bold tracking-wide">{current.prompt}</p>
+        </div>
       </div>
 
-      {/* 選項 */}
-      {current.options ? (
+      {/* 互動區 — 依模式切換 */}
+      {interaction === 'choice' && current.options ? (
         <div className="grid grid-cols-2 gap-3">
-          {current.options.map((opt) => {
+          {current.options.map((opt, oi) => {
             let cls = 'border-neutral-300 bg-white hover:border-blue-400'
             if (selected === opt) cls = 'border-blue-500 bg-blue-50'
             if (lastResult) {
@@ -129,21 +193,40 @@ export default function PracticeClient({
             }
             return (
               <button
-                key={opt}
+                key={`opt-${oi}`}
                 onClick={() => choose(opt)}
-                disabled={!!lastResult}
+                disabled={!!lastResult || submitting}
+                aria-pressed={selected === opt}
                 className={`rounded-xl border-2 px-4 py-5 text-2xl font-bold transition ${cls}`}
               >
                 {opt}
+                {!lastResult && (
+                  <span className="ml-2 text-xs text-neutral-400">({oi + 1})</span>
+                )}
               </button>
             )
           })}
         </div>
+      ) : interaction === 'numberline' ? (
+        <NumberLine
+          min={current.rangeMin ?? 0}
+          max={current.rangeMax ?? 10}
+          value={lineValue}
+          onChange={setLineValue}
+          disabled={!!lastResult}
+        />
+      ) : interaction === 'fillin' ? (
+        <NumberPad
+          value={fillValue}
+          onChange={setFillValue}
+          onSubmit={handleSubmit}
+          disabled={!!lastResult}
+        />
       ) : null}
 
       {/* 錯誤提示 */}
       {error && (
-        <div className="rounded-xl bg-red-50 p-3 text-center text-sm text-red-600">
+        <div className="rounded-xl bg-red-50 p-3 text-center text-sm text-red-600" role="alert">
           {error}
         </div>
       )}
@@ -154,6 +237,7 @@ export default function PracticeClient({
           className={`rounded-xl p-4 text-center ${
             lastResult.correct ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
           }`}
+          role="alert"
         >
           <p className="text-lg font-bold">
             {lastResult.correct ? '✓ 答對了！' : `✗ 正確答案是 ${lastResult.correctAnswer}`}
@@ -165,26 +249,30 @@ export default function PracticeClient({
       )}
 
       {/* 陪伴模式 */}
-      <label className="flex items-center justify-center gap-2 text-sm text-neutral-500">
-        <input
-          type="checkbox"
-          checked={assisted}
-          onChange={(e) => setAssisted(e.target.checked)}
-          disabled={!!lastResult}
-        />
-        這題有家長協助（不計入能力判斷）
-      </label>
+      {interaction !== 'fillin' && (
+        <label className="flex items-center justify-center gap-2 text-sm text-neutral-500">
+          <input
+            type="checkbox"
+            checked={assisted}
+            onChange={(e) => setAssisted(e.target.checked)}
+            disabled={!!lastResult}
+          />
+          這題有家長協助（不計入能力判斷）
+        </label>
+      )}
 
       {/* 動作按鈕 */}
       <div className="flex justify-center">
         {!lastResult ? (
-          <button
-            onClick={handleSubmit}
-            disabled={!selected || submitting}
-            className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
-          >
-            {submitting ? '送出中…' : '送出答案'}
-          </button>
+          interaction !== 'fillin' ? (
+            <button
+              onClick={handleSubmit}
+              disabled={submitDisabled}
+              className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
+            >
+              {submitting ? '送出中…' : '送出答案'}
+            </button>
+          ) : null /* fillin 模式用鍵盤的確認按鈕 */
         ) : (
           <button
             onClick={nextQuestion}

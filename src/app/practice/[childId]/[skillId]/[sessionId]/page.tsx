@@ -14,7 +14,12 @@ export default async function PracticeQuestionPage({
   if (!user) return null
 
   const data = await getSessionQuestions(sessionId)
-  if (!data) notFound()
+  
+  // 若 data 為 null，提供更詳細的錯誤資訊
+  if (!data) {
+    console.error('Practice session not found:', { sessionId, userId: user.id })
+    notFound()
+  }
 
   // 沒有題目快照（舊 session 無 questionsJson）→ 請使用者重新開始
   if (data.questions.length === 0) {
