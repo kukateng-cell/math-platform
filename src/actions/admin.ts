@@ -56,7 +56,7 @@ export async function toggleSkill(formData: FormData) {
 export async function createQuestion(state: AdminFormState, formData: FormData): Promise<AdminFormState> {
   await requireAdmin()
   const skillId = String(formData.get('skillId') || '')
-  const type = String(formData.get('type') || 'DIRECT') as 'DIRECT' | 'ADD' | 'SUB'
+  const type = String(formData.get('type') || 'DIRECT') as 'DIRECT' | 'ADD' | 'SUB' | 'MUL' | 'DIV' | 'WORD_PROBLEM'
   const prompt = String(formData.get('prompt') || '').trim()
   const answer = String(formData.get('answer') || '').trim()
   const options = String(formData.get('options') || '').trim() || null
@@ -67,8 +67,8 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
     return { message: '技能、題目、答案為必填' }
   }
 
-  // 參數化題（ADD/SUB）必須有合法 JSON 參數
-  if (type === 'ADD' || type === 'SUB') {
+  // 參數化題（ADD/SUB/MUL/DIV/WORD_PROBLEM）必須有合法 JSON 參數
+  if (type === 'ADD' || type === 'SUB' || type === 'MUL' || type === 'DIV' || type === 'WORD_PROBLEM') {
     if (!paramsJson) {
       return { message: '參數化題型（ADD/SUB）必須填寫參數 JSON' }
     }
@@ -223,8 +223,8 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
   const existing = await prisma.questionTemplate.findUnique({ where: { id } })
   if (!existing) return { message: '題目不存在' }
 
-  // 參數化題（ADD/SUB）必須有合法 JSON 參數
-  if (existing.type === 'ADD' || existing.type === 'SUB') {
+  // 參數化題（ADD/SUB/MUL/DIV/WORD_PROBLEM）必須有合法 JSON 參數
+  if (existing.type === 'ADD' || existing.type === 'SUB' || existing.type === 'MUL' || existing.type === 'DIV' || existing.type === 'WORD_PROBLEM') {
     if (!paramsJson) {
       return { message: '參數化題型（ADD/SUB）必須填寫參數 JSON' }
     }
