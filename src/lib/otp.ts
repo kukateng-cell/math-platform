@@ -3,13 +3,32 @@ import { SignJWT, jwtVerify } from 'jose'
 const SECRET = process.env.SESSION_SECRET || 'fallback-secret'
 const KEY = new TextEncoder().encode(SECRET)
 
+const OTP_EXPIRY_MS = 5 * 60 * 1000  // 5 分鐘
+const RESEND_COOLDOWN_MS = 60 * 1000  // 60 秒冷卻
+
 // 產生 6 位數驗證碼，存入記憶體（正式環境應改用 Redis）
-const otpStore = new Map<string, { code: string; expiresAt: number }>()
+const otpStore = new Map<string, { code: string; expiresAt: number; resentAt: number }>()
 
 export function generateOtp(userId: string): string {
   const code = String(Math.floor(100000 + Math.random() * 900000)) // 6 位數
-  otpStore.set(userId, { code, expiresAt: Date.now() + 5 * 60 * 1000 }) // 5 分鐘有效
+  otpStore.set(userId, { code, expiresAt: Date.now() + OTP_EXPIRY_MS, resentAt: Date.now() })
   return code
+}
+
+// 檢查是否在冷卻期內（60 秒內不可重發）
+export function canResendOtp(userId: string): boolean {
+  const entry = otpStore.get(userId)
+  if (!entry) return true // 沒有紀錄代表可發
+  const elapsed = Date.now() - entry.resentAt
+  return elapsed >= RESEND_COOLDOWN_MS
+}
+
+// 取得剩餘冷卻秒數
+export function getResendCooldownSeconds(userId: string): number {
+  const entry = otpStore.get(userId)
+  if (!entry) return 0
+  const remaining = RESEND_COOLDOWN_MS - (Date.now() - entry.resentAt)
+  return Math.max(0, Math.ceil(remaining / 1000))
 }
 
 export function verifyOtp(userId: string, code: string): boolean {

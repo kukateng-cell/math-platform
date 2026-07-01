@@ -37,5 +37,7 @@ export type FormState =
       // OTP 雙步驟登入
       otpRequired?: boolean
       tempToken?: string
+      // 開發模式直接顯示 OTP（正式環境不該有這個）
+      devOtp?: string
     }
   | undefined
