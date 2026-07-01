@@ -1,0 +1,14 @@
+{
+  // === Git 自動同步設定 ===
+  // 開啟 VS Code 時自動從遠端拉取最新內容
+  "git.autofetch": "all",
+  // 定期自動拉取（單位：秒），這裡設為每 3 分鐘檢查一次
+  "git.autofetchPeriod": 180,
+  // 切換分支時自動同步遠端
+  "git.pullBeforeCheckout": true,
+  // 開啟檔案時若遠端有更新，自動重新載入
+  "git.autoRepositoryDetection": true,
+  // 同步前自動儲存檔案，避免衝突
+  "git.smartCommitChanges": "all",
+  "files.autoSave": "afterDelay"
+}
