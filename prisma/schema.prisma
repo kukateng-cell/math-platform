@@ -1,0 +1,167 @@
+// Prisma 7: datasource 不可寫 url，連線字串改放 prisma.config.ts
+// runtime PrismaClient 必須傳入 driver adapter (見 lib/prisma.ts)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============ 帳號 ============
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         Role     @default(PARENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  childProfiles ChildProfile[]
+  sessions      PracticeSession[]
+
+  @@index([email])
+}
+
+enum Role {
+  PARENT
+  ADMIN
+}
+
+// ============ 孩子檔案 ============
+
+model ChildProfile {
+  id        String   @id @default(cuid())
+  parentId  String
+  nickname  String
+  gradeLevel String // K, G1, G2 ...
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent            User              @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  masterySnapshots  MasterySnapshot[]
+  sessions          PracticeSession[]
+
+  @@index([parentId])
+}
+
+// ============ 技能 ============
+
+model Skill {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g. "count-compare", "add-within-10"
+  name        String
+  description String?
+  gradeLevel  String // K, G1, G2
+  order       Int      @default(0)
+  // 前置技能（可選），規則式推薦用
+  prerequisiteId String?
+  prerequisite   Skill?  @relation("SkillPrereq", fields: [prerequisiteId], references: [id])
+  dependents     Skill[] @relation("SkillPrereq")
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  questions         QuestionTemplate[]
+  masterySnapshots  MasterySnapshot[]
+  sessions          PracticeSession[]
+
+  @@index([prerequisiteId])
+  @@index([gradeLevel])
+}
+
+// ============ 題目模板 ============
+
+model QuestionTemplate {
+  id         String   @id @default(cuid())
+  skillId    String
+  // 題型：直接題目 或 參數化模板
+  type       QuestionType
+  // 題目文字（直接題目用），或模板說明
+  prompt     String
+  // 參數化題目用：JSON 定義範圍，例如 {"aMin":0,"aMax":5,"bMin":1,"bMax":5}
+  paramsJson String?
+  // 正確答案（直接題目用），或答案計算邏輯
+  answer     String
+  // 選項（選擇題用），逗號分隔；為空表示填答題
+  options    String?
+  explanation String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  attempts Attempt[]
+
+  @@index([skillId])
+}
+
+enum QuestionType {
+  DIRECT // 直接題目
+  ADD    // 參數化加法
+  SUB    // 參數化減法
+}
+
+// ============ 練習 ============
+
+model PracticeSession {
+  id         String    @id @default(cuid())
+  childId    String
+  skillId    String
+  parentId   String?
+  startedAt  DateTime  @default(now())
+  completedAt DateTime?
+  totalQuestions Int    @default(0)
+  correctCount   Int    @default(0)
+
+  child    ChildProfile     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  skill    Skill            @relation(fields: [skillId], references: [id])
+  parent   User?            @relation(fields: [parentId], references: [id])
+  attempts Attempt[]
+
+  @@index([childId])
+  @@index([skillId])
+}
+
+model Attempt {
+  id          String   @id @default(cuid())
+  sessionId   String
+  questionId  String
+  // 保存作答當下的題目快照（避免題目修改影響歷史紀錄）
+  questionPrompt String
+  userAnswer  String
+  correctAnswer String
+  isCorrect   Boolean
+  assisted    Boolean  @default(false) // 家長協助
+  durationMs  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  session  PracticeSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question QuestionTemplate  @relation(fields: [questionId], references: [id])
+
+  @@index([sessionId])
+  @@index([questionId])
+}
+
+// ============ 掌握度 ============
+
+model MasterySnapshot {
+  id           String   @id @default(cuid())
+  childId      String
+  skillId      String
+  // 最近 N 題的統計快照，供規則式推薦
+  recentCorrect Int     @default(0)
+  recentTotal   Int     @default(0)
+  masteryLevel  Float   @default(0) // 0-1
+  updatedAt    DateTime @updatedAt
+
+  child ChildProfile @relation(fields: [childId], references: [id], onDelete: Cascade)
+  skill Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, skillId])
+  @@index([childId])
+}
