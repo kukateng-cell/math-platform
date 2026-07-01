@@ -111,14 +111,22 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
       answer = a * b
     } else {
       // operation === 'div'：確保整除
-      while (a % b !== 0 && tries < 30) {
-        b = randInt(bMin, Math.min(bMax, a))
-        if (a % b !== 0) a = randInt(aMin, aMax)
+      // 先生成 b，再從合法商範圍選 q，計算 a = b × q
+      while (tries < 30) {
+        b = randInt(bMin, bMax)
+        const qMin = Math.max(1, Math.ceil(aMin / b))
+        const qMax = Math.floor(aMax / b)
+        if (qMin <= qMax) {
+          const q = randInt(qMin, qMax)
+          a = b * q
+          break
+        }
         tries++
       }
+      // 保險：若仍無合法組合，用最簡單的修正
       if (a % b !== 0) {
-        const q = Math.round(a / b)
-        a = b * Math.max(1, q)
+        const q = Math.max(1, Math.round(a / b))
+        a = b * q
       }
       answer = a / b
     }
@@ -149,18 +157,29 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
     let tries = 0
 
     if (aMultipleOfB) {
-      // 先生成 b 和商，再算 a，確保整除
-      const quotient = a // reuse a as quotient range
-      a = b * quotient
-      // 如果 a 超出範圍，重新調整
-      while ((a < aMin || a > aMax) && tries < 30) {
-        b = randInt(bMin, bMax)
-        const q = randInt(Math.ceil(aMin / Math.max(b, 1)), Math.floor(aMax / Math.max(b, 1)))
+      // 先生成 b，再從合法商範圍選商 q，計算 a = b × q，確保整除且在範圍內
+      b = randInt(bMin, bMax)
+      const qMin = Math.max(1, Math.ceil(aMin / b))
+      const qMax = Math.floor(aMax / b)
+      if (qMin <= qMax) {
+        const q = randInt(qMin, qMax)
         a = b * q
-        tries++
+      } else {
+        // 沒有合法商：嘗試其他 b 值
+        while ((qMin > qMax) && tries < 30) {
+          b = randInt(bMin, bMax)
+          const newQMin = Math.max(1, Math.ceil(aMin / b))
+          const newQMax = Math.floor(aMax / b)
+          if (newQMin <= newQMax) {
+            const q = randInt(newQMin, newQMax)
+            a = b * q
+            break
+          }
+          tries++
+        }
       }
     } else {
-      // 單純隨機 a, b，若不整除則重新選 b（或調整 a 為最近可整除的）
+      // 單純隨機 a, b，若不整除則重新選
       while (a % b !== 0 && tries < 30) {
         b = randInt(bMin, Math.min(bMax, a))
         if (a % b !== 0) {
@@ -168,11 +187,10 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
         }
         tries++
       }
-      // 保險：強制修正
+      // 保險：找最接近 a 且能被 b 整除的數
       if (a % b !== 0) {
-        // 找最接近 a 且能被 b 整除的數
-        const q = Math.round(a / b)
-        a = b * Math.max(1, q)
+        const q = Math.max(1, Math.round(a / b))
+        a = b * q
       }
     }
 
@@ -253,11 +271,11 @@ function generateMulDistractors(answer: number, a: number, b: number, count: num
   for (const c of candidates) {
     if (c > 0 && c !== answer) result.add(c)
   }
-  // 如果不夠，從附近補
+  // 如果不夠，從附近補（保證收斂）
   let offset = 1
-  while (result.size < count && offset < 10) {
-    if (answer + offset !== answer && answer + offset > 0) result.add(answer + offset)
-    if (answer - offset !== answer && answer - offset > 0) result.add(answer - offset)
+  while (result.size < count && offset < 100) {
+    if (answer + offset > 0 && answer + offset !== answer) result.add(answer + offset)
+    if (answer - offset > 0 && answer - offset !== answer) result.add(answer - offset)
     offset++
   }
   return shuffle([...result]).slice(0, count)
@@ -280,10 +298,11 @@ function generateDivDistractors(answer: number, b: number, count: number): numbe
   for (const c of candidates) {
     if (c > 0 && c !== answer) result.add(c)
   }
-  let offset = 3
-  while (result.size < count && offset < 20) {
-    if (answer + offset !== answer && answer + offset > 0) result.add(answer + offset)
-    if (answer - offset !== answer && answer - offset > 0) result.add(answer - offset)
+  // 保證收斂：從附近補到滿
+  let offset = 1
+  while (result.size < count && offset < 100) {
+    if (answer + offset > 0 && answer + offset !== answer) result.add(answer + offset)
+    if (answer - offset > 0 && answer - offset !== answer) result.add(answer - offset)
     offset++
   }
   return shuffle([...result]).slice(0, count)
