@@ -29,13 +29,13 @@ npm run db:seed
 npm run dev
 ```
 
-打開 http://localhost:3000
+打開 <http://localhost:3000>
 
 ## 預設帳號
 
 | 角色 | Email | 密碼 |
 | --- | --- | --- |
-| 管理員 | admin@math.local | admin123 |
+| 管理員 | `admin@math.local` | `admin123` |
 
 家長帳號請自行註冊。
 
@@ -49,7 +49,7 @@ npm run dev
 
 ## 專案結構
 
-```
+```text
 src/
 ├── actions/          # Server Actions（auth / practice / admin）
 ├── app/              # App Router 頁面
