@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { submitAnswer, type SubmitResult } from '@/actions/practice'
 import type { QuestionInstance } from '@/lib/question'
 
@@ -27,9 +27,44 @@ export default function PracticeClient({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
+  const firstOptionRef = useRef<HTMLButtonElement | null>(null)
+  const completionLinkRef = useRef<HTMLAnchorElement | null>(null)
 
   const current = questions[index]
   const progress = Math.round((index / questions.length) * 100)
+  const totalQuestions = questions.length
+
+  // 每次切換題目時自動聚焦第一個選項
+  useEffect(() => {
+    if (firstOptionRef.current) {
+      firstOptionRef.current.focus()
+    }
+  }, [index])
+
+  // 鍵盤快捷鍵處理
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      // 數字鍵 1-4 選擇對應選項
+      if (current.options && e.key >= '1' && e.key <= '4') {
+        const optIndex = Number(e.key) - 1
+        if (optIndex < current.options.length) {
+          choose(current.options[optIndex])
+        }
+        return
+      }
+      // Enter: 送出答案或下一題
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        if (lastResult) {
+          nextQuestion()
+        } else {
+          handleSubmit()
+        }
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [current, lastResult, submitting, selected],
+  )
 
   function choose(val: string) {
     if (submitting || lastResult) return
@@ -71,7 +106,7 @@ export default function PracticeClient({
   // 完成頁
   if (index >= questions.length || (lastResult?.finished && index === questions.length - 1)) {
     return (
-      <div className="flex flex-col items-center gap-6 text-center">
+      <div className="flex flex-col items-center gap-6 text-center" role="region" aria-label="練習完成">
         <div className="text-6xl">{correctCount >= questions.length / 2 ? '🎉' : '💪'}</div>
         <h2 className="text-2xl font-bold">{childNickname} 完成了！</h2>
         <p className="text-lg text-neutral-600">
@@ -79,6 +114,7 @@ export default function PracticeClient({
         </p>
         <div className="flex gap-3">
           <a
+            ref={completionLinkRef}
             href={`/children/${childId}`}
             className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700"
           >
@@ -96,14 +132,21 @@ export default function PracticeClient({
   }
 
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div className="flex w-full flex-col gap-6" onKeyDown={handleKeyDown}>
       {/* 進度條 */}
       <div>
         <div className="mb-1 flex justify-between text-sm text-neutral-500">
           <span>{skillName}</span>
-          <span>{index + 1} / {questions.length}</span>
+          <span>{index + 1} / {totalQuestions}</span>
         </div>
-        <div className="h-2 w-full rounded-full bg-neutral-200">
+        <div
+          className="h-2 w-full rounded-full bg-neutral-200"
+          role="progressbar"
+          aria-valuenow={index}
+          aria-valuemin={0}
+          aria-valuemax={totalQuestions}
+          aria-label={`練習進度：第 ${index + 1} 題，共 ${totalQuestions} 題`}
+        >
           <div
             className="h-2 rounded-full bg-blue-600 transition-all"
             style={{ width: `${progress}%` }}
@@ -112,14 +155,18 @@ export default function PracticeClient({
       </div>
 
       {/* 題目 */}
-      <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+      <div
+        className="rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm"
+        role="region"
+        aria-label={`題目 ${index + 1}`}
+      >
         <p className="text-3xl font-bold tracking-wide">{current.prompt}</p>
       </div>
 
       {/* 選項 */}
       {current.options ? (
         <div className="grid grid-cols-2 gap-3">
-          {current.options.map((opt) => {
+          {current.options.map((opt, optIdx) => {
             let cls = 'border-neutral-300 bg-white hover:border-blue-400'
             if (selected === opt) cls = 'border-blue-500 bg-blue-50'
             if (lastResult) {
@@ -130,8 +177,10 @@ export default function PracticeClient({
             return (
               <button
                 key={opt}
+                ref={optIdx === 0 ? firstOptionRef : undefined}
                 onClick={() => choose(opt)}
                 disabled={!!lastResult}
+                aria-pressed={selected === opt}
                 className={`rounded-xl border-2 px-4 py-5 text-2xl font-bold transition ${cls}`}
               >
                 {opt}
@@ -143,7 +192,7 @@ export default function PracticeClient({
 
       {/* 錯誤提示 */}
       {error && (
-        <div className="rounded-xl bg-red-50 p-3 text-center text-sm text-red-600">
+        <div className="rounded-xl bg-red-50 p-3 text-center text-sm text-red-600" role="alert">
           {error}
         </div>
       )}
@@ -151,6 +200,7 @@ export default function PracticeClient({
       {/* 回饋 */}
       {lastResult && (
         <div
+          role="alert"
           className={`rounded-xl p-4 text-center ${
             lastResult.correct ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
           }`}
