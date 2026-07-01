@@ -56,6 +56,18 @@ export default async function DashboardPage() {
                 </span>
               </div>
 
+              {/* 遊戲化資訊：星星 + 連續天數 */}
+              <div className="mb-2 flex items-center gap-3 text-sm">
+                <span className="inline-flex items-center gap-1 text-amber-600" title="累計星星數">
+                  ⭐ {child.stars}
+                </span>
+                {child.streak > 0 && (
+                  <span className="inline-flex items-center gap-1 text-orange-600" title="連續練習天數">
+                    🔥 連續 {child.streak} 天
+                  </span>
+                )}
+              </div>
+
               {child.sessions[0] ? (
                 <p className="mb-3 text-sm text-neutral-500">
                   上次練習：{child.sessions[0].correctCount}/{child.sessions[0].totalQuestions} 題正確

@@ -101,6 +101,10 @@ export default async function ChildOverviewPage({
         take: 10,
         include: { skill: true },
       },
+      badges: {
+        include: { badge: true },
+        orderBy: { earnedAt: 'desc' },
+      },
     },
   })
   if (!child) notFound()
@@ -134,6 +138,17 @@ export default async function ChildOverviewPage({
                 <span>上次練習 {relativeTime(lastSession.startedAt)}</span>
               ) : (
                 <span>尚未開始練習</span>
+              )}
+            </div>
+            {/* 遊戲化資訊 */}
+            <div className="mt-2 flex items-center gap-3 text-sm">
+              <span className="inline-flex items-center gap-1 text-amber-600" title="累計星星數">
+                ⭐ {child.stars}
+              </span>
+              {child.streak > 0 && (
+                <span className="inline-flex items-center gap-1 text-orange-600" title="連續練習天數">
+                  🔥 連續 {child.streak} 天
+                </span>
               )}
             </div>
           </div>
@@ -241,6 +256,36 @@ export default async function ChildOverviewPage({
                 </div>
               )
             })}
+          </div>
+        )}
+      </section>
+
+      {/* ============ 成就徽章 ============ */}
+      <section className="mb-10">
+        <h2 className="mb-4 text-lg font-semibold">成就徽章</h2>
+
+        {child.badges.length === 0 ? (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center">
+            <div className="mb-2 text-4xl">🏅</div>
+            <p className="text-sm text-neutral-400">還沒有獲得徽章，繼續練習吧！</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {child.badges.map((cb) => (
+              <div
+                key={cb.id}
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 shadow-sm"
+                title={cb.badge.condition}
+              >
+                <span className="text-2xl">{cb.badge.icon}</span>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-amber-900">{cb.badge.name}</p>
+                  <p className="text-xs text-amber-600">
+                    {new Date(cb.earnedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })} 獲得
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>
