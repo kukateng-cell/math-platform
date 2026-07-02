@@ -180,6 +180,112 @@ async function main() {
     },
   })
 
+  // ============ G3 三年級技能 ============
+  const threeDigitAddSub = await prisma.skill.upsert({
+    where: { code: 'three-digit-add-sub' },
+    update: { order: 12, prerequisiteId: addWithin20.id },
+    create: {
+      code: 'three-digit-add-sub',
+      name: '三位數加減',
+      description: '三位數的進位加法與退位減法',
+      gradeLevel: 'G3',
+      order: 12,
+      prerequisiteId: addWithin20.id,
+    },
+  })
+
+  const introFraction = await prisma.skill.upsert({
+    where: { code: 'intro-fraction' },
+    update: { order: 13, prerequisiteId: divideBasic.id },
+    create: {
+      code: 'intro-fraction',
+      name: '分數入門',
+      description: '認識分數：等分概念、真分數與帶分數',
+      gradeLevel: 'G3',
+      order: 13,
+      prerequisiteId: divideBasic.id,
+    },
+  })
+
+  const timeCalc = await prisma.skill.upsert({
+    where: { code: 'time-calc' },
+    update: { order: 14, prerequisiteId: wordProblem.id },
+    create: {
+      code: 'time-calc',
+      name: '時間計算',
+      description: '時、分、秒的換算與時間間隔計算',
+      gradeLevel: 'G3',
+      order: 14,
+      prerequisiteId: wordProblem.id,
+    },
+  })
+
+  const areaPerimeter = await prisma.skill.upsert({
+    where: { code: 'area-perimeter' },
+    update: { order: 15, prerequisiteId: introMultiply.id },
+    create: {
+      code: 'area-perimeter',
+      name: '面積與周長',
+      description: '長方形和正方形的面積與周長計算',
+      gradeLevel: 'G3',
+      order: 15,
+      prerequisiteId: introMultiply.id,
+    },
+  })
+
+  // ============ G4 四年級技能 ============
+  const largeMultiply = await prisma.skill.upsert({
+    where: { code: 'large-multiply' },
+    update: { order: 16, prerequisiteId: multiplyTable.id },
+    create: {
+      code: 'large-multiply',
+      name: '多位數乘法',
+      description: '兩位數乘以兩位數的直式乘法',
+      gradeLevel: 'G4',
+      order: 16,
+      prerequisiteId: multiplyTable.id,
+    },
+  })
+
+  const longDivision = await prisma.skill.upsert({
+    where: { code: 'long-division' },
+    update: { order: 17, prerequisiteId: divideBasic.id },
+    create: {
+      code: 'long-division',
+      name: '直式除法',
+      description: '兩位數除以一位數的直式除法（含餘數）',
+      gradeLevel: 'G4',
+      order: 17,
+      prerequisiteId: divideBasic.id,
+    },
+  })
+
+  const fractionCompare = await prisma.skill.upsert({
+    where: { code: 'fraction-compare' },
+    update: { order: 18, prerequisiteId: introFraction.id },
+    create: {
+      code: 'fraction-compare',
+      name: '分數比較與加減',
+      description: '同分母分數比較、同分母分數加減',
+      gradeLevel: 'G4',
+      order: 18,
+      prerequisiteId: introFraction.id,
+    },
+  })
+
+  const decimalIntro = await prisma.skill.upsert({
+    where: { code: 'decimal-intro' },
+    update: { order: 19, prerequisiteId: introFraction.id },
+    create: {
+      code: 'decimal-intro',
+      name: '認識小數',
+      description: '認識小數位值、小數與分數的轉換、小數加減',
+      gradeLevel: 'G4',
+      order: 19,
+      prerequisiteId: introFraction.id,
+    },
+  })
+
   // ============ 題目模板 ============
   // 必須按外鍵依賴順序清除，避免 SQLite 外鍵約束錯誤
   await prisma.attempt.deleteMany({})
@@ -1071,6 +1177,303 @@ async function main() {
     },
   })
 
+  // ═══════════════════════════════════════════════
+  // G3 三年級題庫
+  // ═══════════════════════════════════════════════
+
+  // ───────── 三位數加減（three-digit-add-sub）: 參數化模板 ─────────
+  const threeDigitTemplates = [
+    { prompt: '{a} + {b} = ?', params: { aMin: 100, aMax: 500, bMin: 100, bMax: 500, sumMax: 999 }, expl: '三位數加法：先加百位，再加十位，最後加個位，注意進位。' },
+    { prompt: '{a} + {b} = ?', params: { aMin: 200, aMax: 700, bMin: 50, bMax: 250, sumMax: 999 }, expl: '三位數加兩位數：把兩位數拆成十位和個位，分別相加。' },
+    { prompt: '{a} - {b} = ?', params: { aMin: 200, aMax: 999, bMin: 50, bMax: 400 }, expl: '三位數減法：先減百位，再減十位，最後減個位，注意退位。' },
+  ]
+  for (const t of threeDigitTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: threeDigitAddSub.id,
+        type: t.prompt.includes('+') ? 'ADD' : 'SUB',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: t.prompt.includes('+') ? '{a+b}' : '{a-b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  // 三位數加減直接題
+  const threeDigitDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '123 + 456 = ?', answer: '579', expl: '百位：1+4=5，十位：2+5=7，個位：3+6=9，合起來是 579' },
+    { prompt: '234 + 567 = ?', answer: '801', expl: '個位 4+7=11 進 1，十位 3+6+1=10 進 1，百位 2+5+1=8，答案是 801' },
+    { prompt: '345 + 278 = ?', answer: '623', expl: '個位 5+8=13 進 1，十位 4+7+1=12 進 1，百位 3+2+1=6，答案是 623' },
+    { prompt: '789 - 456 = ?', answer: '333', expl: '百位：7-4=3，十位：8-5=3，個位：9-6=3，答案是 333' },
+    { prompt: '632 - 248 = ?', answer: '384', expl: '個位 2 不夠減 8，向十位借 1 變 12-8=4；十位剩 2 不夠減 4，向百位借 1 變 12-4=8；百位剩 5-2=3，答案是 384' },
+    { prompt: '500 - 167 = ?', answer: '333', expl: '個位 0 不夠減 7，連續借位：500 - 167 = 333' },
+    { prompt: '326 + 474 = ?', answer: '800', expl: '326 + 474 = 800，剛好湊成整百' },
+    { prompt: '851 - 358 = ?', answer: '493', expl: '851 - 358 = 493，需要退位減法' },
+    { prompt: '268 + 199 = ?', answer: '467', expl: '268 + 199 = 467，用湊整法：268 + 200 - 1 = 467' },
+    { prompt: '703 - 205 = ?', answer: '498', expl: '703 - 205 = 498，百位 7-2=5，但需要處理退位' },
+  ]
+  for (const q of threeDigitDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: threeDigitAddSub.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 分數入門（intro-fraction）: 20+ 題 ─────────
+  const fractionDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '一個圓形披薩平分成 4 塊，吃了 1 塊，吃了幾分之幾個披薩？', answer: '1/4', expl: '把一個披薩平分成 4 份，吃了 1 份就是 1/4' },
+    { prompt: '一條繩子平分成 5 段，用了 3 段，用了幾分之幾？', answer: '3/5', expl: '平分成 5 份，用了 3 份，就是 3/5' },
+    { prompt: '一個蛋糕平分成 8 塊，吃了 3 塊，吃了幾分之幾？', answer: '3/8', expl: '平分成 8 份，吃了 3 份，就是 3/8' },
+    { prompt: '把一條緞帶平分成 6 段，用了 2 段，用了幾分之幾？', answer: '2/6', expl: '2/6，也就是 1/3，但先寫 2/6' },
+    { prompt: '1/4 和 3/4，哪一個比較大？', answer: '3/4', expl: '分母相同都是 4，分子 3 > 1，所以 3/4 比較大' },
+    { prompt: '2/5 + 1/5 = ?', answer: '3/5', expl: '分母相同（5），分子相加：2+1=3，所以是 3/5' },
+    { prompt: '3/7 + 2/7 = ?', answer: '5/7', expl: '分母相同（7），分子相加：3+2=5，所以是 5/7' },
+    { prompt: '4/9 - 1/9 = ?', answer: '3/9', expl: '分母相同（9），分子相減：4-1=3，所以是 3/9' },
+    { prompt: '5/8 - 2/8 = ?', answer: '3/8', expl: '分母相同（8），分子相減：5-2=3，所以是 3/8' },
+    { prompt: '1 個披薩平分成 3 塊，2 塊是幾分之幾？', answer: '2/3', expl: '平分成 3 份，2 份就是 2/3' },
+    { prompt: '12 顆糖果平分成 4 份，每份是幾分之幾？有幾顆？', answer: '1/4', expl: '平分成 4 份，每份是 1/4；12÷4=3，每份 3 顆' },
+    { prompt: '1/2 和 1/3，哪一個比較大？', answer: '1/2', expl: '分子相同都是 1，分母越小代表每一份越大，所以 1/2 > 1/3' },
+    { prompt: '2/3 和 2/5，哪一個比較大？', answer: '2/3', expl: '分子相同都是 2，分母 3 < 5，所以 2/3 > 2/5' },
+    { prompt: '3/4 = ?/8，? 是多少？', answer: '6', expl: '分子分母同時乘以 2：3×2=6，4×2=8，所以 3/4 = 6/8' },
+    { prompt: '1/2 = ?/6，? 是多少？', answer: '3', expl: '分子分母同時乘以 3：1×3=3，2×3=6，所以 1/2 = 3/6' },
+    { prompt: '7/10 - 3/10 = ?', answer: '4/10', expl: '同分母減法：7-3=4，所以是 4/10' },
+    { prompt: '2/6 + 3/6 = ?', answer: '5/6', expl: '同分母加法：2+3=5，所以是 5/6' },
+    { prompt: '1 可以寫成幾分之幾？5/5 還是 6/5？', answer: '5/5', expl: '1 = 5/5，分子等於分母時等於 1' },
+    { prompt: '3/3 + 1/3 = ?', answer: '4/3', expl: '3/3 + 1/3 = 4/3，也就是 1 又 1/3' },
+    { prompt: '6/8 約分後是幾分之幾？', answer: '3/4', expl: '6/8 的分子分母同時除以 2：6÷2=3，8÷2=4，所以是 3/4' },
+  ]
+  for (const q of fractionDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: introFraction.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 時間計算（time-calc）: 15+ 題 ─────────
+  const timeDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '1 小時 = 幾分鐘？', answer: '60', expl: '1 小時 = 60 分鐘' },
+    { prompt: '3 小時 = 幾分鐘？', answer: '180', expl: '3 × 60 = 180 分鐘' },
+    { prompt: '120 分鐘 = 幾小時？', answer: '2', expl: '120 ÷ 60 = 2 小時' },
+    { prompt: '從上午 9:00 到上午 10:30，經過了多久？', answer: '1小時30分鐘', expl: '從 9:00 到 10:00 是 1 小時，再到 10:30 是 30 分鐘，共 1 小時 30 分鐘' },
+    { prompt: '從下午 2:15 到下午 3:45，經過了多久？', answer: '1小時30分鐘', expl: '從 2:15 到 3:15 是 1 小時，再到 3:45 是 30 分鐘，共 1 小時 30 分鐘' },
+    { prompt: '電影從 7:30 開始，長度 2 小時，幾點結束？', answer: '9:30', expl: '7:30 + 2 小時 = 9:30' },
+    { prompt: '1 分鐘 = 幾秒？', answer: '60', expl: '1 分鐘 = 60 秒' },
+    { prompt: '5 分鐘 = 幾秒？', answer: '300', expl: '5 × 60 = 300 秒' },
+    { prompt: '180 秒 = 幾分鐘？', answer: '3', expl: '180 ÷ 60 = 3 分鐘' },
+    { prompt: '上午 8:45 到上午 9:15 經過多久？', answer: '30分鐘', expl: '從 8:45 到 9:00 是 15 分鐘，再到 9:15 又是 15 分鐘，共 30 分鐘' },
+    { prompt: '2 天 = 幾小時？', answer: '48', expl: '1 天 = 24 小時，2 × 24 = 48 小時' },
+    { prompt: '半年 = 幾個月？', answer: '6', expl: '1 年 = 12 個月，半年 = 6 個月' },
+    { prompt: '3 年 = 幾個月？', answer: '36', expl: '3 × 12 = 36 個月' },
+    { prompt: '1 年 = 幾天？（不考慮閏年）', answer: '365', expl: '1 年通常有 365 天' },
+    { prompt: '從中午 12:00 到下午 6:30 經過多久？', answer: '6小時30分鐘', expl: '12:00 到 6:00 是 6 小時，再加 30 分鐘是 6 小時 30 分鐘' },
+  ]
+  for (const q of timeDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: timeCalc.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 面積與周長（area-perimeter）: 15+ 題 ─────────
+  const areaDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '一個長方形長 5 公分、寬 3 公分，周長是多少？', answer: '16', expl: '周長 = (長 + 寬) × 2 = (5+3) × 2 = 16 公分' },
+    { prompt: '一個正方形邊長 4 公分，周長是多少？', answer: '16', expl: '正方形周長 = 邊長 × 4 = 4 × 4 = 16 公分' },
+    { prompt: '一個長方形長 6 公分、寬 4 公分，面積是多少？', answer: '24', expl: '面積 = 長 × 寬 = 6 × 4 = 24 平方公分' },
+    { prompt: '一個正方形邊長 5 公分，面積是多少？', answer: '25', expl: '正方形面積 = 邊長 × 邊長 = 5 × 5 = 25 平方公分' },
+    { prompt: '一個長方形長 8 公尺、寬 3 公尺，周長是多少？', answer: '22', expl: '周長 = (8+3) × 2 = 22 公尺' },
+    { prompt: '一個長方形長 7 公分、寬 2 公分，面積是多少？', answer: '14', expl: '面積 = 7 × 2 = 14 平方公分' },
+    { prompt: '一個正方形周長 20 公分，邊長是多少？', answer: '5', expl: '邊長 = 周長 ÷ 4 = 20 ÷ 4 = 5 公分' },
+    { prompt: '一個長方形面積 18 平方公分，長 6 公分，寬是多少？', answer: '3', expl: '寬 = 面積 ÷ 長 = 18 ÷ 6 = 3 公分' },
+    { prompt: '一個長方形長 9 公尺、寬 6 公尺，面積是多少？', answer: '54', expl: '面積 = 9 × 6 = 54 平方公尺' },
+    { prompt: '一個正方形邊長 10 公分，面積是多少？', answer: '100', expl: '面積 = 10 × 10 = 100 平方公分' },
+    { prompt: '一個長方形長 12 公分、寬 5 公分，周長是多少？', answer: '34', expl: '周長 = (12+5) × 2 = 34 公分' },
+    { prompt: '一個正方形邊長 7 公分，周長和面積各是多少？（答案格式：周長,面積）', answer: '28,49', expl: '周長 = 7×4 = 28 公分，面積 = 7×7 = 49 平方公分' },
+    { prompt: '一個長方形長 15 公分、寬 10 公分，面積是多少？', answer: '150', expl: '面積 = 15 × 10 = 150 平方公分' },
+    { prompt: '一個正方形邊長 6 公尺，周長是多少？', answer: '24', expl: '周長 = 6 × 4 = 24 公尺' },
+    { prompt: '一個長方形長 20 公分、寬 8 公分，周長是多少？', answer: '56', expl: '周長 = (20+8) × 2 = 56 公分' },
+  ]
+  for (const q of areaDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: areaPerimeter.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ═══════════════════════════════════════════════
+  // G4 四年級題庫
+  // ═══════════════════════════════════════════════
+
+  // ───────── 多位數乘法（large-multiply）: 參數化模板 + 直接題 ─────────
+  const largeMulTemplates = [
+    { prompt: '{a} × {b} = ?', params: { aMin: 11, aMax: 99, bMin: 2, bMax: 9 }, expl: '兩位數乘以一位數：先用個位乘，再用十位乘，最後相加。' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 11, aMax: 99, bMin: 11, bMax: 99 }, expl: '兩位數乘以兩位數：用直式乘法，先乘個位再乘十位。' },
+  ]
+  for (const t of largeMulTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: largeMultiply.id,
+        type: 'MUL',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: '{a*b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  const largeMulDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '23 × 4 = ?', answer: '92', expl: '23 × 4 = (20×4) + (3×4) = 80 + 12 = 92' },
+    { prompt: '45 × 6 = ?', answer: '270', expl: '45 × 6 = (40×6) + (5×6) = 240 + 30 = 270' },
+    { prompt: '56 × 7 = ?', answer: '392', expl: '56 × 7 = (50×7) + (6×7) = 350 + 42 = 392' },
+    { prompt: '12 × 12 = ?', answer: '144', expl: '12 × 12 = 144，這是常用的平方數' },
+    { prompt: '15 × 15 = ?', answer: '225', expl: '15 × 15 = 225，要記住這個平方數！' },
+    { prompt: '24 × 13 = ?', answer: '312', expl: '24 × 13 = 24×10 + 24×3 = 240 + 72 = 312' },
+    { prompt: '36 × 25 = ?', answer: '900', expl: '36 × 25 = 36×100÷4 = 3600÷4 = 900' },
+    { prompt: '42 × 11 = ?', answer: '462', expl: '42 × 11 = 42×10 + 42 = 420 + 42 = 462' },
+    { prompt: '67 × 8 = ?', answer: '536', expl: '67 × 8 = (60×8) + (7×8) = 480 + 56 = 536' },
+    { prompt: '99 × 9 = ?', answer: '891', expl: '99 × 9 = (100×9) - (1×9) = 900 - 9 = 891' },
+    { prompt: '18 × 14 = ?', answer: '252', expl: '18 × 14 = 18×10 + 18×4 = 180 + 72 = 252' },
+    { prompt: '25 × 32 = ?', answer: '800', expl: '25 × 32 = 25×4×8 = 100×8 = 800' },
+  ]
+  for (const q of largeMulDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: largeMultiply.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 直式除法（long-division）: 參數化模板 + 直接題 ─────────
+  const longDivTemplates = [
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 20, aMax: 99, bMin: 2, bMax: 9, aMultipleOfB: true }, expl: '兩位數除以一位數，用直式除法由高位往低位算。' },
+    { prompt: '{a} ÷ {b} = ?⋯⋯?', params: { aMin: 20, aMax: 99, bMin: 3, bMax: 9, aMultipleOfB: false }, expl: '有餘數的除法：被除數 ÷ 除數 = 商⋯⋯餘數，餘數要比除數小。' },
+  ]
+  for (const t of longDivTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: longDivision.id,
+        type: 'DIV',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: t.params.aMultipleOfB ? '{a/b}' : '{a/b}⋯⋯{a%b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  const longDivDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '48 ÷ 4 = ?', answer: '12', expl: '48 ÷ 4 = 12，十位 4÷4=1，個位 8÷4=2' },
+    { prompt: '72 ÷ 6 = ?', answer: '12', expl: '72 ÷ 6 = 12，6×12=72' },
+    { prompt: '84 ÷ 7 = ?', answer: '12', expl: '84 ÷ 7 = 12，7×12=84' },
+    { prompt: '96 ÷ 8 = ?', answer: '12', expl: '96 ÷ 8 = 12，8×12=96' },
+    { prompt: '56 ÷ 4 = ?', answer: '14', expl: '56 ÷ 4 = 14，4×14=56' },
+    { prompt: '65 ÷ 5 = ?', answer: '13', expl: '65 ÷ 5 = 13，5×13=65' },
+    { prompt: '50 ÷ 3 = ?⋯⋯?', answer: '16⋯⋯2', expl: '3×16=48，50-48=2，所以 50÷3=16⋯⋯2' },
+    { prompt: '37 ÷ 5 = ?⋯⋯?', answer: '7⋯⋯2', expl: '5×7=35，37-35=2，所以 37÷5=7⋯⋯2' },
+    { prompt: '43 ÷ 6 = ?⋯⋯?', answer: '7⋯⋯1', expl: '6×7=42，43-42=1，所以 43÷6=7⋯⋯1' },
+    { prompt: '29 ÷ 4 = ?⋯⋯?', answer: '7⋯⋯1', expl: '4×7=28，29-28=1，所以 29÷4=7⋯⋯1' },
+    { prompt: '90 ÷ 7 = ?⋯⋯?', answer: '12⋯⋯6', expl: '7×12=84，90-84=6，所以 90÷7=12⋯⋯6' },
+    { prompt: '51 ÷ 3 = ?', answer: '17', expl: '51 ÷ 3 = 17，3×17=51' },
+  ]
+  for (const q of longDivDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: longDivision.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 分數比較與加減（fraction-compare）: 15+ 題 ─────────
+  const fractionCompDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '3/8 + 2/8 = ?', answer: '5/8', expl: '同分母分數相加：3+2=5，分母不變，所以是 5/8' },
+    { prompt: '7/12 - 4/12 = ?', answer: '3/12', expl: '同分母分數相減：7-4=3，分母不變，所以是 3/12' },
+    { prompt: '2/6 + 3/6 = ?', answer: '5/6', expl: '2/6 + 3/6 = 5/6' },
+    { prompt: '5/9 + 2/9 = ?', answer: '7/9', expl: '5/9 + 2/9 = 7/9' },
+    { prompt: '8/15 - 3/15 = ?', answer: '5/15', expl: '8/15 - 3/15 = 5/15，約分後是 1/3' },
+    { prompt: '3/5 和 3/7 哪個大？', answer: '3/5', expl: '分子相同（都是 3），分母越小分數越大，5 < 7，所以 3/5 > 3/7' },
+    { prompt: '5/8 和 3/8 哪個大？', answer: '5/8', expl: '分母相同（都是 8），分子越大分數越大，5 > 3，所以 5/8 > 3/8' },
+    { prompt: '1/3 + 1/3 + 1/3 = ?', answer: '1', expl: '三個 1/3 加起來 = 3/3 = 1' },
+    { prompt: '3/4 - 1/4 = ?', answer: '2/4', expl: '3/4 - 1/4 = 2/4，約分後是 1/2' },
+    { prompt: '2/7 + 5/7 = ?', answer: '1', expl: '2/7 + 5/7 = 7/7 = 1' },
+    { prompt: '4/10 + 6/10 = ?', answer: '1', expl: '4/10 + 6/10 = 10/10 = 1' },
+    { prompt: '7/10 和 7/12 哪個大？', answer: '7/10', expl: '分子相同（都是 7），分母越小分數越大，10 < 12，所以 7/10 > 7/12' },
+    { prompt: '1/2 + 1/4 = ?（提示：先通分）', answer: '3/4', expl: '1/2 = 2/4，2/4 + 1/4 = 3/4' },
+    { prompt: '1/3 + 1/6 = ?', answer: '3/6', expl: '1/3 = 2/6，2/6 + 1/6 = 3/6 = 1/2' },
+    { prompt: '2/5 + 1/10 = ?', answer: '5/10', expl: '2/5 = 4/10，4/10 + 1/10 = 5/10 = 1/2' },
+  ]
+  for (const q of fractionCompDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: fractionCompare.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 認識小數（decimal-intro）: 15+ 題 ─────────
+  const decimalDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '1/10 用小數怎麼寫？', answer: '0.1', expl: '1/10 = 0.1，十分之一就是 0.1' },
+    { prompt: '3/10 用小數怎麼寫？', answer: '0.3', expl: '3/10 = 0.3' },
+    { prompt: '7/100 用小數怎麼寫？', answer: '0.07', expl: '7/100 = 0.07，百分之七就是 0.07' },
+    { prompt: '0.5 化為分數是多少？', answer: '1/2', expl: '0.5 = 5/10 = 1/2' },
+    { prompt: '0.25 化為分數是多少？', answer: '1/4', expl: '0.25 = 25/100 = 1/4' },
+    { prompt: '0.3 + 0.4 = ?', answer: '0.7', expl: '0.3 + 0.4 = 0.7，小數加法對齊小數點' },
+    { prompt: '0.8 - 0.3 = ?', answer: '0.5', expl: '0.8 - 0.3 = 0.5' },
+    { prompt: '0.6 + 0.07 = ?', answer: '0.67', expl: '0.6 + 0.07 = 0.67，十分位加十分位，百分位加百分位' },
+    { prompt: '0.9 - 0.4 = ?', answer: '0.5', expl: '0.9 - 0.4 = 0.5' },
+    { prompt: '0.35 + 0.24 = ?', answer: '0.59', expl: '0.35 + 0.24 = 0.59，百分位 5+4=9，十分位 3+2=5' },
+    { prompt: '0.75 - 0.25 = ?', answer: '0.5', expl: '0.75 - 0.25 = 0.50 = 0.5' },
+    { prompt: '0.4 和 0.04 哪個大？', answer: '0.4', expl: '0.4 = 0.40，40 > 4，所以 0.4 > 0.04' },
+    { prompt: '0.6 和 0.60 哪個大？', answer: '一樣大', expl: '0.6 = 0.60，在尾數加 0 不改變小數的大小' },
+    { prompt: '1.5 + 2.3 = ?', answer: '3.8', expl: '1.5 + 2.3 = 3.8，整數加整數，小數加小數' },
+    { prompt: '4.8 - 1.6 = ?', answer: '3.2', expl: '4.8 - 1.6 = 3.2' },
+    { prompt: '0.1 × 7 = ?', answer: '0.7', expl: '0.1 × 7 = 0.7，就是把 0.1 加 7 次' },
+    { prompt: '0.6 ÷ 3 = ?', answer: '0.2', expl: '0.6 ÷ 3 = 0.2，把 0.6 平分成 3 份' },
+  ]
+  for (const q of decimalDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: decimalIntro.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
   // ============ 成就徽章 ============
   const badges = [
     { code: 'first-practice', name: '第一次練習', icon: '🌟', condition: '完成首次練習' },
@@ -1093,7 +1496,7 @@ async function main() {
   }
 
   console.log(`  ✓ Badges: ${badges.length} seeded`)
-  console.log('  ✓ Skills: 12, Questions seeded')
+  console.log('  ✓ Skills: 19 (K-4), Questions seeded')
   console.log('✅ Done!')
 }
 

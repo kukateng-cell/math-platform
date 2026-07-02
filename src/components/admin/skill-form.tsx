@@ -70,6 +70,8 @@ export default function SkillForm(props: Props) {
             <option value="K">K</option>
             <option value="G1">G1</option>
             <option value="G2">G2</option>
+            <option value="G3">G3</option>
+            <option value="G4">G4</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">

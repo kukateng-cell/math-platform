@@ -21,7 +21,7 @@ export const LoginFormSchema = z.object({
 // 孩子檔案驗證
 export const ChildProfileSchema = z.object({
   nickname: z.string().min(1, '請輸入孩子的暱稱').max(20, '暱稱最多 20 字').trim(),
-  gradeLevel: z.enum(['K', 'G1', 'G2'], {
+  gradeLevel: z.enum(['K', 'G1', 'G2', 'G3', 'G4'], {
     errorMap: () => ({ message: '請選擇年級' }),
   }),
 })

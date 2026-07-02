@@ -1,10 +1,12 @@
 import { PrismaClient } from '@/generated/prisma/client.js'
-import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
+import path from 'node:path'
 
 // Prisma 7 必須傳入 driver adapter（不再用 datasource url 直連）
-// runtime（Server Actions）用 pooled 連線（port 6543）
+// 本地開發用 SQLite
 function createPrismaClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
+  const dbPath = path.join(process.cwd(), 'prisma', 'dev.db')
+  const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` })
   return new PrismaClient({ adapter })
 }
 
