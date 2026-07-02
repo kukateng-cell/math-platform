@@ -22,7 +22,7 @@ export default function SignupForm({ initialCaptcha }: Props) {
           name="name"
           type="text"
           placeholder="王小明"
-          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           required
         />
         {state?.errors?.name && (
@@ -39,7 +39,7 @@ export default function SignupForm({ initialCaptcha }: Props) {
           name="email"
           type="email"
           placeholder="parent@example.com"
-          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           required
         />
         {state?.errors?.email && (
@@ -56,7 +56,7 @@ export default function SignupForm({ initialCaptcha }: Props) {
           name="password"
           type="password"
           placeholder="至少 8 碼，含字母與數字"
-          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           required
         />
         {state?.errors?.password && (
@@ -69,15 +69,15 @@ export default function SignupForm({ initialCaptcha }: Props) {
       </div>
 
       {/* CAPTCHA */}
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-gray-600 dark:bg-gray-800">
         <input type="hidden" name="captchaToken" value={captcha.token} />
-        <label className="mb-1 block text-sm font-medium text-neutral-600">
+        <label className="mb-1 block text-sm font-medium text-neutral-600 dark:text-gray-300">
           🤖 請回答驗證問題
         </label>
         <p className="mb-2 text-center text-lg font-bold">{captcha.question}</p>
         <input
           name="captchaAnswer" type="number" placeholder="輸入答案"
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-center text-lg outline-none focus:border-blue-500"
+          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-center text-lg outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           required
         />
       </div>

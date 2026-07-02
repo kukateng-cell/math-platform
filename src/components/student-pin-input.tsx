@@ -29,7 +29,7 @@ export default function StudentPinInput() {
           onKeyDown={(e) => handleKey(i, e)}
           autoFocus={i === 0}
           className="h-12 w-10 rounded-xl border-2 border-neutral-300 text-center text-xl font-bold
-            outline-none transition focus:border-blue-500 [&:not(:placeholder-shown)]:border-blue-500"
+            outline-none transition focus:border-blue-500 [&:not(:placeholder-shown)]:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
         />
       ))}
     </div>

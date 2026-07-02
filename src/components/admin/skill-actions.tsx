@@ -73,21 +73,21 @@ export default function SkillActions({ skill, allSkills, isFirst, isLast }: Prop
             ⬇️
           </button>
         </form>
-        <span className="w-6 text-center text-xs text-neutral-300">{skill.order}</span>
+        <span className="w-6 text-center text-xs text-neutral-300 dark:text-gray-600">{skill.order}</span>
       </div>
 
       {/* 動作按鈕 */}
       <div className="flex items-center gap-1">
         <button
           onClick={() => setEditOpen(true)}
-          className="rounded px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+          className="rounded px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-950"
         >
           ✏️ 編輯
         </button>
 
         <button
           onClick={() => setDeleteOpen(true)}
-          className="rounded px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50"
+          className="rounded px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950"
         >
           🗑️ 刪除
         </button>

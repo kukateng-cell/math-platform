@@ -77,12 +77,12 @@ export default function LoginForm({ initialCaptcha }: Props) {
         </div>
 
         {/* CAPTCHA */}
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-gray-600 dark:bg-gray-800">
           <input type="hidden" name="captchaToken" value={captcha.token} />
-          <label className="mb-1 block text-sm font-medium text-neutral-600">🤖 請回答驗證問題</label>
+          <label className="mb-1 block text-sm font-medium text-neutral-600 dark:text-gray-300">🤖 請回答驗證問題</label>
           <p className="mb-2 text-center text-lg font-bold">{captcha.question}</p>
           <input name="captchaAnswer" type="number" placeholder="輸入答案"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-center text-lg outline-none focus:border-blue-500" required />
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-center text-lg outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white" required />
         </div>
 
         {loginState?.message && (
@@ -105,15 +105,15 @@ export default function LoginForm({ initialCaptcha }: Props) {
       <form action={otpAction} className="flex flex-col gap-4">
         <input type="hidden" name="tempToken" value={tempToken} />
 
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-800 dark:bg-blue-950">
           <div className="mb-2 text-3xl">📧</div>
-          <p className="text-sm text-blue-800">{loginState?.message || resendState?.message}</p>
+          <p className="text-sm text-blue-800 dark:text-blue-200">{loginState?.message || resendState?.message}</p>
 
           {/* ═══ 開發模式：直接顯示驗證碼 ═══ */}
           {displayOtp && (
             <div className="mt-3 rounded-xl bg-white/80 px-4 py-3">
               <p className="mb-1 text-xs text-blue-500">🔧 開發模式 — 驗證碼</p>
-              <p className="mb-2 select-all text-3xl font-bold tracking-[0.3em] text-blue-900">
+              <p className="mb-2 select-all text-3xl font-bold tracking-[0.3em] text-blue-900 dark:text-blue-100">
                 {displayOtp}
               </p>
               <button
@@ -141,7 +141,7 @@ export default function LoginForm({ initialCaptcha }: Props) {
           <label htmlFor="otpCode" className="text-sm font-medium text-center">輸入 6 位數驗證碼</label>
           <input id="otpCode" name="otpCode" type="text" inputMode="numeric"
             autoComplete="one-time-code" maxLength={6} placeholder="000000"
-            className="rounded-lg border border-neutral-300 px-3 py-3 text-center text-2xl tracking-[0.5em] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" required />
+            className="rounded-lg border border-neutral-300 px-3 py-3 text-center text-2xl tracking-[0.5em] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white" required />
         </div>
 
         {otpState?.message && (
@@ -158,12 +158,12 @@ export default function LoginForm({ initialCaptcha }: Props) {
       <form action={resendAction} className="text-center">
         <input type="hidden" name="tempToken" value={tempToken} />
         {countdown > 0 ? (
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-neutral-400 dark:text-gray-500">
             未收到驗證碼？{countdown} 秒後可重新發送
           </p>
         ) : (
           <button type="submit" disabled={resendPending}
-            className="text-sm font-medium text-blue-600 transition hover:text-blue-800 disabled:opacity-50">
+            className="text-sm font-medium text-blue-600 transition hover:text-blue-800 disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300">
             {resendPending ? '發送中…' : '重新發送驗證碼'}
           </button>
         )}

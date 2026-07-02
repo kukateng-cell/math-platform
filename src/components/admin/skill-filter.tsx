@@ -23,7 +23,7 @@ export default function SkillFilter({
     <select
       name="skillId"
       defaultValue={defaultValue}
-      className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+      className="rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-white"
       onChange={handleChange}
     >
       <option value="">全部技能</option>

@@ -26,15 +26,15 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold">我的孩子</h1>
         <Link
           href="/child-login"
-          className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 transition hover:bg-neutral-50"
+          className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 transition hover:bg-neutral-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
         >
           🧒 孩子練習模式
         </Link>
       </div>
 
       {children.length === 0 ? (
-        <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center">
-          <p className="mb-4 text-neutral-600">還沒有建立任何孩子檔案</p>
+        <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">
+          <p className="mb-4 text-neutral-600 dark:text-gray-300">還沒有建立任何孩子檔案</p>
           <div className="mx-auto max-w-xs">
             <AddChildForm />
           </div>
@@ -44,14 +44,14 @@ export default async function DashboardPage() {
           {children.map((child) => (
             <div
               key={child.id}
-              className="flex flex-col rounded-xl border border-neutral-200 bg-white p-5 shadow-sm"
+              className="flex flex-col rounded-xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900"
             >
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">🧒</span>
                   <span className="text-lg font-semibold">{child.nickname}</span>
                 </div>
-                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                   {child.gradeLevel === 'K' ? '幼兒園' : `${child.gradeLevel.replace('G', '')}年級`}
                 </span>
               </div>
@@ -69,11 +69,11 @@ export default async function DashboardPage() {
               </div>
 
               {child.sessions[0] ? (
-                <p className="mb-3 text-sm text-neutral-500">
+                <p className="mb-3 text-sm text-neutral-500 dark:text-gray-400">
                   上次練習：{child.sessions[0].correctCount}/{child.sessions[0].totalQuestions} 題正確
                 </p>
               ) : (
-                <p className="mb-3 text-sm text-neutral-400">尚未練習</p>
+                <p className="mb-3 text-sm text-neutral-400 dark:text-gray-500">尚未練習</p>
               )}
 
               <Link
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
               </Link>
               <Link
                 href={`/children/${child.id}`}
-                className="mb-2 rounded-lg border border-neutral-300 px-4 py-2 text-center text-sm transition hover:bg-neutral-50"
+                className="mb-2 rounded-lg border border-neutral-300 px-4 py-2 text-center text-sm transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
               >
                 學習概覽
               </Link>

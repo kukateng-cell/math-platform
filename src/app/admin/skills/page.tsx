@@ -23,12 +23,12 @@ export default async function AdminSkillsPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
-      <Link href="/admin" className="text-sm text-neutral-500 hover:text-neutral-900">
+      <Link href="/admin" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white">
         ← 返回後台
       </Link>
       <h1 className="mt-2 mb-6 text-2xl font-bold">技能管理</h1>
 
-      <div className="mb-8 rounded-xl border border-neutral-200 bg-white p-5">
+      <div className="mb-8 rounded-xl border border-neutral-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
         <h2 className="mb-4 font-semibold">新增技能</h2>
         <SkillForm mode="create" skills={skillOptions} />
       </div>
@@ -38,8 +38,8 @@ export default async function AdminSkillsPage() {
         {skills.map((s, i) => (
           <div
             key={s.id}
-            className={`flex items-center justify-between rounded-lg border bg-white px-4 py-3 ${
-              s.isActive ? 'border-neutral-200' : 'border-neutral-200 opacity-60'
+            className={`flex items-center justify-between rounded-lg border bg-white px-4 py-3 dark:bg-gray-900 ${
+              s.isActive ? 'border-neutral-200 dark:border-gray-700' : 'border-neutral-200 opacity-60 dark:border-gray-700'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -65,13 +65,13 @@ export default async function AdminSkillsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{s.name}</span>
-                  <code className="rounded bg-neutral-100 px-1.5 text-xs text-neutral-500">{s.code}</code>
-                  <span className="rounded-full bg-blue-50 px-2 text-xs text-blue-600">{s.gradeLevel}</span>
+                  <code className="rounded bg-neutral-100 px-1.5 text-xs text-neutral-500 dark:bg-gray-700 dark:text-gray-400">{s.code}</code>
+                  <span className="rounded-full bg-blue-50 px-2 text-xs text-blue-600 dark:bg-blue-950 dark:text-blue-400">{s.gradeLevel}</span>
                   {!s.isActive && (
                     <span className="rounded-full bg-red-50 px-2 text-xs text-red-500">已停用</span>
                   )}
                 </div>
-                <p className="mt-0.5 text-xs text-neutral-400">
+                <p className="mt-0.5 text-xs text-neutral-400 dark:text-gray-500">
                   {`${s._count.questions} 題`}
                   {s.prerequisite ? ` · 前置：${s.prerequisite.name}` : ''}
                 </p>

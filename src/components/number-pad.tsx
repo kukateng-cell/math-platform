@@ -28,9 +28,9 @@ export default function NumberPad({ value, onChange, onSubmit, disabled }: Props
   return (
     <div className="mx-auto w-full max-w-xs">
       {/* 輸入顯示 */}
-      <div className="mb-4 flex h-16 items-center justify-center rounded-xl border-2 border-neutral-200 bg-white px-4">
-        <span className="text-4xl font-bold tracking-widest text-neutral-800">
-          {value || <span className="text-neutral-300">?</span>}
+      <div className="mb-4 flex h-16 items-center justify-center rounded-xl border-2 border-neutral-200 bg-white px-4 dark:border-gray-600 dark:bg-gray-900">
+        <span className="text-4xl font-bold tracking-widest text-neutral-800 dark:text-white">
+          {value || <span className="text-neutral-300 dark:text-gray-600">?</span>}
         </span>
       </div>
 
@@ -49,8 +49,8 @@ export default function NumberPad({ value, onChange, onSubmit, disabled }: Props
                   disabled={disabled}
                   className={`flex-1 rounded-xl py-4 text-2xl font-bold transition active:scale-95 ${
                     k === '⌫'
-                      ? 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                      : 'bg-white text-neutral-800 shadow-sm border border-neutral-200 hover:border-blue-400 hover:bg-blue-50'
+                      ? 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                      : 'bg-white text-neutral-800 shadow-sm border border-neutral-200 hover:border-blue-400 hover:bg-blue-50 dark:bg-gray-900 dark:text-white dark:border-gray-600 dark:hover:border-blue-400 dark:hover:bg-blue-950'
                   } disabled:opacity-40`}
                 >
                   {k === '⌫' ? '⌫' : k}
