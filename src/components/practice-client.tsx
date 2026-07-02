@@ -131,6 +131,7 @@ export default function PracticeClient({
   }
 
   if (index >= questions.length || (lastResult?.finished && index === questions.length - 1)) {
+    const starsEarned = correctCount
     return (
       <div className="flex flex-col items-center gap-6 text-center" role="region" aria-label="練習完成">
         <div className="text-6xl">{correctCount >= questions.length / 2 ? '🎉' : '💪'}</div>
@@ -141,6 +142,30 @@ export default function PracticeClient({
         <p className="text-sm text-neutral-400">
           正確率 {Math.round((correctCount / questions.length) * 100)}%
         </p>
+
+        {/* 星星獎勵顯示 + 動畫灑落 */}
+        {starsEarned > 0 && (
+          <div className="stars-container my-2">
+            <div className="flex flex-wrap justify-center gap-1" aria-label={`獲得 ${starsEarned} 顆星星`}>
+              {Array.from({ length: starsEarned }).map((_, i) => (
+                <span
+                  key={i}
+                  className="star-fall inline-block text-2xl"
+                  style={{
+                    animation: `starDrop 0.5s ease-out ${i * 0.15}s both`,
+                    fontSize: `${1.5 + Math.random() * 1}rem`,
+                  }}
+                >
+                  ⭐
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-sm font-medium text-amber-600">
+              +{starsEarned} 顆星星 ⭐
+            </p>
+          </div>
+        )}
+
         <div className="flex gap-3">
           <a
             ref={completionLinkRef}
@@ -156,6 +181,14 @@ export default function PracticeClient({
             再練一次
           </a>
         </div>
+
+        <style>{`
+          @keyframes starDrop {
+            0% { opacity: 0; transform: translateY(-30px) scale(0.3) rotate(0deg); }
+            60% { opacity: 1; transform: translateY(5px) scale(1.2) rotate(15deg); }
+            100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+          }
+        `}</style>
       </div>
     )
   }

@@ -66,6 +66,11 @@ model ChildProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ============ 遊戲化 ============
+  stars          Int       @default(0)   // 累計星星數
+  streak         Int       @default(0)   // 連續練習天數
+  lastPracticeAt DateTime?               // 上次練習日期（供 streak 計算）
+
   parent            User?             @relation(fields: [parentId], references: [id], onDelete: Cascade)
   parentLinks       ParentChild[]     @relation("ChildLinks")
   masterySnapshots  MasterySnapshot[]
