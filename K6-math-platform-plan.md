@@ -197,7 +197,7 @@
 | `DIRECT` | 直接題目，固定 prompt / answer / options |
 | `ADD` | 參數化加法：`{aMin,aMax,bMin,bMax,sumMax}` 抽運算元，保證和不超限 |
 | `SUB` | 參數化減法：抽運算元，保證差不為負 |
-| `WORD_PROBLEM` | 參數化生活情境文字題：`{operation:'add'|'sub', ...範圍}` |
+| `WORD_PROBLEM` | 參數化生活情境文字題：`{operation:'add' 或 'sub', ...範圍}` |
 
 題目實例由 `src/lib/question.ts` 的 `generateQuestion` 在伺服器產生，並打亂選項順序（`shuffle`）
 
@@ -223,7 +223,7 @@
 
 ### 路由樹（實際）
 
-```
+```text
 /                         首頁（依登入狀態顯示入口）
 /login                    家長登入（CAPTCHA → OTP 雙步驟）
 /signup                   家長註冊（含 CAPTCHA）
