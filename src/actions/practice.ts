@@ -4,11 +4,56 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { getChildSession } from '@/lib/child-session'
 import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
 
 const QUESTIONS_PER_SESSION = 10
+
+// ============ 練習授權輔助函式 ============
+// 練習路由同時支援「家長 session」與「孩子 session」兩種身分：
+// - 家長：透過 getSession()，可存取自己建立的所有孩子
+// - 孩子（家長建檔 / 自主學習）：透過 getChildSession()，只能存取自己的檔案
+type PracticeAuth =
+  | { type: 'parent'; userId: string }
+  | { type: 'child'; childId: string }
+  | null
+
+async function getPracticeAuth(): Promise<PracticeAuth> {
+  // 先嘗試家長 session
+  const session = await getSession()
+  if (session) return { type: 'parent', userId: session.userId }
+
+  // 再嘗試孩子 session
+  const childSession = await getChildSession()
+  if (childSession) return { type: 'child', childId: childSession.childId }
+
+  return null
+}
+
+// 驗證目前身分是否有權存取指定的孩子
+async function canAccessChild(childId: string): Promise<boolean> {
+  const auth = await getPracticeAuth()
+  if (!auth) return false
+  if (auth.type === 'child') return auth.childId === childId
+
+  // 家長：確認孩子屬於這名家長，或透過 ParentChild 關聯綁定
+  const child = await prisma.childProfile.findFirst({
+    where: { id: childId, parentId: auth.userId },
+  })
+  if (child) return true
+
+  const link = await prisma.parentChild.findFirst({
+    where: { parentId: auth.userId, childId },
+  })
+  return !!link
+}
+
+// 供頁面元件使用：檢查是否有任何練習身分（家長或孩子）
+export async function hasPracticeAccess(): Promise<boolean> {
+  return (await getPracticeAuth()) !== null
+}
 
 type StoredQuestion = {
   templateId: string
@@ -25,13 +70,13 @@ type StoredQuestion = {
 
 // 開始一次練習：在伺服器生成題目快照後建立 session
 export async function startSession(childId: string, skillId: string) {
-  const session = await getSession()
-  if (!session) throw new Error('未授權')
+  const auth = await getPracticeAuth()
+  if (!auth) throw new Error('未授權')
 
-  // 確認孩子屬於這名家長
-  const child = await prisma.childProfile.findFirst({
-    where: { id: childId, parentId: session.userId },
-  })
+  // 確認身分可存取這個孩子
+  if (!(await canAccessChild(childId))) throw new Error('找不到孩子檔案')
+
+  const child = await prisma.childProfile.findUnique({ where: { id: childId } })
   if (!child) throw new Error('找不到孩子檔案')
 
   const skill = await prisma.skill.findUnique({
@@ -87,7 +132,7 @@ export async function startSession(childId: string, skillId: string) {
     data: {
       childId,
       skillId,
-      parentId: session.userId,
+      parentId: auth.type === 'parent' ? auth.userId : child.parentId,
       totalQuestions: QUESTIONS_PER_SESSION,
       questionsJson: JSON.stringify(generated),
     },
@@ -104,8 +149,8 @@ export async function getSessionQuestions(
   skillName: string
   childNickname: string
 } | null> {
-  const session = await getSession()
-  if (!session) {
+  const auth = await getPracticeAuth()
+  if (!auth) {
     console.error('getSessionQuestions: no session')
     return null
   }
@@ -119,8 +164,8 @@ export async function getSessionQuestions(
     return null
   }
 
-  // 驗證家長擁有這個孩子
-  if (practiceSession.child.parentId !== session.userId) return null
+  // 驗證身分可存取此練習
+  if (!(await canAccessChild(practiceSession.childId))) return null
 
   // 相容舊 session：若無 questionsJson，回傳空陣列讓前端顯示提示
   let questions: StoredQuestion[] = []
@@ -155,15 +200,15 @@ export async function submitAnswer(payload: {
   assisted: boolean
   durationMs: number
 }): Promise<SubmitResult> {
-  const session = await getSession()
-  if (!session) throw new Error('未授權')
+  const auth = await getPracticeAuth()
+  if (!auth) throw new Error('未授權')
 
   const practiceSession = await prisma.practiceSession.findUnique({
     where: { id: payload.sessionId },
     include: { child: true },
   })
-  // 越權防護：session 必須存在且屬於當前家長的孩子
-  if (!practiceSession || practiceSession.child.parentId !== session.userId) {
+  // 越權防護：session 必須存在且身分可存取此孩子
+  if (!practiceSession || !(await canAccessChild(practiceSession.childId))) {
     throw new Error('無權存取此練習')
   }
   // 已完成的練習不再接受作答（防重複提交）
@@ -249,11 +294,14 @@ export async function submitAnswer(payload: {
 
 // 取得孩子的技能選單與推薦
 export async function getChildSkills(childId: string) {
-  const session = await getSession()
-  if (!session) return null
+  const auth = await getPracticeAuth()
+  if (!auth) return null
 
-  const child = await prisma.childProfile.findFirst({
-    where: { id: childId, parentId: session.userId },
+  // 驗證身分可存取這個孩子
+  if (!(await canAccessChild(childId))) return null
+
+  const child = await prisma.childProfile.findUnique({
+    where: { id: childId },
     include: { masterySnapshots: { include: { skill: true } } },
   })
   if (!child) return null

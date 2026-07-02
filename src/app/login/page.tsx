@@ -20,16 +20,11 @@ export default async function LoginPage() {
           </Link>
         </p>
         {/* 其他登入方式 */}
-        <div className="mt-4 space-y-2 border-t border-neutral-200 pt-4 text-center text-sm">
-          <p className="text-neutral-500">其他登入方式：</p>
-          <div className="flex flex-col gap-2">
-            <Link href="/child-login" className="block rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 font-medium text-amber-700 transition hover:bg-amber-100">
-              🧒 孩子登入（暱稱 + PIN）
-            </Link>
-            <Link href="/student/login" className="block rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 font-medium text-green-700 transition hover:bg-green-100">
-              🌱 學生登入（Email + 驗證碼）
-            </Link>
-          </div>
+        <div className="mt-4 space-y-2 border-t border-neutral-200 pt-4 text-center text-sm dark:border-gray-700">
+          <p className="text-neutral-500 dark:text-gray-400">其他登入方式：</p>
+          <Link href="/student/login" className="block rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 font-medium text-green-700 transition hover:bg-green-100 dark:border-green-800 dark:bg-green-950 dark:text-green-300">
+            🌱 學生登入（Email + 驗證碼）
+          </Link>
         </div>
       </div>
     </main>

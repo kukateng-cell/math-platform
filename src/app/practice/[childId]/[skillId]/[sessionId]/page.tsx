@@ -1,7 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { getSessionQuestions } from '@/actions/practice'
-import { getCurrentUser } from '@/actions/auth'
+import { getSessionQuestions, hasPracticeAccess } from '@/actions/practice'
 import PracticeClient from '@/components/practice-client'
 
 export default async function PracticeQuestionPage({
@@ -10,8 +9,9 @@ export default async function PracticeQuestionPage({
   params: Promise<{ childId: string; skillId: string; sessionId: string }>
 }) {
   const { childId, sessionId } = await params
-  const user = await getCurrentUser()
-  if (!user) return null
+  // 練習路由支援家長 session 或孩子 session
+  const hasAccess = await hasPracticeAccess()
+  if (!hasAccess) return null
 
   const data = await getSessionQuestions(sessionId)
   
