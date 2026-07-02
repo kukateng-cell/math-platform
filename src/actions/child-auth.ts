@@ -15,8 +15,9 @@ export async function childLogin(state: ChildLoginState, formData: FormData): Pr
     return { error: '請輸入完整的 4 位數 PIN 碼' }
   }
 
+  // 只允許家長建立的孩子（STANDARD 模式）用 PIN 登入
   const child = await prisma.childProfile.findFirst({
-    where: { pin },
+    where: { pin, mode: 'STANDARD' },
   })
 
   if (!child) {

@@ -225,9 +225,9 @@ export async function setChildPin(formData: FormData) {
   })
   if (!child) throw new Error('找不到孩子檔案')
 
-  // 檢查 PIN 是否與其他孩子重複
+  // 檢查 PIN 是否與其他孩子重複（僅家長建立的孩子使用 PIN）
   const existing = await prisma.childProfile.findFirst({
-    where: { pin, id: { not: childId } },
+    where: { pin, id: { not: childId }, mode: 'STANDARD' },
   })
   if (existing) {
     throw new Error('此 PIN 碼已被其他孩子使用，請換一組')
