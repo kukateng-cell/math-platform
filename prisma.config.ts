@@ -1,11 +1,12 @@
-import path from 'node:path'
+import 'dotenv/config'
 import { defineConfig } from 'prisma/config'
 
+// Prisma 7: datasource.url 不可寫在 schema，連線字串放這裡
+// 開發用 Supabase connection string（見 .env 的 DATABASE_URL）
+// prisma migrate/CLI 用「非 pooled」連線（port 5432），避免 schema 變更衝突
 export default defineConfig({
-  // Prisma 7: migrate / cli 用的連線字串改放這裡
-  // 用實體檔案路徑，避免相對路徑在不同 cwd 下找不到
   datasource: {
-    url: `file:${path.join(process.cwd(), 'prisma', 'dev.db')}`,
+    url: process.env.DATABASE_URL!,
   },
   migrations: {
     seed: 'node --experimental-strip-types prisma/seed.ts',
