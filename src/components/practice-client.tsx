@@ -16,6 +16,27 @@ type QuestionItem = {
   rangeMax?: number
 }
 
+type QuestionResult = {
+  correct: boolean
+  assisted: boolean
+  correctAnswer: string
+  userAnswer: string
+}
+
+function formatDuration(ms: number) {
+  const sec = Math.max(0, Math.floor(ms / 1000))
+  const m = String(Math.floor(sec / 60)).padStart(2, '0')
+  const s = String(sec % 60).padStart(2, '0')
+  return `${m}:${s}`
+}
+
+function getEncouragement(rate: number) {
+  if (rate >= 100) return { emoji: '🏆', msg: '完美！全部答對！' }
+  if (rate >= 80) return { emoji: '🌟', msg: '好厲害！繼續保持！' }
+  if (rate >= 60) return { emoji: '💪', msg: '不錯喔！再加油！' }
+  return { emoji: '🌱', msg: '沒關係，多練習就會了！' }
+}
+
 type Props = {
   questions: QuestionItem[]
   sessionId: string
@@ -40,7 +61,14 @@ export default function PracticeClient({
   const [correctCount, setCorrectCount] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [questionResults, setQuestionResults] = useState<QuestionResult[]>([])
+  const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
+  const [revealCorrect, setRevealCorrect] = useState(false)
+  const [bgFlash, setBgFlash] = useState<'green' | 'red' | null>(null)
+  const [elapsed, setElapsed] = useState('00:00')
+  const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
+  const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
   const completionLinkRef = useRef<HTMLAnchorElement | null>(null)
   const submittingRef = useRef(false)
@@ -60,6 +88,17 @@ export default function PracticeClient({
       completionLinkRef.current.focus()
     }
   }, [index, questions.length])
+
+  // 練習計時器：每秒更新經過時間
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const sec = Math.floor((Date.now() - practiceStartRef.current) / 1000)
+      const m = String(Math.floor(sec / 60)).padStart(2, '0')
+      const s = String(sec % 60).padStart(2, '0')
+      setElapsed(`${m}:${s}`)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const interaction = current.interaction || (!current.options || current.options.length === 0 ? 'fillin' : 'choice')
 
@@ -112,6 +151,26 @@ export default function PracticeClient({
 
       setLastResult(result)
       if (result.correct && !assisted) setCorrectCount((c) => c + 1)
+
+      // 動畫回饋
+      setQuestionResults((prev) => [
+        ...prev,
+        {
+          correct: result.correct,
+          assisted,
+          correctAnswer: result.correctAnswer,
+          userAnswer: currentAnswer,
+        },
+      ])
+      setFeedback(result.correct ? 'correct' : 'incorrect')
+      setBgFlash(result.correct ? 'green' : 'red')
+      if (!result.correct) {
+        setTimeout(() => setRevealCorrect(true), 500)
+      }
+      setTimeout(() => setBgFlash(null), 300)
+      if (result.finished) {
+        setFinalTotalMs(Date.now() - practiceStartRef.current)
+      }
     } catch {
       setError('送出失敗，請再試一次')
     } finally {
@@ -126,22 +185,47 @@ export default function PracticeClient({
     setLineValue(null)
     setLastResult(null)
     setAssisted(false)
+    setFeedback(null)
+    setRevealCorrect(false)
+    setBgFlash(null)
     startTimeRef.current = Date.now()
     setIndex((i) => i + 1)
   }
 
   if (index >= questions.length || (lastResult?.finished && index === questions.length - 1)) {
     const starsEarned = correctCount
+    const accuracy = Math.round((correctCount / questions.length) * 100)
+    const encouragement = getEncouragement(accuracy)
+    const totalTime = finalTotalMs != null ? finalTotalMs : Date.now() - practiceStartRef.current
     return (
       <div className="flex flex-col items-center gap-6 text-center" role="region" aria-label="練習完成">
-        <div className="text-6xl">{correctCount >= questions.length / 2 ? '🎉' : '💪'}</div>
+        <div className="text-6xl">{encouragement.emoji}</div>
         <h2 className="text-2xl font-bold">{childNickname} 完成了！</h2>
-        <p className="text-lg text-neutral-600">
-          答對 <span className="font-bold text-green-600">{correctCount}</span> / {questions.length} 題
-        </p>
-        <p className="text-sm text-neutral-400">
-          正確率 {Math.round((correctCount / questions.length) * 100)}%
-        </p>
+        <p className="text-lg font-medium text-indigo-600">{encouragement.emoji} {encouragement.msg}</p>
+
+        {/* 答對題數 + 總花費時間 */}
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
+          <p className="text-lg text-neutral-600">
+            答對 <span className="font-bold text-green-600">{correctCount}</span> / {questions.length} 題
+          </p>
+          <p className="text-lg text-neutral-600">
+            共花費 <span className="font-mono font-bold text-blue-600">⏱️ {formatDuration(totalTime)}</span>
+          </p>
+        </div>
+
+        {/* 正確率進度條 */}
+        <div className="w-full max-w-md">
+          <div className="mb-1 flex justify-between text-sm text-neutral-500">
+            <span>正確率</span>
+            <span className="font-bold text-green-600">{accuracy}%</span>
+          </div>
+          <div className="h-3 w-full rounded-full bg-neutral-200" role="progressbar" aria-valuenow={accuracy} aria-valuemin={0} aria-valuemax={100} aria-label={"正確率 " + accuracy + "%"}>
+            <div
+              className="h-3 rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-700"
+              style={{ width: accuracy + "%" }}
+            />
+          </div>
+        </div>
 
         {/* 星星獎勵顯示 + 動畫灑落 */}
         {starsEarned > 0 && (
@@ -165,6 +249,49 @@ export default function PracticeClient({
             </p>
           </div>
         )}
+
+        {/* 每題結果一覽 */}
+        <div className="w-full max-w-md">
+          <h3 className="mb-2 text-sm font-semibold text-neutral-500">每題結果一覽</h3>
+          <ol className="flex flex-col gap-1.5">
+            {questions.map((q, i) => {
+              const r = questionResults[i]
+              let icon = '○'
+              let label = '未作答'
+              let cls = 'border-neutral-200 bg-neutral-50 text-neutral-400'
+              let detail: string | null = null
+              if (r) {
+                if (r.assisted) {
+                  icon = '🤝'
+                  label = '家長協助'
+                  cls = 'border-amber-200 bg-amber-50 text-amber-700'
+                  detail = '答案：' + r.correctAnswer
+                } else if (r.correct) {
+                  icon = '✅'
+                  label = '答對'
+                  cls = 'border-green-200 bg-green-50 text-green-700'
+                } else {
+                  icon = '❌'
+                  label = '答錯'
+                  cls = 'border-red-200 bg-red-50 text-red-700'
+                  detail = '正確答案：' + r.correctAnswer
+                }
+              }
+              return (
+                <li key={i} className={"flex items-center justify-between rounded-lg border px-3 py-2 text-sm " + cls}>
+                  <span className="flex items-center gap-2">
+                    <span className="text-base">{icon}</span>
+                    <span className="text-neutral-500">第 {i + 1} 題</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    {detail && <span className="text-xs opacity-70">{detail}</span>}
+                    <span className="font-medium">{label}</span>
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
 
         <div className="flex gap-3">
           <a
@@ -195,12 +322,21 @@ export default function PracticeClient({
 
   const submitDisabled = !currentAnswer || submitting
 
+  const bgFlashClass =
+    bgFlash === 'green' ? 'animate-flash-green' : bgFlash === 'red' ? 'animate-flash-red' : ''
+
   return (
-    <div className="flex w-full flex-col gap-6" onKeyDown={handleKeyDown}>
+    <div className={"flex w-full flex-col gap-6 " + bgFlashClass} onKeyDown={handleKeyDown}>
       <div>
-        <div className="mb-1 flex justify-between text-sm text-neutral-500">
+        <div className="mb-1 flex items-center justify-between text-sm text-neutral-500">
           <span>{skillName}</span>
-          <span>{index + 1} / {totalQuestions}</span>
+          <span className="flex items-center gap-3">
+            <span className="font-mono">⏱️ {elapsed}</span>
+            <span>{index + 1} / {totalQuestions}</span>
+          </span>
+        </div>
+        <div className="mb-1 flex justify-end text-xs font-medium text-indigo-500">
+          {progress}%
         </div>
         <div
           className="h-2 w-full rounded-full bg-neutral-200"
@@ -215,6 +351,31 @@ export default function PracticeClient({
             className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
             style={{ width: progress + "%" }}
           />
+        </div>
+
+        {/* 進度圓點狀態指示器 */}
+        <div className="mt-3 flex justify-center gap-1.5" aria-hidden="true">
+          {questions.map((_, i) => {
+            let dotCls = 'h-3 w-3 rounded-full border-2 border-neutral-300 bg-transparent'
+            let icon: string | null = null
+            if (i < questionResults.length) {
+              const r = questionResults[i]
+              if (r.assisted) {
+                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-400 text-[8px] text-white'
+              } else if (r.correct) {
+                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-green-500 bg-green-500 text-[8px] text-white'
+                icon = '✓'
+              } else {
+                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-400 bg-red-400 text-[8px] text-white'
+                icon = '✗'
+              }
+            } else if (i === index) {
+              dotCls = 'h-3 w-3 rounded-full border-2 border-blue-500 bg-blue-500 animate-pulse-dot'
+            }
+            return (
+              <span key={i} className={dotCls}>{icon}</span>
+            )
+          })}
         </div>
       </div>
 
@@ -231,11 +392,27 @@ export default function PracticeClient({
           {current.options.map((opt, optIdx) => {
             let cls = 'border-neutral-300 bg-white hover:border-blue-400'
             if (selected === opt) cls = 'border-blue-500 bg-blue-50'
-            if (lastResult) {
-              if (opt === current.answer) cls = 'border-green-500 bg-green-50'
-              else if (selected === opt) cls = 'border-red-400 bg-red-50'
-              else cls = 'border-neutral-200 bg-white opacity-60'
+            if (lastResult && feedback) {
+              if (feedback === 'correct' && selected === opt) {
+                cls = 'border-green-500 bg-green-100 animate-pop animate-ripple'
+              } else if (feedback === 'incorrect') {
+                if (selected === opt) {
+                  cls = 'border-red-400 bg-red-100 animate-shake'
+                } else if (opt === current.answer && revealCorrect) {
+                  cls = 'border-green-500 bg-green-50 animate-fade-in-up'
+                } else {
+                  cls = 'border-neutral-200 bg-white opacity-60'
+                }
+              } else if (feedback === 'correct') {
+                if (opt === current.answer) {
+                  cls = 'border-green-500 bg-green-50'
+                } else {
+                  cls = 'border-neutral-200 bg-white opacity-60'
+                }
+              }
             }
+            const showCheck = lastResult && feedback === 'correct' && selected === opt
+            const showCross = lastResult && feedback === 'incorrect' && selected === opt
             return (
               <button
                 key={"opt-" + optIdx}
@@ -246,10 +423,14 @@ export default function PracticeClient({
                 aria-keyshortcuts={"" + (optIdx + 1)}
                 className={"rounded-xl border-2 px-4 py-5 text-2xl font-bold transition " + cls}
               >
-                {opt}
-                {!lastResult && (
-                  <span className="ml-2 text-xs text-neutral-400">({optIdx + 1})</span>
-                )}
+                <span className="inline-flex items-center gap-2">
+                  {opt}
+                  {!lastResult && (
+                    <span className="text-xs text-neutral-400">({optIdx + 1})</span>
+                  )}
+                  {showCheck && <span aria-hidden="true">✓</span>}
+                  {showCross && <span aria-hidden="true">✗</span>}
+                </span>
               </button>
             )
           })}
@@ -279,7 +460,7 @@ export default function PracticeClient({
 
       {lastResult && (
         <div
-          className={"rounded-xl p-4 text-center " + (lastResult.correct ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}
+          className={"animate-fade-in-up rounded-xl p-4 text-center " + (lastResult.correct ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}
           role="alert"
         >
           <p className="text-lg font-bold">
