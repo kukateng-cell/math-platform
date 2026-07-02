@@ -20,6 +20,13 @@ export type QuestionCategory =
   | 'PERIMETER_AREA'
   | 'DECIMAL'
   | 'ONE_DIGIT_DIV'
+  // 四年級
+  | 'LARGE_NUMBERS'
+  | 'THREE_BY_TWO_MUL'
+  | 'TWO_DIGIT_DIV'
+  | 'ARITHMETIC_LAWS'
+  | 'DECIMAL_PROPERTY'
+  | 'TRIANGLE'
 
 // 題目分類中文標籤
 export const CATEGORY_LABELS: Record<QuestionCategory, string> = {
@@ -30,6 +37,12 @@ export const CATEGORY_LABELS: Record<QuestionCategory, string> = {
   PERIMETER_AREA: '周長與面積',
   DECIMAL: '小數運算',
   ONE_DIGIT_DIV: '一位數除法',
+  LARGE_NUMBERS: '大數認識',
+  THREE_BY_TWO_MUL: '三位數×兩位數',
+  TWO_DIGIT_DIV: '兩位數除法',
+  ARITHMETIC_LAWS: '運算定律',
+  DECIMAL_PROPERTY: '小數性質',
+  TRIANGLE: '三角形',
 }
 
 type RawTemplate = {
@@ -118,6 +131,82 @@ export function generateQuestion(template: RawTemplate): QuestionInstance {
         const distractors = generateDistractors(Number(answer), 3)
         const options = shuffle([Number(answer), ...distractors]).map(String)
         return { prompt, answer: String(answer), options, templateId: template.id }
+      }
+    }
+
+    // 運算定律：參數化交換律/結合律/分配律填空題
+    if (category === 'ARITHMETIC_LAWS' && template.paramsJson) {
+      const params = safeParse(template.paramsJson)
+      const law = params.law as string | undefined
+      if (law === 'commutative') {
+        // 交換律：a + b = b + a 或 a × b = b × a
+        const a = params.a ?? randInt(2, 15)
+        const b = params.b ?? randInt(2, 15)
+        const op = (params.op as string) || '+'
+        const answer = op === '+' ? String(b) : String(b)
+        const prompt = template.prompt.replace('{a}', String(a)).replace('{b}', String(b))
+        const distractors = generateDistractors(Number(b), 3).filter((d) => d !== Number(b))
+        const options = shuffle([Number(b), ...distractors]).map(String)
+        return { prompt, answer, options, templateId: template.id }
+      } else if (law === 'associative') {
+        // 結合律：(a + b) + c = a + (b + c)
+        const a = params.a ?? randInt(2, 10)
+        const b = params.b ?? randInt(2, 10)
+        const c = params.c ?? randInt(2, 10)
+        const op = (params.op as string) || '+'
+        const result = op === '+' ? (a + b) + c : (a * b) * c
+        const prompt = template.prompt
+          .replace('{a}', String(a)).replace('{b}', String(b)).replace('{c}', String(c))
+        const distractors = generateDistractors(result, 3)
+        const options = shuffle([result, ...distractors]).map(String)
+        return { prompt, answer: String(result), options, templateId: template.id }
+      } else if (law === 'distributive') {
+        // 分配律：a × (b + c) = a × b + a × c
+        const a = params.a ?? randInt(2, 9)
+        const b = params.b ?? randInt(2, 9)
+        const c = params.c ?? randInt(2, 9)
+        const result = a * (b + c)
+        const prompt = template.prompt
+          .replace('{a}', String(a)).replace('{b}', String(b)).replace('{c}', String(c))
+        const distractors = generateDistractors(result, 3)
+        const options = shuffle([result, ...distractors]).map(String)
+        return { prompt, answer: String(result), options, templateId: template.id }
+      }
+    }
+
+    // 三角形：參數化面積/內角和計算
+    if (category === 'TRIANGLE' && template.paramsJson) {
+      const params = safeParse(template.paramsJson)
+      const formula = params.formula as string | undefined
+
+      if (formula === 'angle_sum') {
+        // 已知兩角求第三角
+        const angleA = params.angleA ?? randInt(30, 80)
+        const angleB = params.angleB ?? randInt(30, 80)
+        const angleC = 180 - angleA - angleB
+        const prompt = template.prompt
+          .replace('{angleA}', String(angleA)).replace('{angleB}', String(angleB))
+        const distractors = generateDistractors(angleC, 3)
+        const options = shuffle([angleC, ...distractors]).map(String)
+        return { prompt, answer: String(angleC), options, templateId: template.id }
+      } else if (formula === 'triangle_area') {
+        // 三角形面積 = 底 × 高 ÷ 2
+        const base = params.base ?? randInt(4, 15)
+        const height = params.height ?? randInt(3, 12)
+        const area = (base * height) / 2
+        const prompt = template.prompt
+          .replace('{base}', String(base)).replace('{height}', String(height))
+        const distractors = generateDistractors(area, 3)
+        const options = shuffle([area, ...distractors]).map(String)
+        return { prompt, answer: String(area), options, templateId: template.id }
+      }
+    }
+
+    // 小數性質（進階）：參數化小數比較/計算
+    if (category === 'DECIMAL_PROPERTY' && template.paramsJson) {
+      const params = safeParse(template.paramsJson)
+      if (params.interaction === 'fillin') {
+        return { prompt: template.prompt, answer: template.answer, templateId: template.id }
       }
     }
 

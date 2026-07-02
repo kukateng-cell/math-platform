@@ -286,6 +286,85 @@ async function main() {
     },
   })
 
+  // ============ G4 新增技能（6 種新題型）============
+  const largeNumbers = await prisma.skill.upsert({
+    where: { code: 'large-numbers' },
+    update: { order: 20, prerequisiteId: decimalIntro.id },
+    create: {
+      code: 'large-numbers',
+      name: '大數認識',
+      description: '億以內/以上的數：讀寫、比較、位值與近似數',
+      gradeLevel: 'G4',
+      order: 20,
+      prerequisiteId: decimalIntro.id,
+    },
+  })
+
+  const threeByTwoMul = await prisma.skill.upsert({
+    where: { code: 'three-by-two-mul' },
+    update: { order: 21, prerequisiteId: largeMultiply.id },
+    create: {
+      code: 'three-by-two-mul',
+      name: '三位數乘兩位數',
+      description: '三位數乘以兩位數的直式乘法與估算',
+      gradeLevel: 'G4',
+      order: 21,
+      prerequisiteId: largeMultiply.id,
+    },
+  })
+
+  const twoDigitDiv = await prisma.skill.upsert({
+    where: { code: 'two-digit-div' },
+    update: { order: 22, prerequisiteId: longDivision.id },
+    create: {
+      code: 'two-digit-div',
+      name: '兩位數除法',
+      description: '除數是兩位數的直式除法（含商不變的規律）',
+      gradeLevel: 'G4',
+      order: 22,
+      prerequisiteId: longDivision.id,
+    },
+  })
+
+  const arithmeticLaws = await prisma.skill.upsert({
+    where: { code: 'arithmetic-laws' },
+    update: { order: 23, prerequisiteId: threeByTwoMul.id },
+    create: {
+      code: 'arithmetic-laws',
+      name: '運算定律',
+      description: '加法/乘法的交換律、結合律與分配律',
+      gradeLevel: 'G4',
+      order: 23,
+      prerequisiteId: threeByTwoMul.id,
+    },
+  })
+
+  const decimalProperty = await prisma.skill.upsert({
+    where: { code: 'decimal-property' },
+    update: { order: 24, prerequisiteId: decimalIntro.id },
+    create: {
+      code: 'decimal-property',
+      name: '小數性質與計算',
+      description: '小數的性質（末尾補0）、進階加減、四捨五入與比較',
+      gradeLevel: 'G4',
+      order: 24,
+      prerequisiteId: decimalIntro.id,
+    },
+  })
+
+  const triangle = await prisma.skill.upsert({
+    where: { code: 'triangle' },
+    update: { order: 25, prerequisiteId: areaPerimeter.id },
+    create: {
+      code: 'triangle',
+      name: '三角形',
+      description: '三角形的分類、內角和、兩邊之和大於第三邊、面積計算',
+      gradeLevel: 'G4',
+      order: 25,
+      prerequisiteId: areaPerimeter.id,
+    },
+  })
+
   // ============ 題目模板 ============
   // 必須按外鍵依賴順序清除，避免 SQLite 外鍵約束錯誤
   await prisma.attempt.deleteMany({})
@@ -1474,6 +1553,236 @@ async function main() {
     })
   }
 
+  // ═══════════════════════════════════════════════
+  // G4 新增題庫（6 種新題型）
+  // ═══════════════════════════════════════════════
+
+  // ───────── 大數認識（large-numbers）: 20+ 題 ─────────
+  const largeNumDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '10 個一千是多少？', answer: '一萬', expl: '10 × 1000 = 10000，也就是一萬' },
+    { prompt: '10 個一萬是多少？', answer: '十萬', expl: '10 × 10000 = 100000，也就是十萬' },
+    { prompt: '10 個十萬是多少？', answer: '一百萬', expl: '10 × 100000 = 1000000，也就是一百萬' },
+    { prompt: '10 個一百萬是多少？', answer: '一千萬', expl: '10 個一百萬 = 一千萬' },
+    { prompt: '10 個一千萬是多少？', answer: '一億', expl: '10 個一千萬 = 一億' },
+    { prompt: '一億是幾個一千萬？', answer: '10', expl: '一億 = 10 個一千萬' },
+    { prompt: '10000000 怎麼讀？', answer: '一千萬', expl: '10000000 讀作「一千萬」' },
+    { prompt: '123456789 讀作什麼？', answer: '一億二千三百四十五萬六千七百八十九', expl: '從高位讀起：一億二千三百四十五萬六千七百八十九' },
+    { prompt: '「五千零八十萬」寫成數字是多少？', answer: '50800000', expl: '五千零八十萬 = 50800000' },
+    { prompt: '「三億五千萬」寫成數字是多少？', answer: '350000000', expl: '三億五千萬 = 350000000' },
+    { prompt: '56789123 這個數最高位是什麼位？', answer: '千萬位', expl: '56789123 是八位數，最高位是千萬位' },
+    { prompt: '45000000 和 4500000，哪個比較大？', answer: '45000000', expl: '45000000 是八位數，4500000 是七位數，位數越多數越大' },
+    { prompt: '約 1300000000 人，這個數怎麼讀？', answer: '十三億', expl: '1300000000 讀作「十三億」' },
+    { prompt: '一萬後面加 4 個 0 是多少？', answer: '一億', expl: '10000 後面加 4 個 0 = 100000000 = 一億' },
+    { prompt: '一個八位數的最高位是什麼位？', answer: '千萬位', expl: '八位數的位名依序：千萬、百萬、十萬、萬、千、百、十、個' },
+    { prompt: '92000000 改寫成「萬」為單位是多少？', answer: '9200萬', expl: '92000000 = 9200 萬' },
+    { prompt: '123000000 改寫成「億」為單位是多少？', answer: '1.23億', expl: '123000000 = 1.23 億' },
+    { prompt: '最大的八位數是多少？', answer: '99999999', expl: '八位數最大就是 9 個位數都填 9：99999999' },
+    { prompt: '最小的九位數是多少？', answer: '100000000', expl: '最小的九位數是 100000000（一億）' },
+    { prompt: '53764000 ≈ ?（四捨五入到萬位）', answer: '5376萬', expl: '千位是 4 < 5，所以捨去，約 5376 萬' },
+  ]
+  for (const q of largeNumDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: largeNumbers.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 三位數乘兩位數（three-by-two-mul）: 參數化 + 直接題 ─────────
+  const threeByTwoTemplates = [
+    { prompt: '{a} × {b} = ?', params: { aMin: 100, aMax: 999, bMin: 11, bMax: 99 }, expl: '三位數乘以兩位數：先用個位乘，再用十位乘，最後相加。' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 100, aMax: 500, bMin: 11, bMax: 50 }, expl: '先用估算法確認範圍，再用直式精確計算。' },
+  ]
+  for (const t of threeByTwoTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: threeByTwoMul.id,
+        type: 'MUL',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: '{a*b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  const threeByTwoDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '123 × 12 = ?', answer: '1476', expl: '123 × 12 = 123×10 + 123×2 = 1230 + 246 = 1476' },
+    { prompt: '234 × 15 = ?', answer: '3510', expl: '234 × 15 = 234×10 + 234×5 = 2340 + 1170 = 3510' },
+    { prompt: '345 × 23 = ?', answer: '7935', expl: '345 × 20 = 6900，345 × 3 = 1035，6900 + 1035 = 7935' },
+    { prompt: '456 × 34 = ?', answer: '15504', expl: '456 × 30 = 13680，456 × 4 = 1824，13680 + 1824 = 15504' },
+    { prompt: '567 × 45 = ?', answer: '25515', expl: '567 × 45 = 567×40 + 567×5 = 22680 + 2835 = 25515' },
+    { prompt: '678 × 56 = ?', answer: '37968', expl: '678 × 56 = 678×50 + 678×6 = 33900 + 4068 = 37968' },
+    { prompt: '789 × 67 = ?', answer: '52863', expl: '789 × 67 = 789×60 + 789×7 = 47340 + 5523 = 52863' },
+    { prompt: '125 × 32 = ?', answer: '4000', expl: '125 × 32 = 125 × 8 × 4 = 1000 × 4 = 4000' },
+    { prompt: '250 × 24 = ?', answer: '6000', expl: '250 × 24 = 250 × 4 × 6 = 1000 × 6 = 6000' },
+    { prompt: '101 × 99 = ?', answer: '9999', expl: '101 × 99 = (100+1) × 99 = 9900 + 99 = 9999' },
+    { prompt: '312 × 48 = ?', answer: '14976', expl: '312 × 48 = 312×50 - 312×2 = 15600 - 624 = 14976' },
+    { prompt: '420 × 63 = ?', answer: '26460', expl: '420 × 63 = 42 × 63 × 10 = 2646 × 10 = 26460' },
+  ]
+  for (const q of threeByTwoDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: threeByTwoMul.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 兩位數除法（two-digit-div）: 參數化 + 直接題 ─────────
+  const twoDigitDivTemplates = [
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 100, aMax: 999, bMin: 11, bMax: 50, aMultipleOfB: true }, expl: '除數是兩位數的除法：先用除數的十位估商，再調整。' },
+    { prompt: '{a} ÷ {b} = ?⋯⋯?', params: { aMin: 100, aMax: 999, bMin: 11, bMax: 50, aMultipleOfB: false }, expl: '有餘數的除法：餘數要比除數小。' },
+  ]
+  for (const t of twoDigitDivTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: twoDigitDiv.id,
+        type: 'DIV',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: t.params.aMultipleOfB ? '{a/b}' : '{a/b}⋯⋯{a%b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  const twoDigitDivDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '144 ÷ 12 = ?', answer: '12', expl: '12 × 12 = 144，所以 144 ÷ 12 = 12' },
+    { prompt: '156 ÷ 13 = ?', answer: '12', expl: '13 × 12 = 156，所以 156 ÷ 13 = 12' },
+    { prompt: '180 ÷ 15 = ?', answer: '12', expl: '15 × 12 = 180，所以 180 ÷ 15 = 12' },
+    { prompt: '225 ÷ 15 = ?', answer: '15', expl: '15 × 15 = 225，所以 225 ÷ 15 = 15' },
+    { prompt: '288 ÷ 24 = ?', answer: '12', expl: '24 × 12 = 288，所以 288 ÷ 24 = 12' },
+    { prompt: '360 ÷ 12 = ?', answer: '30', expl: '12 × 30 = 360，所以 360 ÷ 12 = 30' },
+    { prompt: '420 ÷ 14 = ?', answer: '30', expl: '14 × 30 = 420，所以 420 ÷ 14 = 30' },
+    { prompt: '504 ÷ 21 = ?', answer: '24', expl: '21 × 24 = 504，所以 504 ÷ 21 = 24' },
+    { prompt: '672 ÷ 24 = ?', answer: '28', expl: '24 × 28 = 672，所以 672 ÷ 24 = 28' },
+    { prompt: '100 ÷ 11 = ?⋯⋯?', answer: '9⋯⋯1', expl: '11 × 9 = 99，100 - 99 = 1，所以 100 ÷ 11 = 9⋯⋯1' },
+    { prompt: '200 ÷ 13 = ?⋯⋯?', answer: '15⋯⋯5', expl: '13 × 15 = 195，200 - 195 = 5，所以 200 ÷ 13 = 15⋯⋯5' },
+    { prompt: '350 ÷ 16 = ?⋯⋯?', answer: '21⋯⋯14', expl: '16 × 21 = 336，350 - 336 = 14，所以 350 ÷ 16 = 21⋯⋯14' },
+  ]
+  for (const q of twoDigitDivDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: twoDigitDiv.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 運算定律（arithmetic-laws）: 20+ 題 ─────────
+  const arithDirect: { prompt: string; answer: string; expl: string }[] = [
+    // 交換律
+    { prompt: '25 + 36 = 36 + ？，？是多少？', answer: '25', expl: '加法交換律：a + b = b + a，所以 25 + 36 = 36 + 25' },
+    { prompt: '12 × 8 = 8 × ？，？是多少？', answer: '12', expl: '乘法交換律：a × b = b × a，所以 12 × 8 = 8 × 12' },
+    { prompt: '47 + 53 = 53 + ？', answer: '47', expl: '交換律：兩個數相加，交換位置和不會改變' },
+    { prompt: '25 × 4 = 4 × ？', answer: '25', expl: '交換律：兩個數相乘，交換位置積不會改變' },
+    // 結合律
+    { prompt: '(25 + 68) + 32 = 25 + (68 + ？)，？是多少？', answer: '32', expl: '加法結合律：三個數相加，先加前兩個或先加後兩個，和不變' },
+    { prompt: '(5 × 27) × 2 = 5 × (27 × ？)，？是多少？', answer: '2', expl: '乘法結合律：三個數相乘，先乘前兩個或先乘後兩個，積不變' },
+    { prompt: '16 + 37 + 24 = 16 + 24 + 37 用了什麼運算定律？', answer: '交換律和結合律', expl: '先交換 37 和 24 的位置（交換律），再把 16+24 結合計算（結合律）' },
+    { prompt: '25 × 17 × 4 = 25 × 4 × 17 用了什麼運算定律？', answer: '交換律', expl: '把 17 和 4 交換位置，方便先算 25 × 4 = 100' },
+    // 分配律
+    { prompt: '8 × (25 + 3) = 8 × 25 + 8 × ？', answer: '3', expl: '乘法分配律：a × (b + c) = a × b + a × c' },
+    { prompt: '(12 + 8) × 5 = 12 × 5 + 8 × 5 用了什麼運算定律？', answer: '乘法分配律', expl: '乘法分配律可以把括號拆開分別相乘再相加' },
+    { prompt: '99 × 36 = (100 - 1) × 36 = 100 × 36 - 1 × 36 = ？', answer: '3564', expl: '利用分配律：99 × 36 = 3600 - 36 = 3564' },
+    { prompt: '25 × 44 = 25 × (40 + 4) = 25 × 40 + 25 × 4 = ？', answer: '1100', expl: '利用分配律：25 × 44 = 1000 + 100 = 1100' },
+    { prompt: '67 + 45 + 33 = (67 + 33) + 45 = ？', answer: '145', expl: '利用交換律和結合律：67+33=100，100+45=145' },
+    { prompt: '125 × 56 = 125 × 8 × 7 = ？', answer: '7000', expl: '利用結合律：125 × 8 = 1000，1000 × 7 = 7000' },
+    { prompt: '48 + 39 + 52 + 61 = (48 + 52) + (39 + 61) = ？', answer: '200', expl: '先湊整：48+52=100，39+61=100，100+100=200' },
+    { prompt: '101 × 45 = 100 × 45 + 1 × 45 = ？', answer: '4545', expl: '利用分配律：101 × 45 = (100+1) × 45 = 4500 + 45 = 4545' },
+    { prompt: '35 × 102 = 35 × 100 + 35 × 2 = ？', answer: '3570', expl: '利用分配律：35 × 102 = 3500 + 70 = 3570' },
+    { prompt: '2000 ÷ 125 ÷ 8 = 2000 ÷ (125 × 8) = 2000 ÷ 1000 = ？', answer: '2', expl: '除法的性質：連續除以兩個數等於除以這兩個數的積' },
+    { prompt: '540 ÷ 18 = 540 ÷ 9 ÷ 2 = ？', answer: '30', expl: '除法的性質：540 ÷ 9 = 60，60 ÷ 2 = 30' },
+  ]
+  for (const q of arithDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: arithmeticLaws.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 小數性質與計算（decimal-property）: 20+ 題 ─────────
+  const decimalPropDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '0.5 和 0.50 哪個大？', answer: '一樣大', expl: '小數的末尾補 0，大小不變。0.5 = 0.50' },
+    { prompt: '3.14 和 3.140 哪個大？', answer: '一樣大', expl: '小數性質：3.14 = 3.140，末尾的 0 不影響大小' },
+    { prompt: '0.7 和 0.07 哪個大？', answer: '0.7', expl: '0.7 = 0.70，0.70 > 0.07，所以 0.7 比較大' },
+    { prompt: '0.25 和 0.3 哪個大？', answer: '0.3', expl: '0.3 = 0.30，0.30 > 0.25，所以 0.3 比較大' },
+    { prompt: '1.23 + 2.45 = ?', answer: '3.68', expl: '小數加法對齊小數點：1.23 + 2.45 = 3.68' },
+    { prompt: '5.67 - 2.34 = ?', answer: '3.33', expl: '小數減法對齊小數點：5.67 - 2.34 = 3.33' },
+    { prompt: '0.68 + 0.25 = ?', answer: '0.93', expl: '0.68 + 0.25 = 0.93，百分位 8+5=13 進 1' },
+    { prompt: '1.05 - 0.37 = ?', answer: '0.68', expl: '1.05 - 0.37 = 0.68，需要退位' },
+    { prompt: '3.6 + 2.85 = ?', answer: '6.45', expl: '3.60 + 2.85 = 6.45，注意末尾補 0 對齊' },
+    { prompt: '10 - 3.25 = ?', answer: '6.75', expl: '10.00 - 3.25 = 6.75，整數補 .00 再減' },
+    { prompt: '0.8 × 10 = ?', answer: '8', expl: '小數乘以 10：小數點向右移一位' },
+    { prompt: '3.25 × 100 = ?', answer: '325', expl: '小數乘以 100：小數點向右移兩位' },
+    { prompt: '56.7 ÷ 10 = ?', answer: '5.67', expl: '小數除以 10：小數點向左移一位' },
+    { prompt: '3.14 精確到十分位（四捨五入）是多少？', answer: '3.1', expl: '百分位是 4 < 5，捨去，所以 3.14 ≈ 3.1' },
+    { prompt: '6.85 精確到十分位（四捨五入）是多少？', answer: '6.9', expl: '百分位是 5 ≥ 5，進位，所以 6.85 ≈ 6.9' },
+    { prompt: '0.98 精確到個位（四捨五入）是多少？', answer: '1', expl: '十分位是 9 ≥ 5，進位，所以 0.98 ≈ 1' },
+    { prompt: '2.5 + 3.7 = ?', answer: '6.2', expl: '2.5 + 3.7 = 6.2，十分位 5+7=12 進 1' },
+    { prompt: '4.2 - 1.8 = ?', answer: '2.4', expl: '4.2 - 1.8 = 2.4，需要退位' },
+    { prompt: '12.56 + 3.44 = ?', answer: '16', expl: '12.56 + 3.44 = 16.00 = 16，剛好湊整' },
+  ]
+  for (const q of decimalPropDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: decimalProperty.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 三角形（triangle）: 20+ 題 ─────────
+  const triangleDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '三角形的三個內角和是多少度？', answer: '180', expl: '任何三角形的三個內角和都是 180 度' },
+    { prompt: '一個三角形，兩個角分別是 70° 和 50°，第三個角是幾度？', answer: '60', expl: '180 - 70 - 50 = 60 度' },
+    { prompt: '一個直角三角形，其中一個角是 35°，另一個銳角是幾度？', answer: '55', expl: '直角三角形直角=90°，180 - 90 - 35 = 55 度' },
+    { prompt: '等腰三角形的頂角是 80°，每個底角是幾度？', answer: '50', expl: '等腰三角形兩個底角相等，(180 - 80) ÷ 2 = 50 度' },
+    { prompt: '等邊三角形的每個角是幾度？', answer: '60', expl: '等邊三角形三個角相等，180 ÷ 3 = 60 度' },
+    { prompt: '一個三角形的三個邊長分別是 3、4、5，這是什麼三角形？', answer: '直角三角形', expl: '3² + 4² = 9 + 16 = 25 = 5²，滿足勾股定理，是直角三角形' },
+    { prompt: '三角形三邊長 5cm、5cm、8cm，這是什麼三角形？', answer: '等腰三角形', expl: '有兩邊相等（5cm = 5cm），是等腰三角形' },
+    { prompt: '三角形的高是 6cm，底是 8cm，面積是多少？', answer: '24', expl: '三角形面積 = 底 × 高 ÷ 2 = 8 × 6 ÷ 2 = 24 平方公分' },
+    { prompt: '一個三角形的底是 10cm，面積是 40cm²，高是多少？', answer: '8', expl: '高 = 面積 × 2 ÷ 底 = 40 × 2 ÷ 10 = 8 公分' },
+    { prompt: '一個三角形的面積是 30cm²，高是 6cm，底是多少？', answer: '10', expl: '底 = 面積 × 2 ÷ 高 = 30 × 2 ÷ 6 = 10 公分' },
+    { prompt: '三角形三邊長 3cm、4cm、7cm，能否構成三角形？', answer: '不能', expl: '3 + 4 = 7，兩邊之和大於第三邊才可構成三角形，這裡等於所以不行' },
+    { prompt: '三角形三邊長 5cm、6cm、10cm，能否構成三角形？', answer: '能', expl: '5 + 6 = 11 > 10，兩邊之和大於第三邊，可以構成三角形' },
+    { prompt: '直角三角形的一個銳角是 28°，另一個銳角是幾度？', answer: '62', expl: '180 - 90 - 28 = 62 度' },
+    { prompt: '等腰直角三角形的每個角是幾度？', answer: '90,45,45', expl: '等腰直角三角形：直角=90°，兩個銳角=(180-90)÷2=45°' },
+    { prompt: '平行四邊形的面積是 48cm²，和它等底等高的三角形面積是多少？', answer: '24', expl: '等底等高的三角形面積是平行四邊形的一半：48 ÷ 2 = 24cm²' },
+    { prompt: '鈍角三角形會有幾個鈍角？', answer: '1個', expl: '三角形最多只有一個鈍角（>90°），否則內角和會超過 180°' },
+    { prompt: '銳角三角形的三個角都是什麼角？', answer: '銳角', expl: '銳角三角形的三個角都小於 90°，都是銳角' },
+  ]
+  for (const q of triangleDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: triangle.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
   // ============ 題目分類標記（為 G3/G4 題目設定 category）============
   const categoryMapping: Record<string, string> = {
     'three-digit-add-sub': 'WITHIN_10000',
@@ -1483,6 +1792,13 @@ async function main() {
     'large-multiply': 'MULTI_DIGIT_MUL',
     'decimal-intro': 'DECIMAL',
     'long-division': 'ONE_DIGIT_DIV',
+    // 四年級新增
+    'large-numbers': 'LARGE_NUMBERS',
+    'three-by-two-mul': 'THREE_BY_TWO_MUL',
+    'two-digit-div': 'TWO_DIGIT_DIV',
+    'arithmetic-laws': 'ARITHMETIC_LAWS',
+    'decimal-property': 'DECIMAL_PROPERTY',
+    'triangle': 'TRIANGLE',
   }
   for (const [skillCode, category] of Object.entries(categoryMapping)) {
     const skill = await prisma.skill.findUnique({ where: { code: skillCode } })
@@ -1517,7 +1833,7 @@ async function main() {
   }
 
   console.log(`  ✓ Badges: ${badges.length} seeded`)
-  console.log('  ✓ Skills: 19 (K-4), Questions seeded')
+  console.log('  ✓ Skills: 25 (K-4), Questions seeded')
   console.log('✅ Done!')
 }
 

@@ -159,6 +159,14 @@ enum QuestionCategory {
   PERIMETER_AREA // 周長與面積公式計算
   DECIMAL        // 小數運算（加減比較）
   ONE_DIGIT_DIV  // 除數是一位數的除法
+
+  // ═══ 四年級（Grade 4）新增分類 ═══
+  LARGE_NUMBERS   // 億以內/以上的認識
+  THREE_BY_TWO_MUL // 三位數乘兩位數
+  TWO_DIGIT_DIV   // 除數是兩位數的除法
+  ARITHMETIC_LAWS // 四則運算及運算定律（交換律、結合律、分配律）
+  DECIMAL_PROPERTY // 小數的性質與計算（進階）
+  TRIANGLE        // 三角形的性質與公式計算（內角和、面積）
 }
 
 // ============ 練習 ============

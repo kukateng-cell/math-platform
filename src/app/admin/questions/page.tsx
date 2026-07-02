@@ -24,6 +24,12 @@ const CATEGORY_LABEL: Record<string, string> = {
   PERIMETER_AREA: '周長與面積',
   DECIMAL: '小數運算',
   ONE_DIGIT_DIV: '一位數除法',
+  LARGE_NUMBERS: '大數認識',
+  THREE_BY_TWO_MUL: '三位數×兩位數',
+  TWO_DIGIT_DIV: '兩位數除法',
+  ARITHMETIC_LAWS: '運算定律',
+  DECIMAL_PROPERTY: '小數性質',
+  TRIANGLE: '三角形',
 }
 
 const CATEGORY_ICON: Record<string, string> = {
@@ -34,6 +40,12 @@ const CATEGORY_ICON: Record<string, string> = {
   PERIMETER_AREA: '📐',
   DECIMAL: '🔟',
   ONE_DIGIT_DIV: '➗',
+  LARGE_NUMBERS: '🔟',
+  THREE_BY_TWO_MUL: '✖️',
+  TWO_DIGIT_DIV: '➗',
+  ARITHMETIC_LAWS: '⚖️',
+  DECIMAL_PROPERTY: '🔟',
+  TRIANGLE: '🔺',
 }
 
 const PAGE_SIZE = 20
@@ -67,16 +79,6 @@ export default async function AdminQuestionsPage({
   if (filterCategory) {
     where.category = filterCategory
   }
-
-  const [total, questions] = await Promise.all([
-    prisma.questionTemplate.count({ where }),
-    prisma.questionTemplate.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: { skill: true },
-    }),
 
   const [total, questions] = await Promise.all([
     prisma.questionTemplate.count({ where }),
@@ -172,6 +174,12 @@ export default async function AdminQuestionsPage({
               <option value="PERIMETER_AREA">📐 周長與面積</option>
               <option value="DECIMAL">🔟 小數運算</option>
               <option value="ONE_DIGIT_DIV">➗ 一位數除法</option>
+              <option value="LARGE_NUMBERS">🔟 大數認識</option>
+              <option value="THREE_BY_TWO_MUL">✖️ 三位數×兩位數</option>
+              <option value="TWO_DIGIT_DIV">➗ 兩位數除法</option>
+              <option value="ARITHMETIC_LAWS">⚖️ 運算定律</option>
+              <option value="DECIMAL_PROPERTY">🔟 小數性質</option>
+              <option value="TRIANGLE">🔺 三角形</option>
             </select>
             {filterCategory && (
               <a

@@ -96,6 +96,9 @@ export default function QuestionForm(props: Props) {
                     GENERAL: '一般', WITHIN_10000: '萬以內加減', FRACTION: '分數運算',
                     MULTI_DIGIT_MUL: '多位數乘法', PERIMETER_AREA: '周長與面積',
                     DECIMAL: '小數運算', ONE_DIGIT_DIV: '一位數除法',
+                    LARGE_NUMBERS: '大數認識', THREE_BY_TWO_MUL: '三位數×兩位數',
+                    TWO_DIGIT_DIV: '兩位數除法', ARITHMETIC_LAWS: '運算定律',
+                    DECIMAL_PROPERTY: '小數性質', TRIANGLE: '三角形',
                   }
                   return labels[cat] ?? cat ?? '一般'
                 })()}
@@ -114,6 +117,12 @@ export default function QuestionForm(props: Props) {
               <option value="PERIMETER_AREA">周長與面積</option>
               <option value="DECIMAL">小數運算</option>
               <option value="ONE_DIGIT_DIV">一位數除法</option>
+              <option value="LARGE_NUMBERS">大數認識</option>
+              <option value="THREE_BY_TWO_MUL">三位數×兩位數</option>
+              <option value="TWO_DIGIT_DIV">兩位數除法</option>
+              <option value="ARITHMETIC_LAWS">運算定律</option>
+              <option value="DECIMAL_PROPERTY">小數性質</option>
+              <option value="TRIANGLE">三角形</option>
             </select>
           )}
         </div>
