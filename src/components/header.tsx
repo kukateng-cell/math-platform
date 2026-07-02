@@ -41,10 +41,16 @@ export default async function Header() {
                 家長登入
               </Link>
               <Link
+                href="/student/signup"
+                className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 font-medium text-green-700 hover:bg-green-100"
+              >
+                🌱 學生註冊
+              </Link>
+              <Link
                 href="/signup"
                 className="rounded-lg bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-700"
               >
-                註冊
+                家長註冊
               </Link>
             </>
           )}

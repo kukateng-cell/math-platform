@@ -6,18 +6,22 @@ import { createChildSession, deleteChildSession } from '@/lib/child-session'
 
 type ChildLoginState = { error?: string } | undefined
 
-// 孩子用 PIN 碼登入練習模式
+// 孩子用 暱稱 + PIN 碼登入練習模式
 export async function childLogin(state: ChildLoginState, formData: FormData): Promise<ChildLoginState> {
+  const nickname = String(formData.get('nickname') || '').trim()
   // 組合 4 位數 PIN
   const pin = [0, 1, 2, 3].map((i) => String(formData.get(`d${i}`) || '')).join('')
 
+  if (!nickname) {
+    return { error: '請輸入你的暱稱' }
+  }
   if (pin.length !== 4) {
     return { error: '請輸入完整的 4 位數 PIN 碼' }
   }
 
-  // 只允許家長建立的孩子（STANDARD 模式）用 PIN 登入
+  // 用 暱稱 + PIN 驗證（只允許家長建立的孩子，STANDARD 模式）
   const child = await prisma.childProfile.findFirst({
-    where: { pin, mode: 'STANDARD' },
+    where: { nickname, pin, mode: 'STANDARD' },
   })
 
   if (!child) {
