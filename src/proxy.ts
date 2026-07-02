@@ -44,7 +44,7 @@ export async function proxy(request: NextRequest) {
     if (isAuthenticated || isChildAuthenticated) {
       return NextResponse.next()
     }
-    const url = new URL('/child-login', request.url)
+    const url = new URL('/student/login', request.url)
     return NextResponse.redirect(url)
   }
 

@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getChildSkills, startSession } from '@/actions/practice'
-import { getCurrentUser } from '@/actions/auth'
+import { getChildSkills, startSession, hasPracticeAccess } from '@/actions/practice'
+import { getSession } from '@/lib/session'
+import { childLogout } from '@/actions/child-auth'
 
 export default async function PracticeSelectPage({
   params,
@@ -9,8 +10,13 @@ export default async function PracticeSelectPage({
   params: Promise<{ childId: string }>
 }) {
   const { childId } = await params
-  const user = await getCurrentUser()
-  if (!user) return null
+  // 練習路由支援家長 session 或孩子 session
+  const hasAccess = await hasPracticeAccess()
+  if (!hasAccess) return null
+
+  // 判斷目前身分：家長可返回孩子列表，孩子則顯示登出
+  const parentSession = await getSession()
+  const isParent = !!parentSession
 
   const data = await getChildSkills(childId)
   if (!data) notFound()
@@ -20,9 +26,17 @@ export default async function PracticeSelectPage({
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
       <div className="mb-6">
-        <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white">
-          ← 返回孩子列表
-        </Link>
+        {isParent ? (
+          <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white">
+            ← 返回孩子列表
+          </Link>
+        ) : (
+          <form action={childLogout}>
+            <button type="submit" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white">
+              ← 登出
+            </button>
+          </form>
+        )}
         <h1 className="mt-2 text-2xl font-bold">
           {child.nickname} 的練習選單
         </h1>
