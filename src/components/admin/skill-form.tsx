@@ -32,10 +32,10 @@ export default function SkillForm(props: Props) {
             placeholder="add-within-20"
             defaultValue={mode === 'edit' ? '' : undefined}
             disabled={mode === 'edit'}
-            className="rounded-lg border border-neutral-300 px-3 py-2 disabled:bg-neutral-100 disabled:text-neutral-400"
+            className="rounded-lg border border-neutral-300 px-3 py-2 disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-700 dark:disabled:text-gray-500"
           />
           {mode === 'edit' && (
-            <p className="text-xs text-neutral-400">代碼建立後不可修改</p>
+            <p className="text-xs text-neutral-400 dark:text-gray-500">代碼建立後不可修改</p>
           )}
         </div>
         <div className="flex flex-col gap-1">
@@ -44,7 +44,7 @@ export default function SkillForm(props: Props) {
             name="name"
             placeholder="20 以內加法"
             defaultValue={mode === 'edit' ? props.skill.name : undefined}
-            className="rounded-lg border border-neutral-300 px-3 py-2"
+            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           />
         </div>
       </div>
@@ -55,7 +55,7 @@ export default function SkillForm(props: Props) {
           name="description"
           placeholder="兩數相加，和不超過 20"
           defaultValue={mode === 'edit' ? (props.skill.description ?? '') : undefined}
-          className="rounded-lg border border-neutral-300 px-3 py-2"
+          className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
         />
       </div>
 
@@ -65,7 +65,7 @@ export default function SkillForm(props: Props) {
           <select
             name="gradeLevel"
             defaultValue={mode === 'edit' ? props.skill.gradeLevel : 'G1'}
-            className="rounded-lg border border-neutral-300 px-3 py-2"
+            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           >
             <option value="K">K</option>
             <option value="G1">G1</option>
@@ -77,7 +77,7 @@ export default function SkillForm(props: Props) {
           <select
             name="prerequisiteId"
             defaultValue={mode === 'edit' ? (props.skill.prerequisiteId ?? '') : ''}
-            className="rounded-lg border border-neutral-300 px-3 py-2"
+            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           >
             <option value="">無</option>
             {skills
@@ -95,7 +95,7 @@ export default function SkillForm(props: Props) {
             name="order"
             type="number"
             defaultValue={mode === 'edit' ? props.skill.order : 0}
-            className="rounded-lg border border-neutral-300 px-3 py-2"
+            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           />
         </div>
       </div>

@@ -63,8 +63,8 @@ export default function ChildPinForm() {
             onKeyDown={(e) => handleKeyDown(i, e)}
             autoFocus={i === 0}
             className="h-14 w-12 rounded-xl border-2 text-center text-2xl font-bold outline-none transition
-              border-neutral-300 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200
-              [&:not(:placeholder-shown)]:border-blue-500 [&:not(:placeholder-shown)]:bg-blue-50"
+              border-neutral-300 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:border-blue-400
+              [&:not(:placeholder-shown)]:border-blue-500 [&:not(:placeholder-shown)]:bg-blue-50 dark:[&:not(:placeholder-shown)]:bg-blue-950"
           />
         ))}
         </div>

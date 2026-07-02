@@ -117,7 +117,7 @@ export default async function ChildOverviewPage({
       {/* ============ 頂部導覽 ============ */}
       <Link
         href="/dashboard"
-        className="inline-flex items-center gap-1 text-sm text-neutral-500 transition hover:text-neutral-900"
+        className="inline-flex items-center gap-1 text-sm text-neutral-500 transition hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white"
       >
         ← 返回孩子列表
       </Link>
@@ -125,13 +125,13 @@ export default async function ChildOverviewPage({
       {/* ============ 孩子資訊 ============ */}
       <div className="mt-3 mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-4xl">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-4xl dark:bg-blue-950">
             🧒
           </span>
           <div>
             <h1 className="text-2xl font-bold">{child.nickname}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-neutral-500">
-              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-neutral-500 dark:text-gray-400">
+              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                 {gradeLabel(child.gradeLevel)}
               </span>
               {lastSession ? (
@@ -174,12 +174,12 @@ export default async function ChildOverviewPage({
         <h2 className="mb-4 text-lg font-semibold">技能掌握度</h2>
 
         {!skillsData || skillsData.skills.every((s) => s.recentTotal === 0) ? (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-900">
             <div className="mb-3 text-5xl">📝</div>
-            <p className="mb-1 text-lg font-medium text-neutral-700">
+            <p className="mb-1 text-lg font-medium text-neutral-700 dark:text-gray-200">
               還沒有練習紀錄
             </p>
-            <p className="mb-5 text-sm text-neutral-400">
+            <p className="mb-5 text-sm text-neutral-400 dark:text-gray-500">
               開始第一次練習吧！
             </p>
             <Link
@@ -201,9 +201,9 @@ export default async function ChildOverviewPage({
               let statusLabel: string
               let barColor: string
               if (!hasData) {
-                colorClass = 'border-neutral-200'
+                colorClass = 'border-neutral-200 dark:border-gray-700'
                 statusLabel = '未練習'
-                barColor = 'bg-neutral-300'
+                barColor = 'bg-neutral-300 dark:bg-gray-600'
               } else if (pct >= 95) {
                 colorClass = 'border-green-200 bg-green-50/50'
                 statusLabel = '✅ 已掌握'
@@ -221,13 +221,13 @@ export default async function ChildOverviewPage({
               return (
                 <div
                   key={skill.id}
-                  className={`rounded-xl border ${colorClass} bg-white p-5 shadow-sm transition hover:shadow`}
+                  className={`rounded-xl border ${colorClass} bg-white p-5 shadow-sm transition hover:shadow dark:bg-gray-900`}
                 >
                   <div className="mb-3 flex items-start justify-between">
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate font-semibold">{skill.name}</h3>
                       {skill.description && (
-                        <p className="mt-0.5 truncate text-xs text-neutral-400">
+                        <p className="mt-0.5 truncate text-xs text-neutral-400 dark:text-gray-500">
                           {skill.description}
                         </p>
                       )}
@@ -239,13 +239,13 @@ export default async function ChildOverviewPage({
 
                   {hasData && (
                     <>
-                      <div className="mb-1 flex justify-between text-xs text-neutral-500">
+                      <div className="mb-1 flex justify-between text-xs text-neutral-500 dark:text-gray-400">
                         <span>
                           最近 {skill.recentTotal} 題答對 {skill.recentCorrect} 題
                         </span>
                         <span className="font-bold">{pct}%</span>
                       </div>
-                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-neutral-100">
+                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-gray-700">
                         <div
                           className={`h-full rounded-full transition-all ${barColor}`}
                           style={{ width: `${Math.max(pct, 4)}%` }}
@@ -265,9 +265,9 @@ export default async function ChildOverviewPage({
         <h2 className="mb-4 text-lg font-semibold">成就徽章</h2>
 
         {child.badges.length === 0 ? (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-gray-700 dark:bg-gray-900">
             <div className="mb-2 text-4xl">🏅</div>
-            <p className="text-sm text-neutral-400">還沒有獲得徽章，繼續練習吧！</p>
+            <p className="text-sm text-neutral-400 dark:text-gray-500">還沒有獲得徽章，繼續練習吧！</p>
           </div>
         ) : (
           <div className="flex flex-wrap gap-3">
@@ -295,15 +295,15 @@ export default async function ChildOverviewPage({
         <h2 className="mb-4 text-lg font-semibold">最近練習紀錄</h2>
 
         {child.sessions.length === 0 ? (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-900">
             <div className="mb-2 text-4xl">📋</div>
-            <p className="text-sm text-neutral-400">尚無練習紀錄</p>
+            <p className="text-sm text-neutral-400 dark:text-gray-500">尚無練習紀錄</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-100 bg-neutral-50 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
+                <tr className="border-b border-neutral-100 bg-neutral-50 text-left text-xs font-medium uppercase tracking-wider text-neutral-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
                   <th className="px-4 py-3 pl-5">時間</th>
                   <th className="px-4 py-3">技能</th>
                   <th className="px-4 py-3">作答</th>
@@ -319,14 +319,14 @@ export default async function ChildOverviewPage({
                   return (
                     <tr
                       key={s.id}
-                      className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50/50"
+                      className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50/50 dark:border-gray-800 dark:hover:bg-gray-800/50"
                     >
-                      <td className="whitespace-nowrap px-4 py-3 pl-5 text-neutral-400">
+                      <td className="whitespace-nowrap px-4 py-3 pl-5 text-neutral-400 dark:text-gray-500">
                         {relativeTime(s.startedAt)}
                       </td>
                       <td className="px-4 py-3 font-medium">{s.skill.name}</td>
                       <td className="px-4 py-3">
-                        <span className="font-semibold text-neutral-800">
+                        <span className="font-semibold text-neutral-800 dark:text-gray-100">
                           {s.correctCount}/{s.totalQuestions}
                         </span>
                         <span
@@ -365,7 +365,7 @@ export default async function ChildOverviewPage({
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link
           href="/dashboard"
-          className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
         >
           ← 返回孩子列表
         </Link>

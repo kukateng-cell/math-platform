@@ -16,7 +16,7 @@ export default function DeleteChildButton({
     return (
       <button
         onClick={() => setConfirming(true)}
-        className="text-xs text-neutral-400 transition hover:text-red-500"
+        className="text-xs text-neutral-400 transition hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
       >
         刪除檔案
       </button>
@@ -36,7 +36,7 @@ export default function DeleteChildButton({
       <button
         type="button"
         onClick={() => setConfirming(false)}
-        className="text-xs text-neutral-400 hover:underline"
+        className="text-xs text-neutral-400 hover:underline dark:text-gray-500"
       >
         取消
       </button>

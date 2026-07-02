@@ -42,14 +42,14 @@ export default function Modal({ open, onClose, title, children, maxWidth = 'max-
       }}
     >
       <div
-        className={`w-full ${maxWidth} rounded-xl bg-white shadow-xl`}
+        className={`w-full ${maxWidth} rounded-xl bg-white shadow-xl dark:bg-gray-900`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4">
-          <h3 className="text-lg font-semibold">{title}</h3>
+        <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-gray-700">
+          <h3 className="text-lg font-semibold dark:text-white">{title}</h3>
           <button
             onClick={onClose}
-            className="rounded p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-900"
+            className="rounded p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-gray-700 dark:hover:text-white"
           >
             ✕
           </button>

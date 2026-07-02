@@ -11,7 +11,7 @@ export default function AddChildForm() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded-lg border-2 border-dashed border-neutral-300 px-4 py-8 text-neutral-500 transition hover:border-blue-400 hover:text-blue-500"
+        className="rounded-lg border-2 border-dashed border-neutral-300 px-4 py-8 text-neutral-500 transition hover:border-blue-400 hover:text-blue-500 dark:border-gray-600 dark:text-gray-400 dark:hover:border-blue-400 dark:hover:text-blue-400"
       >
         + 新增孩子檔案
       </button>
@@ -21,7 +21,7 @@ export default function AddChildForm() {
   return (
     <form
       action={action}
-      className="flex w-full flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4"
+      className="flex w-full flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4 dark:border-gray-600 dark:bg-gray-900"
     >
       <div className="flex flex-col gap-1">
         <label htmlFor="nickname" className="text-sm font-medium">
@@ -33,7 +33,7 @@ export default function AddChildForm() {
           type="text"
           placeholder="小寶"
           maxLength={20}
-          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500"
+          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           required
         />
         {state?.errors?.nickname && (
@@ -48,7 +48,7 @@ export default function AddChildForm() {
         <select
           id="gradeLevel"
           name="gradeLevel"
-          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500"
+          className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           defaultValue="G1"
         >
           <option value="K">幼兒園 (K)</option>
@@ -73,7 +73,7 @@ export default function AddChildForm() {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="rounded-lg border border-neutral-300 px-4 py-2 text-sm transition hover:bg-neutral-50"
+          className="rounded-lg border border-neutral-300 px-4 py-2 text-sm transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
         >
           取消
         </button>

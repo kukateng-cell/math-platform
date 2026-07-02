@@ -18,7 +18,7 @@ export default function StudentLoginPage() {
       <div className="text-center">
         <div className="mb-2 text-5xl">🧑‍🎓</div>
         <h1 className="text-2xl font-bold">學生登入</h1>
-        <p className="mt-1 text-sm text-neutral-500">輸入 Email，以驗證碼登入</p>
+        <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">輸入 Email，以驗證碼登入</p>
       </div>
 
       {!isOtpMode ? (
@@ -26,15 +26,15 @@ export default function StudentLoginPage() {
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium">Email</label>
             <input name="email" type="email" required placeholder="student@example.com"
-              className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500" />
+              className="rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
           </div>
           {captcha && (
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-gray-600 dark:bg-gray-800">
               <input type="hidden" name="captchaToken" value={captcha.token} />
-              <label className="mb-1 block text-sm font-medium text-neutral-600">🤖 請回答驗證問題</label>
-              <p className="mb-2 text-center text-lg font-bold">{captcha.question}</p>
+              <label className="mb-1 block text-sm font-medium text-neutral-600 dark:text-gray-300">🤖 請回答驗證問題</label>
+              <p className="mb-2 text-center text-lg font-bold dark:text-white">{captcha.question}</p>
               <input name="captchaAnswer" type="number" placeholder="輸入答案"
-                className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-center text-lg outline-none focus:border-blue-500" required />
+                className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-center text-lg outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white" required />
             </div>
           )}
           {loginState?.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{loginState.error}</p>}
@@ -46,20 +46,20 @@ export default function StudentLoginPage() {
       ) : (
         <form action={otpAction} className="flex w-full flex-col gap-4">
           <input type="hidden" name="tempToken" value={tempToken} />
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-800 dark:bg-blue-950">
             <div className="mb-2 text-3xl">📧</div>
-            <p className="text-sm text-blue-800">{loginState?.message}</p>
+            <p className="text-sm text-blue-800 dark:text-blue-200">{loginState?.message}</p>
             {devOtp && (
               <div className="mt-2">
-                <p className="text-xs text-blue-500">🔧 驗證碼</p>
-                <p className="select-all text-2xl font-bold tracking-wider text-blue-900">{devOtp}</p>
+                <p className="text-xs text-blue-500 dark:text-blue-400">🔧 驗證碼</p>
+                <p className="select-all text-2xl font-bold tracking-wider text-blue-900 dark:text-blue-100">{devOtp}</p>
               </div>
             )}
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-center">輸入 6 位數驗證碼</label>
             <input name="otpCode" type="text" inputMode="numeric" maxLength={6} placeholder="000000"
-              className="rounded-lg border border-neutral-300 px-3 py-3 text-center text-2xl tracking-[0.5em] outline-none focus:border-blue-500" required />
+              className="rounded-lg border border-neutral-300 px-3 py-3 text-center text-2xl tracking-[0.5em] outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white" required />
           </div>
           {otpState?.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{otpState.error}</p>}
           <button type="submit" disabled={otpPending}
@@ -70,8 +70,8 @@ export default function StudentLoginPage() {
       )}
 
       <div className="flex gap-4 text-sm">
-        <Link href="/student/signup" className="text-blue-600 hover:underline">註冊新帳號</Link>
-        <Link href="/login" className="text-neutral-400 hover:underline">家長登入</Link>
+        <Link href="/student/signup" className="text-blue-600 hover:underline dark:text-blue-400">註冊新帳號</Link>
+        <Link href="/login" className="text-neutral-400 hover:underline dark:text-gray-500">家長登入</Link>
       </div>
     </main>
   )

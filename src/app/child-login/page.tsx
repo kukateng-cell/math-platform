@@ -21,7 +21,7 @@ export default async function ChildLoginPage() {
           <form action="/actions/child-auth" method="POST">
             <button
               type="submit"
-              className="text-sm text-neutral-400 hover:text-neutral-600"
+              className="text-sm text-neutral-400 hover:text-neutral-600 dark:text-gray-500 dark:hover:text-gray-300"
             >
               換一個孩子
             </button>
@@ -36,16 +36,16 @@ export default async function ChildLoginPage() {
       <div className="text-center">
         <div className="mb-2 text-5xl">🧒</div>
         <h1 className="text-2xl font-bold">孩子練習模式</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">
           請輸入你的暱稱和 4 位數 PIN 碼
         </p>
       </div>
       <ChildPinForm />
       <div className="flex gap-4 text-sm">
-        <Link href="/student/login" className="text-green-600 hover:underline">
+        <Link href="/student/login" className="text-green-600 hover:underline dark:text-green-400">
           🌱 學生登入
         </Link>
-        <Link href="/login" className="text-blue-600 hover:underline">
+        <Link href="/login" className="text-blue-600 hover:underline dark:text-blue-400">
           家長登入 →
         </Link>
       </div>

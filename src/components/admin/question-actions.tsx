@@ -49,14 +49,14 @@ export default function QuestionActions({ question, skills }: Props) {
 
       <button
         onClick={() => setEditOpen(true)}
-        className="rounded px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+        className="rounded px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-950"
       >
         ✏️ 編輯
       </button>
 
       <button
         onClick={() => setDeleteOpen(true)}
-        className="rounded px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50"
+        className="rounded px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950"
       >
         🗑️ 刪除
       </button>
@@ -74,14 +74,14 @@ export default function QuestionActions({ question, skills }: Props) {
       {/* 刪除確認 Modal */}
       <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="確認刪除" maxWidth="max-w-md">
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-neutral-600 dark:text-gray-300">
             確定要刪除這道題目嗎？
           </p>
-          <div className="rounded-lg bg-neutral-50 p-3 text-sm">
+          <div className="rounded-lg bg-neutral-50 p-3 text-sm dark:bg-gray-800">
             <p className="truncate font-medium">{question.prompt}</p>
-            <p className="mt-1 text-xs text-neutral-400">答案：{question.answer}</p>
+            <p className="mt-1 text-xs text-neutral-400 dark:text-gray-500">答案：{question.answer}</p>
           </div>
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-neutral-400 dark:text-gray-500">
             若有關聯作答紀錄，將改為「停用」而非真正刪除，以保護歷史資料完整性。
           </p>
 

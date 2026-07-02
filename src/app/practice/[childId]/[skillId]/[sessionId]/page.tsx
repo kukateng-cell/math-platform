@@ -27,7 +27,7 @@ export default async function PracticeQuestionPage({
       <main className="mx-auto w-full max-w-md flex-1 px-4 py-16 text-center">
         <div className="mb-4 text-5xl">📭</div>
         <h2 className="mb-2 text-xl font-bold">題目無法載入</h2>
-        <p className="mb-6 text-neutral-500">
+        <p className="mb-6 text-neutral-500 dark:text-gray-400">
           這個練習的題目資料已遺失，請重新開始一次練習
         </p>
         <Link

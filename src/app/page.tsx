@@ -11,7 +11,7 @@ export default async function Home() {
         <h1 className="mb-3 text-4xl font-bold tracking-tight sm:text-5xl">
           數學小達人
         </h1>
-        <p className="mb-8 text-lg text-neutral-600">
+        <p className="mb-8 text-lg text-neutral-600 dark:text-gray-300">
           陪伴 K-2 孩子建立扎實的數感與計算基礎。
           家長建立孩子檔案，孩子輕鬆做題，系統記錄表現並給出下一步建議。
         </p>
@@ -33,7 +33,7 @@ export default async function Home() {
               </Link>
               <Link
                 href="/login"
-                className="rounded-lg border border-neutral-300 px-6 py-3 font-medium transition hover:bg-neutral-50"
+                className="rounded-lg border border-neutral-300 px-6 py-3 font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
               >
                 家長登入
               </Link>
@@ -64,11 +64,11 @@ export default async function Home() {
         ].map((f) => (
           <div
             key={f.title}
-            className="rounded-xl border border-neutral-200 bg-white p-5 text-left shadow-sm"
+            className="rounded-xl border border-neutral-200 bg-white p-5 text-left shadow-sm dark:border-gray-700 dark:bg-gray-900"
           >
             <div className="mb-2 text-2xl">{f.icon}</div>
             <h3 className="mb-1 font-semibold">{f.title}</h3>
-            <p className="text-sm text-neutral-600">{f.desc}</p>
+            <p className="text-sm text-neutral-600 dark:text-gray-400">{f.desc}</p>
           </div>
         ))}
       </div>
