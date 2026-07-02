@@ -17,7 +17,7 @@ export default async function PracticeQuestionPage({
   
   // 若 data 為 null，提供更詳細的錯誤資訊
   if (!data) {
-    console.error('Practice session not found:', { sessionId, userId: user.id })
+    console.error('Practice session not found:', { sessionId })
     notFound()
   }
 
