@@ -21,6 +21,13 @@ export default async function SignupPage() {
             登入
           </Link>
         </p>
+        {/* 學生自主學習入口 */}
+        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-center text-sm">
+          <span className="text-green-800">🌱 我是學生，想自己練習？</span>{' '}
+          <Link href="/student/signup" className="font-medium text-green-700 hover:underline">
+            學生註冊 →
+          </Link>
+        </div>
       </div>
     </main>
   )

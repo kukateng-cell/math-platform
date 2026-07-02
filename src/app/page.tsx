@@ -29,17 +29,31 @@ export default async function Home() {
                 href="/signup"
                 className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition hover:bg-blue-700"
               >
-                免費開始
+                家長免費開始
               </Link>
               <Link
                 href="/login"
                 className="rounded-lg border border-neutral-300 px-6 py-3 font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
               >
-                登入
+                家長登入
               </Link>
             </>
           )}
         </div>
+
+        {/* 學生自主學習入口 */}
+        {!user && (
+          <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-3 text-sm">
+            <span className="text-green-800">🌱 我是學生，想自己練習</span>
+            <Link href="/student/signup" className="font-medium text-green-700 underline-offset-2 hover:underline">
+              學生註冊
+            </Link>
+            <span className="text-green-300">·</span>
+            <Link href="/student/login" className="font-medium text-green-700 underline-offset-2 hover:underline">
+              學生登入
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-3">

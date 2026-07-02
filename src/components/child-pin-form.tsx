@@ -33,8 +33,23 @@ export default function ChildPinForm() {
 
   return (
     <form action={action} onPaste={handlePaste} className="flex w-full flex-col items-center gap-6">
-      <div className="flex gap-3">
-        {[0, 1, 2, 3].map((i) => (
+      {/* 暱稱 */}
+      <div className="flex w-full flex-col gap-1">
+        <label className="text-sm font-medium">我的暱稱</label>
+        <input
+          name="nickname"
+          type="text"
+          required
+          maxLength={20}
+          placeholder="例：小華"
+          className="rounded-xl border-2 border-neutral-300 bg-white px-4 py-3 text-center text-lg outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+        />
+      </div>
+
+      <div className="flex w-full flex-col gap-1">
+        <label className="text-sm font-medium text-center">PIN 碼</label>
+        <div className="flex justify-center gap-3">
+          {[0, 1, 2, 3].map((i) => (
           <input
             key={i}
             ref={(el) => { refs.current[i] = el }}
@@ -52,6 +67,7 @@ export default function ChildPinForm() {
               [&:not(:placeholder-shown)]:border-blue-500 [&:not(:placeholder-shown)]:bg-blue-50 dark:[&:not(:placeholder-shown)]:bg-blue-950"
           />
         ))}
+        </div>
       </div>
 
       {state?.error && (
