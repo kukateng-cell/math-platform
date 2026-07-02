@@ -115,10 +115,77 @@ async function main() {
     },
   })
 
+  // ============ G2 乘法與除法技能 ============
+  const introMultiply = await prisma.skill.upsert({
+    where: { code: 'intro-multiply' },
+    update: { order: 7, prerequisiteId: addWithin20.id },
+    create: {
+      code: 'intro-multiply',
+      name: '乘法入門',
+      description: '用連加概念引入乘法，2-5 的九九乘法',
+      gradeLevel: 'G2',
+      order: 7,
+      prerequisiteId: addWithin20.id,
+    },
+  })
+
+  const multiply69 = await prisma.skill.upsert({
+    where: { code: 'multiply-6-9' },
+    update: { order: 8, prerequisiteId: introMultiply.id },
+    create: {
+      code: 'multiply-6-9',
+      name: '6-9 的乘法',
+      description: '6×1 到 9×9 的乘法練習',
+      gradeLevel: 'G2',
+      order: 8,
+      prerequisiteId: introMultiply.id,
+    },
+  })
+
+  const multiplyTable = await prisma.skill.upsert({
+    where: { code: 'multiply-table' },
+    update: { order: 9, prerequisiteId: multiply69.id },
+    create: {
+      code: 'multiply-table',
+      name: '九九乘法練習',
+      description: '綜合九九乘法隨機練習',
+      gradeLevel: 'G2',
+      order: 9,
+      prerequisiteId: multiply69.id,
+    },
+  })
+
+  const introDivide = await prisma.skill.upsert({
+    where: { code: 'intro-divide' },
+    update: { order: 10, prerequisiteId: introMultiply.id },
+    create: {
+      code: 'intro-divide',
+      name: '除法入門',
+      description: '用平分概念引入除法',
+      gradeLevel: 'G2',
+      order: 10,
+      prerequisiteId: introMultiply.id,
+    },
+  })
+
+  const divideBasic = await prisma.skill.upsert({
+    where: { code: 'divide-basic' },
+    update: { order: 11, prerequisiteId: introDivide.id },
+    create: {
+      code: 'divide-basic',
+      name: '基礎除法',
+      description: '能整除的簡單除法練習',
+      gradeLevel: 'G2',
+      order: 11,
+      prerequisiteId: introDivide.id,
+    },
+  })
+
   // ============ 題目模板 ============
-  // 先刪除作答紀錄與練習（外鍵約束）
+  // 必須按外鍵依賴順序清除，避免 SQLite 外鍵約束錯誤
   await prisma.attempt.deleteMany({})
   await prisma.practiceSession.deleteMany({})
+  await prisma.masterySnapshot.deleteMany({})
   await prisma.questionTemplate.deleteMany({})
 
   // ───────── 1. 數數（count-objects）: 20+ 題 ─────────
@@ -500,8 +567,374 @@ async function main() {
     })
   }
 
-  // ───────── 互動模式題目 ─────────
-  // 數字線題目（數數技能）— 提示文字包含實際符號讓孩子數
+  // ═══════════════════════════════════════════════
+  // G2 乘法與除法題庫
+  // ═══════════════════════════════════════════════
+
+  // ───────── 8. 乘法入門（intro-multiply）: 30+ 題 ─────────
+  // MUL 參數化模板 × 3
+  const introMulTemplates = [
+    { prompt: '{a} × {b} = ?', params: { aMin: 2, aMax: 5, bMin: 2, bMax: 5 }, expl: '乘法就是連加！{a} × {b} 就是把 {a} 連加 {b} 次，也可以想成 {b} 個 {a}' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 2, aMax: 5, bMin: 2, bMax: 5 }, expl: '用連加來想：{a} + {a} + ... 加 {b} 次，就是答案' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 2, aMax: 5, bMin: 2, bMax: 5 }, expl: '背誦九九乘法：先記住 2×2=4, 2×3=6, 2×4=8, 2×5=10 這些基本乘法' },
+  ]
+  for (const t of introMulTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: introMultiply.id,
+        type: 'MUL',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: '{a*b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  // 直接題：連加引入 + 乘法概念
+  const introMulDirect: { prompt: string; answer: string; expl: string }[] = [
+    // 連加引入
+    { prompt: '3 + 3 + 3 + 3 = ?（提示：這也是 4 × 3）', answer: '12', expl: '4 個 3 連加：3 + 3 + 3 + 3 = 12，也就是 4 × 3 = 12' },
+    { prompt: '2 + 2 + 2 = ?（提示：這也是 3 × 2）', answer: '6', expl: '3 個 2 連加：2 + 2 + 2 = 6，也就是 3 × 2 = 6' },
+    { prompt: '5 + 5 = ?（提示：這也是 2 × 5）', answer: '10', expl: '2 個 5 連加：5 + 5 = 10，也就是 2 × 5 = 10' },
+    { prompt: '4 + 4 + 4 + 4 + 4 = ?（提示：這也是 5 × 4）', answer: '20', expl: '5 個 4 連加 = 20，也就是 5 × 4 = 20' },
+    { prompt: '3 + 3 + 3 + 3 + 3 = ?（提示：這也是 5 × 3）', answer: '15', expl: '5 個 3 連加 = 15，也就是 5 × 3 = 15' },
+    { prompt: '2 + 2 + 2 + 2 = ?（提示：這也是 4 × 2）', answer: '8', expl: '4 個 2 連加 = 8，也就是 4 × 2 = 8' },
+
+    // 乘法轉連加
+    { prompt: '5 × 2 = ?（用連加想：5 + 5 = ?）', answer: '10', expl: '5 × 2 = 5 + 5 = 10' },
+    { prompt: '3 × 4 = ?（用連加想：3 + 3 + 3 + 3 = ?）', answer: '12', expl: '3 × 4 = 3 + 3 + 3 + 3 = 12' },
+    { prompt: '2 × 5 = ?（用連加想：2 + 2 + 2 + 2 + 2 = ?）', answer: '10', expl: '2 × 5 = 2 + 2 + 2 + 2 + 2 = 10' },
+    { prompt: '4 × 3 = ?（用連加想：4 + 4 + 4 = ?）', answer: '12', expl: '4 × 3 = 4 + 4 + 4 = 12' },
+
+    // 概念題
+    { prompt: '4 個 3 相加是多少？', answer: '12', expl: '4 個 3 相加 = 3 + 3 + 3 + 3 = 12，也就是 4 × 3 = 12' },
+    { prompt: '3 個 5 相加是多少？', answer: '15', expl: '3 個 5 相加 = 5 + 5 + 5 = 15，也就是 3 × 5 = 15' },
+    { prompt: '5 個 2 相加是多少？', answer: '10', expl: '5 個 2 相加 = 2 + 2 + 2 + 2 + 2 = 10，也就是 5 × 2 = 10' },
+    { prompt: '2 個 4 相加是多少？', answer: '8', expl: '2 個 4 相加 = 4 + 4 = 8，也就是 2 × 4 = 8' },
+
+    // 基礎九九乘法（2-5）
+    { prompt: '2 × 2 = ?', answer: '4', expl: '2 × 2 = 4，二二得四' },
+    { prompt: '2 × 3 = ?', answer: '6', expl: '2 × 3 = 6，二三得六' },
+    { prompt: '2 × 4 = ?', answer: '8', expl: '2 × 4 = 8，二四得八' },
+    { prompt: '2 × 5 = ?', answer: '10', expl: '2 × 5 = 10，二五得十' },
+    { prompt: '3 × 2 = ?', answer: '6', expl: '3 × 2 = 6，三二得六' },
+    { prompt: '3 × 3 = ?', answer: '9', expl: '3 × 3 = 9，三三得九' },
+    { prompt: '3 × 4 = ?', answer: '12', expl: '3 × 4 = 12，三四十二' },
+    { prompt: '3 × 5 = ?', answer: '15', expl: '3 × 5 = 15，三五一十五' },
+    { prompt: '4 × 2 = ?', answer: '8', expl: '4 × 2 = 8，四二得八' },
+    { prompt: '4 × 3 = ?', answer: '12', expl: '4 × 3 = 12，四三十二' },
+    { prompt: '4 × 4 = ?', answer: '16', expl: '4 × 4 = 16，四四十六' },
+    { prompt: '4 × 5 = ?', answer: '20', expl: '4 × 5 = 20，四五二十' },
+    { prompt: '5 × 2 = ?', answer: '10', expl: '5 × 2 = 10，五二得十' },
+    { prompt: '5 × 3 = ?', answer: '15', expl: '5 × 3 = 15，五三十五' },
+    { prompt: '5 × 4 = ?', answer: '20', expl: '5 × 4 = 20，五四二十' },
+    { prompt: '5 × 5 = ?', answer: '25', expl: '5 × 5 = 25，五五二十五' },
+  ]
+  for (const q of introMulDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: introMultiply.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 9. 6-9 的乘法（multiply-6-9）: 30+ 題 ─────────
+  const mul69Templates = [
+    { prompt: '{a} × {b} = ?', params: { aMin: 6, aMax: 9, bMin: 1, bMax: 5 }, expl: '先記住 6-9 乘以 1-5 的口訣，熟練後再挑戰更大的數字' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 6, aMax: 9, bMin: 6, bMax: 9 }, expl: '練習 6-9 之間互相相乘，這是九九乘法最難的部分，多練習就會熟練' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 6, aMax: 9, bMin: 1, bMax: 9 }, expl: '綜合練習 6-9 的乘法，涵蓋 6×1 到 9×9' },
+  ]
+  for (const t of mul69Templates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: multiply69.id,
+        type: 'MUL',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: '{a*b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  // 6-9 乘法精選直接題（常見易錯題）
+  const mul69Direct: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '6 × 7 = ?', answer: '42', expl: '6 × 7 = 42，六七四十二' },
+    { prompt: '6 × 8 = ?', answer: '48', expl: '6 × 8 = 48，六八四十八' },
+    { prompt: '6 × 9 = ?', answer: '54', expl: '6 × 9 = 54，六九五十四' },
+    { prompt: '7 × 6 = ?', answer: '42', expl: '7 × 6 = 42，七六四十二' },
+    { prompt: '7 × 7 = ?', answer: '49', expl: '7 × 7 = 49，七七四十九' },
+    { prompt: '7 × 8 = ?', answer: '56', expl: '7 × 8 = 56，七八五十六' },
+    { prompt: '7 × 9 = ?', answer: '63', expl: '7 × 9 = 63，七九六十三' },
+    { prompt: '8 × 6 = ?', answer: '48', expl: '8 × 6 = 48，八六四十八' },
+    { prompt: '8 × 7 = ?', answer: '56', expl: '8 × 7 = 56，八七五十六' },
+    { prompt: '8 × 8 = ?', answer: '64', expl: '8 × 8 = 64，八八六十四' },
+    { prompt: '8 × 9 = ?', answer: '72', expl: '8 × 9 = 72，八九七十二' },
+    { prompt: '9 × 6 = ?', answer: '54', expl: '9 × 6 = 54，九六五十四' },
+    { prompt: '9 × 7 = ?', answer: '63', expl: '9 × 7 = 63，九七六十三' },
+    { prompt: '9 × 8 = ?', answer: '72', expl: '9 × 8 = 72，九八七十二' },
+    { prompt: '9 × 9 = ?', answer: '81', expl: '9 × 9 = 81，九九八十一' },
+    { prompt: '6 × 3 = ?', answer: '18', expl: '6 × 3 = 18，六三十八' },
+    { prompt: '6 × 4 = ?', answer: '24', expl: '6 × 4 = 24，六四二十四' },
+    { prompt: '6 × 5 = ?', answer: '30', expl: '6 × 5 = 30，六五三十' },
+    { prompt: '7 × 3 = ?', answer: '21', expl: '7 × 3 = 21，七三二十一' },
+    { prompt: '7 × 4 = ?', answer: '28', expl: '7 × 4 = 28，七四二十八' },
+    { prompt: '7 × 5 = ?', answer: '35', expl: '7 × 5 = 35，七五三十五' },
+    { prompt: '8 × 3 = ?', answer: '24', expl: '8 × 3 = 24，八三二十四' },
+    { prompt: '8 × 4 = ?', answer: '32', expl: '8 × 4 = 32，八四三十二' },
+    { prompt: '8 × 5 = ?', answer: '40', expl: '8 × 5 = 40，八五四十' },
+    { prompt: '9 × 2 = ?', answer: '18', expl: '9 × 2 = 18，九二十八' },
+    { prompt: '9 × 3 = ?', answer: '27', expl: '9 × 3 = 27，九三二十七' },
+    { prompt: '9 × 4 = ?', answer: '36', expl: '9 × 4 = 36，九四三十六' },
+    { prompt: '9 × 5 = ?', answer: '45', expl: '9 × 5 = 45，九五四十五' },
+  ]
+  for (const q of mul69Direct) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: multiply69.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 10. 九九乘法練習（multiply-table）: 40+ 題 ─────────
+  const mulTableTemplates = [
+    { prompt: '{a} × {b} = ?', params: { aMin: 2, aMax: 9, bMin: 2, bMax: 9 }, expl: '隨機練習全範圍九九乘法，從 2×2 到 9×9' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 2, aMax: 9, bMin: 2, bMax: 9 }, expl: '多練習不同的組合，熟練九九乘法口訣' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 2, aMax: 9, bMin: 2, bMax: 9 }, expl: '試著在心裡默念口訣，加快計算速度' },
+    { prompt: '{a} × {b} = ?', params: { aMin: 2, aMax: 9, bMin: 2, bMax: 9 }, expl: '九九乘法是數學的基礎，熟練後做除法也會變快喔！' },
+  ]
+  for (const t of mulTableTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: multiplyTable.id,
+        type: 'MUL',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: '{a*b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  // ───────── 11. 除法入門（intro-divide）: 25+ 題 ─────────
+  // DIV 參數化模板 × 3
+  const introDivTemplates = [
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 4, aMax: 30, bMin: 2, bMax: 5, aMultipleOfB: true }, expl: '除法就是平分！{a} 個東西平分給 {b} 個人，每人得到幾個？' },
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 4, aMax: 30, bMin: 2, bMax: 5, aMultipleOfB: true }, expl: '想一想：{b} × ? = {a}，這個 ? 就是答案' },
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 6, aMax: 40, bMin: 2, bMax: 5, aMultipleOfB: true }, expl: '用乘法來幫忙：先想想 {b} 的九九乘法，找到乘起來等於 {a} 的數字' },
+  ]
+  for (const t of introDivTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: introDivide.id,
+        type: 'DIV',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: '{a/b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  // 除法直接題：平分概念
+  const introDivDirect: { prompt: string; answer: string; expl: string }[] = [
+    // 平分文字題
+    { prompt: '把 12 顆糖果平分給 3 個人，每人得到幾顆？', answer: '4', expl: '12 ÷ 3 = 4，每人得到 4 顆糖果。想一想：3 × 4 = 12' },
+    { prompt: '把 10 顆蘋果平分給 2 個人，每人得到幾顆？', answer: '5', expl: '10 ÷ 2 = 5，每人得到 5 顆蘋果。想一想：2 × 5 = 10' },
+    { prompt: '把 15 張貼紙平分給 5 個小朋友，每人得到幾張？', answer: '3', expl: '15 ÷ 5 = 3，每人得到 3 張貼紙。想一想：5 × 3 = 15' },
+    { prompt: '把 8 塊餅乾平分給 4 個人，每人得到幾塊？', answer: '2', expl: '8 ÷ 4 = 2，每人得到 2 塊餅乾。想一想：4 × 2 = 8' },
+    { prompt: '把 20 顆彈珠平分給 4 個盒子，每個盒子有幾顆？', answer: '5', expl: '20 ÷ 4 = 5，每個盒子有 5 顆。想一想：4 × 5 = 20' },
+    { prompt: '把 18 朵花平分給 3 個花瓶，每個花瓶有幾朵？', answer: '6', expl: '18 ÷ 3 = 6，每個花瓶有 6 朵。想一想：3 × 6 = 18' },
+    { prompt: '把 14 本書平分給 2 個書架，每個書架有幾本？', answer: '7', expl: '14 ÷ 2 = 7，每個書架有 7 本。想一想：2 × 7 = 14' },
+    { prompt: '把 24 顆巧克力平分給 4 個人，每人得到幾顆？', answer: '6', expl: '24 ÷ 4 = 6，每人得到 6 顆。想一想：4 × 6 = 24' },
+    { prompt: '把 16 枝鉛筆平分給 4 個鉛筆盒，每個鉛筆盒有幾枝？', answer: '4', expl: '16 ÷ 4 = 4，每個鉛筆盒有 4 枝。想一想：4 × 4 = 16' },
+    { prompt: '把 9 顆草莓平分給 3 個人，每人得到幾顆？', answer: '3', expl: '9 ÷ 3 = 3，每人得到 3 顆。想一想：3 × 3 = 9' },
+
+    // 用乘法想除法
+    { prompt: '10 ÷ 2 = ?（想：2 × ? = 10）', answer: '5', expl: '2 × 5 = 10，所以 10 ÷ 2 = 5' },
+    { prompt: '12 ÷ 4 = ?（想：4 × ? = 12）', answer: '3', expl: '4 × 3 = 12，所以 12 ÷ 4 = 3' },
+    { prompt: '15 ÷ 3 = ?（想：3 × ? = 15）', answer: '5', expl: '3 × 5 = 15，所以 15 ÷ 3 = 5' },
+    { prompt: '20 ÷ 5 = ?（想：5 × ? = 20）', answer: '4', expl: '5 × 4 = 20，所以 20 ÷ 5 = 4' },
+    { prompt: '6 ÷ 2 = ?（想：2 × ? = 6）', answer: '3', expl: '2 × 3 = 6，所以 6 ÷ 2 = 3' },
+    { prompt: '8 ÷ 2 = ?（想：2 × ? = 8）', answer: '4', expl: '2 × 4 = 8，所以 8 ÷ 2 = 4' },
+    { prompt: '25 ÷ 5 = ?（想：5 × ? = 25）', answer: '5', expl: '5 × 5 = 25，所以 25 ÷ 5 = 5' },
+    { prompt: '30 ÷ 5 = ?（想：5 × ? = 30）', answer: '6', expl: '5 × 6 = 30，所以 30 ÷ 5 = 6' },
+  ]
+  for (const q of introDivDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: introDivide.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 12. 基礎除法（divide-basic）: 25+ 題 ─────────
+  const divBasicTemplates = [
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 10, aMax: 50, bMin: 2, bMax: 9, aMultipleOfB: true }, expl: '熟練較大數字的除法，記得檢查：除數 × 商 = 被除數' },
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 6, aMax: 45, bMin: 2, bMax: 9, aMultipleOfB: true }, expl: '除法是乘法的逆運算，用乘法口訣來幫忙' },
+  ]
+  for (const t of divBasicTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: divideBasic.id,
+        type: 'DIV',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify(t.params),
+        answer: '{a/b}',
+        explanation: t.expl,
+      },
+    })
+  }
+
+  // 基礎除法直接題
+  const divBasicDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '21 ÷ 3 = ?', answer: '7', expl: '3 × 7 = 21，所以 21 ÷ 3 = 7' },
+    { prompt: '24 ÷ 6 = ?', answer: '4', expl: '6 × 4 = 24，所以 24 ÷ 6 = 4' },
+    { prompt: '28 ÷ 7 = ?', answer: '4', expl: '7 × 4 = 28，所以 28 ÷ 7 = 4' },
+    { prompt: '32 ÷ 8 = ?', answer: '4', expl: '8 × 4 = 32，所以 32 ÷ 8 = 4' },
+    { prompt: '36 ÷ 9 = ?', answer: '4', expl: '9 × 4 = 36，所以 36 ÷ 9 = 4' },
+    { prompt: '27 ÷ 3 = ?', answer: '9', expl: '3 × 9 = 27，所以 27 ÷ 3 = 9' },
+    { prompt: '35 ÷ 5 = ?', answer: '7', expl: '5 × 7 = 35，所以 35 ÷ 5 = 7' },
+    { prompt: '42 ÷ 6 = ?', answer: '7', expl: '6 × 7 = 42，所以 42 ÷ 6 = 7' },
+    { prompt: '48 ÷ 8 = ?', answer: '6', expl: '8 × 6 = 48，所以 48 ÷ 8 = 6' },
+    { prompt: '54 ÷ 9 = ?', answer: '6', expl: '9 × 6 = 54，所以 54 ÷ 9 = 6' },
+    { prompt: '18 ÷ 6 = ?', answer: '3', expl: '6 × 3 = 18，所以 18 ÷ 6 = 3' },
+    { prompt: '40 ÷ 5 = ?', answer: '8', expl: '5 × 8 = 40，所以 40 ÷ 5 = 8' },
+    { prompt: '45 ÷ 9 = ?', answer: '5', expl: '9 × 5 = 45，所以 45 ÷ 9 = 5' },
+    { prompt: '49 ÷ 7 = ?', answer: '7', expl: '7 × 7 = 49，所以 49 ÷ 7 = 7' },
+    { prompt: '56 ÷ 8 = ?', answer: '7', expl: '8 × 7 = 56，所以 56 ÷ 8 = 7' },
+    { prompt: '63 ÷ 7 = ?', answer: '9', expl: '7 × 9 = 63，所以 63 ÷ 7 = 9' },
+    { prompt: '64 ÷ 8 = ?', answer: '8', expl: '8 × 8 = 64，所以 64 ÷ 8 = 8' },
+    { prompt: '72 ÷ 9 = ?', answer: '8', expl: '9 × 8 = 72，所以 72 ÷ 9 = 8' },
+    { prompt: '81 ÷ 9 = ?', answer: '9', expl: '9 × 9 = 81，所以 81 ÷ 9 = 9' },
+    { prompt: '36 ÷ 4 = ?', answer: '9', expl: '4 × 9 = 36，所以 36 ÷ 4 = 9' },
+    { prompt: '30 ÷ 6 = ?', answer: '5', expl: '6 × 5 = 30，所以 30 ÷ 6 = 5' },
+    { prompt: '28 ÷ 4 = ?', answer: '7', expl: '4 × 7 = 28，所以 28 ÷ 4 = 7' },
+    { prompt: '22 ÷ 2 = ?', answer: '11', expl: '2 × 11 = 22，所以 22 ÷ 2 = 11' },
+  ]
+  for (const q of divBasicDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: divideBasic.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ═══════════════════════════════════════════════
+  // G2 文字題擴充（含乘法與除法情境）
+  // ═══════════════════════════════════════════════
+
+  // WORD_PROBLEM 乘法情境模板
+  const wordMulTemplates = [
+    { prompt: '教室裡有 {a} 排桌子，每排有 {b} 張，共有幾張桌子？', op: 'mul', params: { aMin: 2, aMax: 5, bMin: 3, bMax: 6 } },
+    { prompt: '一週有 7 天，{a} 週共有幾天？', op: 'mul', params: { aMin: 2, aMax: 4, bMin: 7, bMax: 7 } },
+    { prompt: '一個盒子裝 {a} 顆糖果，{b} 盒共有幾顆？', op: 'mul', params: { aMin: 3, aMax: 6, bMin: 2, bMax: 5 } },
+    { prompt: '一包有 {a} 張貼紙，買了 {b} 包，共有幾張？', op: 'mul', params: { aMin: 3, aMax: 5, bMin: 2, bMax: 5 } },
+    { prompt: '每組有 {a} 個小朋友，{b} 組共有幾個小朋友？', op: 'mul', params: { aMin: 2, aMax: 5, bMin: 3, bMax: 6 } },
+  ]
+  for (const t of wordMulTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: wordProblem.id,
+        type: 'WORD_PROBLEM',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify({ ...t.params, operation: t.op }),
+        answer: '{a*b}',
+        explanation: '這是乘法問題。把每一份的數量乘以份數，就能得到總數。',
+      },
+    })
+  }
+
+  // WORD_PROBLEM 除法情境模板
+  const wordDivTemplates = [
+    { prompt: '{a} 顆球平分給 {b} 個班級，每班有幾顆？', op: 'div', params: { aMin: 8, aMax: 30, bMin: 2, bMax: 5 } },
+    { prompt: '{a} 顆蘋果，每 {b} 顆裝一袋，可以裝成幾袋？', op: 'div', params: { aMin: 6, aMax: 30, bMin: 2, bMax: 5 } },
+    { prompt: '把 {a} 元平分給 {b} 個人，每人得到幾元？', op: 'div', params: { aMin: 8, aMax: 30, bMin: 2, bMax: 5 } },
+    { prompt: '{a} 本書放在 {b} 個書架上，每個書架放幾本？', op: 'div', params: { aMin: 8, aMax: 30, bMin: 2, bMax: 5 } },
+    { prompt: '{a} 個小朋友，每 {b} 人一組，可以分成幾組？', op: 'div', params: { aMin: 6, aMax: 30, bMin: 2, bMax: 5 } },
+  ]
+  for (const t of wordDivTemplates) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: wordProblem.id,
+        type: 'WORD_PROBLEM',
+        prompt: t.prompt,
+        paramsJson: JSON.stringify({ ...t.params, operation: t.op }),
+        answer: '{a/b}',
+        explanation: '這是除法問題。把總數平分（或分裝），看看能分成幾份或每份有多少。',
+      },
+    })
+  }
+
+  // 直接乘法文字題
+  const wordMulDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '教室裡有 4 排桌子，每排有 5 張，共有幾張桌子？', answer: '20', expl: '4 × 5 = 20，共有 20 張桌子' },
+    { prompt: '一週有 7 天，3 週共有幾天？', answer: '21', expl: '7 × 3 = 21，3 週共有 21 天' },
+    { prompt: '一個盒子裝 6 個雞蛋，4 盒共有幾個雞蛋？', answer: '24', expl: '6 × 4 = 24，4 盒共有 24 個雞蛋' },
+    { prompt: '一包有 4 枝鉛筆，買 5 包共有幾枝？', answer: '20', expl: '4 × 5 = 20，5 包共有 20 枝鉛筆' },
+    { prompt: '每籃有 3 顆蘋果，6 籃共有幾顆？', answer: '18', expl: '3 × 6 = 18，6 籃共有 18 顆蘋果' },
+    { prompt: '一天有 24 小時，2 天共有幾小時？', answer: '48', expl: '24 × 2 = 48，2 天共有 48 小時' },
+    { prompt: '每排有 8 個座位，3 排共有幾個座位？', answer: '24', expl: '8 × 3 = 24，3 排共有 24 個座位' },
+    { prompt: '一個人有 2 隻手，9 個人共有幾隻手？', answer: '18', expl: '2 × 9 = 18，9 個人共有 18 隻手' },
+    { prompt: '每束花有 5 朵，4 束共有幾朵？', answer: '20', expl: '5 × 4 = 20，4 束共有 20 朵花' },
+    { prompt: '一輛車有 4 個輪子，6 輛車共有幾個輪子？', answer: '24', expl: '4 × 6 = 24，6 輛車共有 24 個輪子' },
+  ]
+  for (const q of wordMulDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: wordProblem.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // 直接除法文字題
+  const wordDivDirect: { prompt: string; answer: string; expl: string }[] = [
+    { prompt: '20 顆球平分給 4 個班級，每班有幾顆？', answer: '5', expl: '20 ÷ 4 = 5，每班有 5 顆球' },
+    { prompt: '15 顆蘋果，每 3 顆裝一袋，可以裝成幾袋？', answer: '5', expl: '15 ÷ 3 = 5，可以裝成 5 袋' },
+    { prompt: '24 元平分給 6 個人，每人得到幾元？', answer: '4', expl: '24 ÷ 6 = 4，每人得到 4 元' },
+    { prompt: '18 本書放在 3 個書架上，每個書架放幾本？', answer: '6', expl: '18 ÷ 3 = 6，每個書架放 6 本' },
+    { prompt: '12 個小朋友，每 4 人一組，可以分成幾組？', answer: '3', expl: '12 ÷ 4 = 3，可以分成 3 組' },
+    { prompt: '30 顆糖果平分給 5 個小朋友，每人幾顆？', answer: '6', expl: '30 ÷ 5 = 6，每人 6 顆' },
+    { prompt: '28 張貼紙，每 7 張貼一本，可以貼幾本？', answer: '4', expl: '28 ÷ 7 = 4，可以貼 4 本' },
+    { prompt: '36 個學生，每 9 人排一隊，可以排幾隊？', answer: '4', expl: '36 ÷ 9 = 4，可以排 4 隊' },
+    { prompt: '16 塊蛋糕平分給 8 個人，每人幾塊？', answer: '2', expl: '16 ÷ 8 = 2，每人 2 塊' },
+    { prompt: '45 顆彈珠，每 5 顆裝一盒，可以裝幾盒？', answer: '9', expl: '45 ÷ 5 = 9，可以裝 9 盒' },
+  ]
+  for (const q of wordDivDirect) {
+    await prisma.questionTemplate.create({
+      data: {
+        skillId: wordProblem.id,
+        type: 'DIRECT',
+        prompt: q.prompt,
+        answer: q.answer,
+        explanation: q.expl,
+      },
+    })
+  }
+
+  // ───────── 互動模式題目（來自 main 分支）─────────
+  // 數字線題目（數數技能）
   await prisma.questionTemplate.create({
     data: {
       skillId: countObjects.id,
@@ -587,7 +1020,7 @@ async function main() {
     },
   })
 
-  // 填答鍵盤題目（10 以內加法技能）
+  // 填答鍵盤題目（加減法技能）
   await prisma.questionTemplate.create({
     data: {
       skillId: addWithin10.id,
@@ -661,6 +1094,7 @@ async function main() {
   }
 
   console.log(`  ✓ Badges: ${badges.length} seeded`)
+  console.log('  ✓ Skills: 12, Questions seeded')
   console.log('✅ Done!')
 }
 
