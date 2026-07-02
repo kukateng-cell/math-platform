@@ -39,7 +39,7 @@ export default function QuestionForm(props: Props) {
           <select
             name="skillId"
             defaultValue={mode === 'edit' ? props.question.skillId : ''}
-            className="rounded-lg border border-neutral-300 px-3 py-2"
+            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           >
             {mode === 'create' && (
               <option value="" disabled>
@@ -69,12 +69,12 @@ export default function QuestionForm(props: Props) {
                 }
                 readOnly
                 disabled
-                className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400"
+                className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500"
               />
-              <span className="text-xs text-neutral-400">不可變更</span>
+              <span className="text-xs text-neutral-400 dark:text-gray-500">不可變更</span>
             </div>
           ) : (
-            <select name="type" defaultValue="DIRECT" className="rounded-lg border border-neutral-300 px-3 py-2">
+            <select name="type" defaultValue="DIRECT" className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
               <option value="DIRECT">直接題目</option>
               <option value="ADD">參數化加法</option>
               <option value="SUB">參數化減法</option>
@@ -103,15 +103,15 @@ export default function QuestionForm(props: Props) {
                 })()}
                 readOnly
                 disabled
-                className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400"
+                className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500"
               />
-              <span className="text-xs text-neutral-400">不可變更</span>
+              <span className="text-xs text-neutral-400 dark:text-gray-500">不可變更</span>
             </div>
           ) : (
             <select
               name="interaction"
               defaultValue="choice"
-              className="rounded-lg border border-neutral-300 px-3 py-2"
+              className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               onChange={(e) => {
                 const hint = document.querySelector<HTMLInputElement>('input[name="paramsJson"]')
                 if (e.target.value === 'numberline' && hint && !hint.value) {
@@ -133,7 +133,7 @@ export default function QuestionForm(props: Props) {
             name="options"
             defaultValue={mode === 'edit' ? (props.question.options ?? '') : undefined}
             placeholder="留空為填答題"
-            className="rounded-lg border border-neutral-300 px-3 py-2"
+            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           />
         </div>
       </div>
@@ -144,7 +144,7 @@ export default function QuestionForm(props: Props) {
           name="prompt"
           defaultValue={mode === 'edit' ? props.question.prompt : undefined}
           placeholder="直接題目：3 + 4 = ?　參數化：{a} + {b} = ?"
-          className="rounded-lg border border-neutral-300 px-3 py-2"
+          className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
         />
       </div>
 
@@ -155,7 +155,7 @@ export default function QuestionForm(props: Props) {
             name="answer"
             defaultValue={mode === 'edit' ? props.question.answer : undefined}
             placeholder="直接題：7　參數化：{a+b}"
-            className="rounded-lg border border-neutral-300 px-3 py-2"
+            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -164,7 +164,7 @@ export default function QuestionForm(props: Props) {
             name="options"
             defaultValue={mode === 'edit' ? (props.question.options ?? '') : undefined}
             placeholder="留空為填答題"
-            className="rounded-lg border border-neutral-300 px-3 py-2"
+            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           />
         </div>
       </div>
@@ -175,7 +175,7 @@ export default function QuestionForm(props: Props) {
           name="paramsJson"
           defaultValue={mode === 'edit' ? (props.question.paramsJson ?? '') : undefined}
           placeholder='{"aMin":1,"aMax":5,"bMin":1,"bMax":5,"sumMax":10}'
-          className="rounded-lg border border-neutral-300 px-3 py-2 font-mono text-xs"
+          className="rounded-lg border border-neutral-300 px-3 py-2 font-mono text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-white"
         />
       </div>
 
@@ -184,7 +184,7 @@ export default function QuestionForm(props: Props) {
         <input
           name="explanation"
           defaultValue={mode === 'edit' ? (props.question.explanation ?? '') : undefined}
-          className="rounded-lg border border-neutral-300 px-3 py-2"
+          className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
         />
       </div>
 

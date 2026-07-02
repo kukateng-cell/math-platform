@@ -15,7 +15,11 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
-    --foreground: #ededed;
+    --foreground: #fafafa;
+  }
+  /* 確保所有未明確設定顏色的文字在深色模式下為白色 */
+  html {
+    color-scheme: dark;
   }
 }
 

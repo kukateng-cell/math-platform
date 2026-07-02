@@ -10,14 +10,14 @@ export default async function SignupPage() {
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold">建立家長帳號</h1>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="mt-1 text-sm text-neutral-600 dark:text-gray-300">
             註冊後即可為孩子建立學習檔案
           </p>
         </div>
         <SignupForm initialCaptcha={captcha} />
-        <p className="mt-6 text-center text-sm text-neutral-600">
+        <p className="mt-6 text-center text-sm text-neutral-600 dark:text-gray-300">
           已經有帳號了？{' '}
-          <Link href="/login" className="font-medium text-blue-600 hover:underline">
+          <Link href="/login" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
             登入
           </Link>
         </p>

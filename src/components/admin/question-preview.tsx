@@ -82,7 +82,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded px-2 py-1 text-xs font-medium text-neutral-500 transition hover:bg-neutral-100"
+        className="rounded px-2 py-1 text-xs font-medium text-neutral-500 transition hover:bg-neutral-100 dark:hover:bg-gray-700"
       >
         👁️ 預覽
       </button>
@@ -91,11 +91,11 @@ export default function QuestionPreview({ question }: { question: QuestionData }
         <div className="flex flex-col gap-4">
           {/* 題型與互動模式標籤 */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+            <span className="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-gray-700 dark:text-gray-300">
               {TYPE_LABEL[question.type] ?? question.type}
             </span>
             {interaction && (
-              <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+              <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                 {interaction === 'numberline' ? '📏 數字線' : interaction === 'fillin' ? '🔢 填答鍵盤' : '👆 選擇題'}
               </span>
             )}
@@ -133,7 +133,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
             <div className="rounded-xl border border-neutral-200 bg-white p-6">
               <p className="mb-3 text-center text-sm text-neutral-500">🔢 填答鍵盤模式預覽</p>
               <div className="mx-auto max-w-[160px] rounded-xl border-2 border-neutral-200 bg-neutral-50 p-4 text-center">
-                <span className="text-2xl font-bold tracking-wider text-neutral-300">?</span>
+                <span className="text-2xl font-bold tracking-wider text-neutral-300 dark:text-gray-600">?</span>
               </div>
               <div className="mx-auto mt-3 grid max-w-[200px] grid-cols-3 gap-1.5 opacity-60">
                 {[1,2,3,4,5,6,7,8,9].map((n) => (

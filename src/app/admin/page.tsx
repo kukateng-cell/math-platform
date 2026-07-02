@@ -25,11 +25,11 @@ export default async function AdminPage() {
           <Link
             key={c.label}
             href={c.href}
-            className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow"
+            className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow dark:border-gray-700 dark:bg-gray-900 dark:hover:border-blue-500"
           >
             <div className="mb-2 text-2xl">{c.icon}</div>
             <div className="text-2xl font-bold">{c.value}</div>
-            <div className="text-sm text-neutral-500">{c.label}</div>
+            <div className="text-sm text-neutral-500 dark:text-gray-400">{c.label}</div>
           </Link>
         ))}
       </div>

@@ -37,7 +37,7 @@ export default function ReducedMotionToggle() {
     <button
       type="button"
       onClick={toggle}
-      className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition hover:bg-neutral-100"
+      className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition hover:bg-neutral-100 dark:hover:bg-gray-800"
       aria-label={reduced ? '關閉減少動畫模式' : '開啟減少動畫模式'}
       aria-pressed={reduced}
       title={reduced ? '動畫已減少 🌿（點擊恢復）' : '動畫正常 🌸（點擊減少）'}

@@ -20,7 +20,7 @@ export default async function PracticeSelectPage({
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
       <div className="mb-6">
-        <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-900">
+        <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white">
           ← 返回孩子列表
         </Link>
         <h1 className="mt-2 text-2xl font-bold">
@@ -30,11 +30,11 @@ export default async function PracticeSelectPage({
 
       {/* 推薦區 */}
       {recommendation.skillId && (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-blue-700">💡 系統建議</p>
-              <p className="mt-1 text-sm text-blue-900">{recommendation.reason}</p>
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">💡 系統建議</p>
+              <p className="mt-1 text-sm text-blue-900 dark:text-blue-200">{recommendation.reason}</p>
             </div>
             {recommendation.type !== 'ALL_DONE' && (
               <form action={startSession.bind(null, childId, recommendation.skillId)}>
@@ -57,12 +57,12 @@ export default async function PracticeSelectPage({
           return (
             <div
               key={skill.id}
-              className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-sm"
+              className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
             >
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold">{skill.name}</h3>
-                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-gray-700 dark:text-gray-300">
                     {skill.gradeLevel}
                   </span>
                   {skill.questionCount === 0 && (
@@ -71,9 +71,9 @@ export default async function PracticeSelectPage({
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-sm text-neutral-600">{skill.description}</p>
+                <p className="mt-1 text-sm text-neutral-600 dark:text-gray-400">{skill.description}</p>
                 {rate !== null && (
-                  <p className="mt-1 text-xs text-neutral-400">
+                  <p className="mt-1 text-xs text-neutral-400 dark:text-gray-500">
                     最近正確率 {rate}%（{skill.recentCorrect}/{skill.recentTotal}）
                   </p>
                 )}
@@ -88,7 +88,7 @@ export default async function PracticeSelectPage({
                   </button>
                 </form>
               ) : (
-                <span className="text-sm text-neutral-400">無題目</span>
+                <span className="text-sm text-neutral-400 dark:text-gray-500">無題目</span>
               )}
             </div>
           )
