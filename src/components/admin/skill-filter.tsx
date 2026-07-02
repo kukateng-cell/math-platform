@@ -4,16 +4,19 @@ export default function SkillFilter({
   skills,
   defaultValue,
   query,
+  category,
 }: {
   skills: { id: string; name: string }[]
   defaultValue: string
   query: string
+  category?: string
 }) {
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const val = e.target.value
     const params = new URLSearchParams()
     if (query) params.set('q', query)
     if (val) params.set('skillId', val)
+    if (category) params.set('category', category)
     params.set('page', '1')
     const qs = params.toString()
     window.location.href = `/admin/questions${qs ? `?${qs}` : ''}`

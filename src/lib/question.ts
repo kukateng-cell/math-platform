@@ -11,9 +11,31 @@ export type QuestionInstance = {
   _b?: number
 }
 
+// 題目分類枚舉（與 Prisma enum 同步）
+export type QuestionCategory =
+  | 'GENERAL'
+  | 'WITHIN_10000'
+  | 'FRACTION'
+  | 'MULTI_DIGIT_MUL'
+  | 'PERIMETER_AREA'
+  | 'DECIMAL'
+  | 'ONE_DIGIT_DIV'
+
+// 題目分類中文標籤
+export const CATEGORY_LABELS: Record<QuestionCategory, string> = {
+  GENERAL: '一般',
+  WITHIN_10000: '萬以內加減',
+  FRACTION: '分數運算',
+  MULTI_DIGIT_MUL: '多位數乘法',
+  PERIMETER_AREA: '周長與面積',
+  DECIMAL: '小數運算',
+  ONE_DIGIT_DIV: '一位數除法',
+}
+
 type RawTemplate = {
   id?: string
   type: 'DIRECT' | 'ADD' | 'SUB' | 'WORD_PROBLEM' | 'MUL' | 'DIV'
+  category?: QuestionCategory
   prompt: string
   paramsJson: string | null
   answer: string
@@ -35,7 +57,70 @@ export function shuffle<T>(arr: T[]): T[] {
 
 // 根據模板產生一個具體題目實例
 export function generateQuestion(template: RawTemplate): QuestionInstance {
+  // ── 分類專用處理（優先於 type）──
   if (template.type === 'DIRECT') {
+    const category = template.category
+
+    // 分數運算：若選項包含分數格式（如 "3/4"），產生的干擾項也要維持分數形式
+    if (category === 'FRACTION' && template.paramsJson) {
+      const params = safeParse(template.paramsJson)
+      if (params.interaction === 'fillin') {
+        // 填答題：直接回傳，答案可能是分數格式如 "3/4"
+        return { prompt: template.prompt, answer: template.answer, templateId: template.id }
+      }
+    }
+
+    // 小數運算：確保選項為小數格式
+    if (category === 'DECIMAL' && template.paramsJson) {
+      const params = safeParse(template.paramsJson)
+      if (params.interaction === 'fillin') {
+        return { prompt: template.prompt, answer: template.answer, templateId: template.id }
+      }
+    }
+
+    // 周長與面積：部分題目需要參數化產生（如 "長{length}公分、寬{width}公分"）
+    if (category === 'PERIMETER_AREA' && template.paramsJson) {
+      const params = safeParse(template.paramsJson)
+      const length = params.length || randInt(3, 12)
+      const width = params.width || randInt(2, 8)
+      const side = params.side || randInt(3, 10)
+      const formula = params.formula as string | undefined
+
+      if (formula) {
+        let prompt = template.prompt
+        let answer = ''
+        if (formula === 'perimeter') {
+          prompt = prompt
+            .replace('{length}', String(length))
+            .replace('{width}', String(width))
+            .replace('{side}', String(side))
+          answer = String(2 * (Number(length) + Number(width)))
+        } else if (formula === 'area') {
+          prompt = prompt
+            .replace('{length}', String(length))
+            .replace('{width}', String(width))
+            .replace('{side}', String(side))
+          answer = String(Number(length) * Number(width))
+        } else if (formula === 'square_perimeter') {
+          prompt = prompt.replace('{side}', String(side))
+          answer = String(4 * Number(side))
+        } else if (formula === 'square_area') {
+          prompt = prompt.replace('{side}', String(side))
+          answer = String(Number(side) * Number(side))
+        } else if (formula === 'find_side_from_perimeter') {
+          prompt = prompt.replace('{perimeter}', String(side * 4))
+          answer = String(side)
+        } else if (formula === 'find_side_from_area') {
+          prompt = prompt.replace('{area}', String(side * side))
+          answer = String(side)
+        }
+
+        const distractors = generateDistractors(Number(answer), 3)
+        const options = shuffle([Number(answer), ...distractors]).map(String)
+        return { prompt, answer: String(answer), options, templateId: template.id }
+      }
+    }
+
     const options = template.options
       ? shuffle(template.options.split(',').map((s) => s.trim()))
       : undefined

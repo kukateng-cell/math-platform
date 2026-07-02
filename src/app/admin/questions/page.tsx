@@ -11,6 +11,29 @@ const TYPE_LABEL: Record<string, string> = {
   DIRECT: '直接',
   ADD: '加法',
   SUB: '減法',
+  MUL: '乘法',
+  DIV: '除法',
+  WORD_PROBLEM: '文字題',
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  GENERAL: '一般',
+  WITHIN_10000: '萬以內加減',
+  FRACTION: '分數運算',
+  MULTI_DIGIT_MUL: '多位數乘法',
+  PERIMETER_AREA: '周長與面積',
+  DECIMAL: '小數運算',
+  ONE_DIGIT_DIV: '一位數除法',
+}
+
+const CATEGORY_ICON: Record<string, string> = {
+  GENERAL: '📦',
+  WITHIN_10000: '🔢',
+  FRACTION: '🍕',
+  MULTI_DIGIT_MUL: '✖️',
+  PERIMETER_AREA: '📐',
+  DECIMAL: '🔟',
+  ONE_DIGIT_DIV: '➗',
 }
 
 const PAGE_SIZE = 20
@@ -18,14 +41,15 @@ const PAGE_SIZE = 20
 export default async function AdminQuestionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; skillId?: string; page?: string }>
+  searchParams: Promise<{ q?: string; skillId?: string; category?: string; page?: string }>
 }) {
   const session = await getSession()
   if (!session || session.role !== 'ADMIN') redirect('/dashboard')
 
-  const { q, skillId, page: pageStr } = await searchParams
+  const { q, skillId, category: catParam, page: pageStr } = await searchParams
   const query = q?.trim() || ''
   const filterSkillId = skillId?.trim() || ''
+  const filterCategory = catParam?.trim() || ''
   const page = Math.max(1, parseInt(pageStr || '1', 10) || 1)
 
   // 技能列表（供表單與篩選用）
@@ -40,6 +64,19 @@ export default async function AdminQuestionsPage({
   if (filterSkillId) {
     where.skillId = filterSkillId
   }
+  if (filterCategory) {
+    where.category = filterCategory
+  }
+
+  const [total, questions] = await Promise.all([
+    prisma.questionTemplate.count({ where }),
+    prisma.questionTemplate.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      include: { skill: true },
+    }),
 
   const [total, questions] = await Promise.all([
     prisma.questionTemplate.count({ where }),
@@ -59,6 +96,7 @@ export default async function AdminQuestionsPage({
     const params = new URLSearchParams()
     if (query) params.set('q', query)
     if (filterSkillId) params.set('skillId', filterSkillId)
+    if (filterCategory) params.set('category', filterCategory)
     if (p > 1) params.set('page', String(p))
     const qs = params.toString()
     return `/admin/questions${qs ? `?${qs}` : ''}`
@@ -112,7 +150,38 @@ export default async function AdminQuestionsPage({
             skills={skills}
             defaultValue={filterSkillId}
             query={query}
+            category={filterCategory}
           />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-neutral-500 dark:text-gray-400">題目分類</label>
+          <form>
+            <input type="hidden" name="q" value={query} />
+            <input type="hidden" name="skillId" value={filterSkillId} />
+            <input type="hidden" name="page" value="1" />
+            <select
+              name="category"
+              defaultValue={filterCategory}
+              onChange={(e) => (e.target.form as HTMLFormElement)?.requestSubmit()}
+              className="rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+            >
+              <option value="">全部分類</option>
+              <option value="WITHIN_10000">🔢 萬以內加減</option>
+              <option value="FRACTION">🍕 分數運算</option>
+              <option value="MULTI_DIGIT_MUL">✖️ 多位數乘法</option>
+              <option value="PERIMETER_AREA">📐 周長與面積</option>
+              <option value="DECIMAL">🔟 小數運算</option>
+              <option value="ONE_DIGIT_DIV">➗ 一位數除法</option>
+            </select>
+            {filterCategory && (
+              <a
+                href={pageUrl(1).replace(/category=[^&]*&?/g, '').replace(/[?&]$/, '') || '/admin/questions'}
+                className="ml-1 text-xs text-neutral-400 hover:text-neutral-700 dark:text-gray-500 dark:hover:text-gray-300"
+              >
+                ✕
+              </a>
+            )}
+          </form>
         </div>
       </div>
 
@@ -150,6 +219,11 @@ export default async function AdminQuestionsPage({
                   <span className="rounded bg-neutral-100 px-1.5 text-xs text-neutral-600 dark:bg-gray-700 dark:text-gray-300">
                     {TYPE_LABEL[q.type] ?? q.type}
                   </span>
+                  {(q as Record<string, string>).category && (q as Record<string, string>).category !== 'GENERAL' && (
+                    <span className="rounded bg-blue-50 px-1.5 text-xs text-blue-600 dark:bg-blue-950 dark:text-blue-400" title={CATEGORY_LABEL[(q as Record<string, string>).category] ?? ''}>
+                      {CATEGORY_ICON[(q as Record<string, string>).category] ?? ''} {CATEGORY_LABEL[(q as Record<string, string>).category] ?? (q as Record<string, string>).category}
+                    </span>
+                  )}
                   <span className="truncate font-medium">{q.prompt}</span>
                   {!q.isActive && (
                     <span className="rounded-full bg-red-50 px-2 text-xs text-red-500">已停用</span>

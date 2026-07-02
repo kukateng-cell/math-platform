@@ -57,6 +57,8 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   await requireAdmin()
   const skillId = String(formData.get('skillId') || '')
   const type = String(formData.get('type') || 'DIRECT') as 'DIRECT' | 'ADD' | 'SUB' | 'MUL' | 'DIV' | 'WORD_PROBLEM'
+  const category = String(formData.get('category') || 'GENERAL') as
+    'GENERAL' | 'WITHIN_10000' | 'FRACTION' | 'MULTI_DIGIT_MUL' | 'PERIMETER_AREA' | 'DECIMAL' | 'ONE_DIGIT_DIV'
   const prompt = String(formData.get('prompt') || '').trim()
   const answer = String(formData.get('answer') || '').trim()
   const options = String(formData.get('options') || '').trim() || null
@@ -84,7 +86,7 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   }
 
   await prisma.questionTemplate.create({
-    data: { skillId, type, prompt, answer, options, explanation, paramsJson },
+    data: { skillId, type, category, prompt, answer, options, explanation, paramsJson },
   })
   revalidatePath('/admin')
   return { ok: true }

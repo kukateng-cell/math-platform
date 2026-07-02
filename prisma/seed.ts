@@ -1474,6 +1474,27 @@ async function main() {
     })
   }
 
+  // ============ 題目分類標記（為 G3/G4 題目設定 category）============
+  const categoryMapping: Record<string, string> = {
+    'three-digit-add-sub': 'WITHIN_10000',
+    'intro-fraction': 'FRACTION',
+    'fraction-compare': 'FRACTION',
+    'area-perimeter': 'PERIMETER_AREA',
+    'large-multiply': 'MULTI_DIGIT_MUL',
+    'decimal-intro': 'DECIMAL',
+    'long-division': 'ONE_DIGIT_DIV',
+  }
+  for (const [skillCode, category] of Object.entries(categoryMapping)) {
+    const skill = await prisma.skill.findUnique({ where: { code: skillCode } })
+    if (skill) {
+      await prisma.questionTemplate.updateMany({
+        where: { skillId: skill.id, category: 'GENERAL' },
+        data: { category: category as any },
+      })
+    }
+  }
+  console.log('  ✓ Question categories assigned')
+
   // ============ 成就徽章 ============
   const badges = [
     { code: 'first-practice', name: '第一次練習', icon: '🌟', condition: '完成首次練習' },

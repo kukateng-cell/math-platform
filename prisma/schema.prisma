@@ -118,6 +118,8 @@ model QuestionTemplate {
   skillId    String
   // 題型：直接題目 或 參數化模板
   type       QuestionType
+  // 題目分類（數學領域），預設 GENERAL
+  category   QuestionCategory @default(GENERAL)
   // 題目文字（直接題目用），或模板說明
   prompt     String
   // 參數化題目用：JSON 定義範圍，例如 {"aMin":0,"aMax":5,"bMin":1,"bMax":5}
@@ -144,6 +146,19 @@ enum QuestionType {
   WORD_PROBLEM // 參數化生活情境文字題
   MUL          // 參數化乘法
   DIV          // 參數化除法
+}
+
+// 題目分類（數學領域），與 type（計算方式）正交搭配
+// e.g. type=DIRECT + category=FRACTION → 分數直接題
+//       type=MUL + category=MULTI_DIGIT_MUL → 參數化多位數乘法
+enum QuestionCategory {
+  GENERAL        // 一般/未分類
+  WITHIN_10000   // 萬以內加減法
+  FRACTION       // 分數運算（加減比較）
+  MULTI_DIGIT_MUL // 多位數乘法（含兩位數乘兩位數）
+  PERIMETER_AREA // 周長與面積公式計算
+  DECIMAL        // 小數運算（加減比較）
+  ONE_DIGIT_DIV  // 除數是一位數的除法
 }
 
 // ============ 練習 ============

@@ -80,6 +80,40 @@ export default function QuestionForm(props: Props) {
               <option value="SUB">參數化減法</option>
               <option value="MUL">參數化乘法</option>
               <option value="DIV">參數化除法</option>
+              <option value="WORD_PROBLEM">參數化文字題</option>
+            </select>
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium">題目分類</label>
+          {mode === 'edit' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={(() => {
+                  const cat = (props.question as Record<string, string>).category
+                  const labels: Record<string, string> = {
+                    GENERAL: '一般', WITHIN_10000: '萬以內加減', FRACTION: '分數運算',
+                    MULTI_DIGIT_MUL: '多位數乘法', PERIMETER_AREA: '周長與面積',
+                    DECIMAL: '小數運算', ONE_DIGIT_DIV: '一位數除法',
+                  }
+                  return labels[cat] ?? cat ?? '一般'
+                })()}
+                readOnly
+                disabled
+                className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500"
+              />
+              <span className="text-xs text-neutral-400 dark:text-gray-500">不可變更</span>
+            </div>
+          ) : (
+            <select name="category" defaultValue="GENERAL" className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
+              <option value="GENERAL">一般</option>
+              <option value="WITHIN_10000">萬以內加減</option>
+              <option value="FRACTION">分數運算</option>
+              <option value="MULTI_DIGIT_MUL">多位數乘法</option>
+              <option value="PERIMETER_AREA">周長與面積</option>
+              <option value="DECIMAL">小數運算</option>
+              <option value="ONE_DIGIT_DIV">一位數除法</option>
             </select>
           )}
         </div>
