@@ -13,7 +13,12 @@ export default async function LoginPage() {
           <p className="mt-1 text-sm text-neutral-600 dark:text-gray-300">登入繼續孩子的學習</p>
         </div>
         <LoginForm initialCaptcha={captcha} />
-        <p className="mt-6 text-center text-sm text-neutral-600 dark:text-gray-300">
+        <p className="mt-4 text-right text-sm">
+          <Link href="/forgot-password" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+            忘記密碼？
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-sm text-neutral-600 dark:text-gray-300">
           還沒有帳號？{' '}
           <Link href="/signup" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
             家長註冊
