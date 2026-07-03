@@ -451,8 +451,8 @@ async function main() {
     update: { order: 22, prerequisiteId: fractionCompare.id },
     create: {
       code: 'fraction-operations',
-      name: '分數加減法',
-      description: '異分母分數加減、通分與約分',
+      name: '分數的加減運算與性質',
+      description: '異分母分數加減、通分、約分與分數的基本性質',
       gradeLevel: 'G5',
       order: 22,
       prerequisiteId: fractionCompare.id,
@@ -472,93 +472,159 @@ async function main() {
     },
   })
 
-  const fractionMulDiv = await prisma.skill.upsert({
-    where: { code: 'fraction-multiply-divide' },
-    update: { order: 24, prerequisiteId: fractionOps.id },
-    create: {
-      code: 'fraction-multiply-divide',
-      name: '分數乘除法',
-      description: '分數乘以分數、分數除以分數的計算',
-      gradeLevel: 'G5',
-      order: 24,
-      prerequisiteId: fractionOps.id,
-    },
-  })
-
   const volumeIntro = await prisma.skill.upsert({
     where: { code: 'volume-intro' },
     update: { order: 25 },
     create: {
       code: 'volume-intro',
-      name: '體積',
-      description: '長方體和正方體的體積公式與應用',
+      name: '體積（長方體與正方體）',
+      description: '長方體和正方體的體積公式、表面積與應用',
       gradeLevel: 'G5',
       order: 25,
     },
   })
 
-  // ============ G6 比例、百分比與幾何 ============
+  // ============ G5 新技能：方程、多邊形公式、因數倍數 ============
+  const equation = await prisma.skill.upsert({
+    where: { code: 'equation' },
+    update: { order: 26, prerequisiteId: decimalMulDiv.id },
+    create: {
+      code: 'equation',
+      name: '方程',
+      description: '用字母表示數、一元一次方程的解法與應用',
+      gradeLevel: 'G5',
+      order: 26,
+      prerequisiteId: decimalMulDiv.id,
+    },
+  })
+
+  const polygonFormula = await prisma.skill.upsert({
+    where: { code: 'polygon-formula' },
+    update: { order: 27, prerequisiteId: areaIntro.id },
+    create: {
+      code: 'polygon-formula',
+      name: '多邊形的公式計算',
+      description: '平行四邊形、三角形、梯形的面積公式推導與計算',
+      gradeLevel: 'G5',
+      order: 27,
+      prerequisiteId: areaIntro.id,
+    },
+  })
+
+  const factorsMultiples = await prisma.skill.upsert({
+    where: { code: 'factors-multiples' },
+    update: { order: 28, prerequisiteId: decimalMulDiv.id },
+    create: {
+      code: 'factors-multiples',
+      name: '因數與倍數',
+      description: '因數、倍數、質數、合數、最大公因數、最小公倍數',
+      gradeLevel: 'G5',
+      order: 28,
+      prerequisiteId: decimalMulDiv.id,
+    },
+  })
+
+  // ============ G6 分數乘除法、比例、百分比與幾何 ============
+  const fractionMulDiv = await prisma.skill.upsert({
+    where: { code: 'fraction-multiply-divide' },
+    update: { order: 29, prerequisiteId: fractionOps.id },
+    create: {
+      code: 'fraction-multiply-divide',
+      name: '分數乘除法',
+      description: '分數乘以分數、分數除以分數的計算與應用',
+      gradeLevel: 'G6',
+      order: 29,
+      prerequisiteId: fractionOps.id,
+    },
+  })
+
   const ratio = await prisma.skill.upsert({
     where: { code: 'ratio' },
-    update: { order: 26, prerequisiteId: fractionMulDiv.id },
+    update: { order: 30, prerequisiteId: fractionMulDiv.id },
     create: {
       code: 'ratio',
       name: '比與比例',
       description: '比的意義、化簡比、比例式的應用',
       gradeLevel: 'G6',
-      order: 26,
+      order: 30,
       prerequisiteId: fractionMulDiv.id,
     },
   })
 
   const percent = await prisma.skill.upsert({
     where: { code: 'percent' },
-    update: { order: 27, prerequisiteId: ratio.id },
+    update: { order: 31, prerequisiteId: ratio.id },
     create: {
       code: 'percent',
       name: '百分比',
       description: '百分率、百分比的計算、折扣與加成',
       gradeLevel: 'G6',
-      order: 27,
+      order: 31,
       prerequisiteId: ratio.id,
     },
   })
 
   const circle = await prisma.skill.upsert({
     where: { code: 'circle' },
-    update: { order: 28 },
+    update: { order: 32 },
     create: {
       code: 'circle',
       name: '圓',
-      description: '圓周率、圓周長與圓面積的計算',
+      description: '圓的定義、圓周率、圓周長與圓面積的計算',
       gradeLevel: 'G6',
-      order: 28,
+      order: 32,
     },
   })
 
   const speed = await prisma.skill.upsert({
     where: { code: 'speed' },
-    update: { order: 29, prerequisiteId: ratio.id },
+    update: { order: 33, prerequisiteId: ratio.id },
     create: {
       code: 'speed',
       name: '速率',
       description: '速度、距離、時間的關係與計算',
       gradeLevel: 'G6',
-      order: 29,
+      order: 33,
       prerequisiteId: ratio.id,
     },
   })
 
   const prismVolume = await prisma.skill.upsert({
     where: { code: 'prism-volume' },
-    update: { order: 30, prerequisiteId: volumeIntro.id },
+    update: { order: 34, prerequisiteId: volumeIntro.id },
     create: {
       code: 'prism-volume',
       name: '柱體體積',
       description: '圓柱與角柱的體積計算',
       gradeLevel: 'G6',
-      order: 30,
+      order: 34,
       prerequisiteId: volumeIntro.id,
+    },
+  })
+
+  // ============ G6 新技能：負數、圓錐與圓柱 ============
+  const negativeNumbers = await prisma.skill.upsert({
+    where: { code: 'negative-numbers' },
+    update: { order: 35 },
+    create: {
+      code: 'negative-numbers',
+      name: '負數',
+      description: '負數的認識、數線、絕對值及簡單的加減運算',
+      gradeLevel: 'G6',
+      order: 35,
+    },
+  })
+
+  const coneCylinder = await prisma.skill.upsert({
+    where: { code: 'cone-cylinder' },
+    update: { order: 36, prerequisiteId: circle.id },
+    create: {
+      code: 'cone-cylinder',
+      name: '圓錐與圓柱',
+      description: '圓柱的表面積與體積、圓錐的體積計算公式與應用',
+      gradeLevel: 'G6',
+      order: 36,
+      prerequisiteId: circle.id,
     },
   })
 
@@ -1993,6 +2059,21 @@ async function main() {
     { prompt: '1/2 ÷ 1/3 = ?', answer: '3/2' }, { prompt: '2/3 ÷ 1/4 = ?', answer: '8/3' },
     { prompt: '3/4 ÷ 1/2 = ?', answer: '3/2' }, { prompt: '1/3 × 3/5 = ?', answer: '1/5' },
     { prompt: '5/6 ÷ 2/3 = ?', answer: '5/4' }, { prompt: '2/5 × 5/7 = ?', answer: '2/7' },
+    { prompt: '1/3 × 1/4 = ?', answer: '1/12' },
+    { prompt: '3/4 × 2/5 = ?', answer: '3/10' },
+    { prompt: '2/3 × 5/7 = ?', answer: '10/21' },
+    { prompt: '4/5 × 1/2 = ?', answer: '2/5' },
+    { prompt: '1/2 ÷ 1/4 = ?', answer: '2' },
+    { prompt: '3/5 ÷ 2/3 = ?', answer: '9/10' },
+    { prompt: '2/3 ÷ 5/6 = ?', answer: '4/5' },
+    { prompt: '5/8 ÷ 1/4 = ?', answer: '5/2' },
+    { prompt: '整數 4 × 2/3 = ?', answer: '8/3' },
+    { prompt: '3/7 × 14 = ?', answer: '6' },
+    { prompt: '5/6 × 3 = ?', answer: '5/2' },
+    { prompt: '2 ÷ 1/3 = ?', answer: '6' },
+    { prompt: '分數的倒數：2/3 的倒數是？', answer: '3/2' },
+    { prompt: '分數的倒數：5 的倒數是？', answer: '1/5' },
+    { prompt: '分數的倒數：1 的倒數是？', answer: '1' },
   ]) {
     await prisma.questionTemplate.create({
       data: { skillId: fractionMulDiv.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '分數乘法：分子×分子、分母×分母；除法：乘以倒數' },
@@ -2004,9 +2085,92 @@ async function main() {
     { prompt: '長方體 10×4×3cm，體積？', answer: '120' }, { prompt: '正方體邊長 6cm，表面積？', answer: '216' },
     { prompt: '長方體容器 8×5cm，高？ 水 200cm³', answer: '5' },
     { prompt: '正方體邊長 3cm，體積？', answer: '27' },
+    { prompt: '長方體 4×4×6cm，體積？', answer: '96' },
+    { prompt: '正方體邊長 5cm，表面積？', answer: '150' },
+    { prompt: '長方體 7×3×4cm，體積？', answer: '84' },
+    { prompt: '正方體邊長 10cm，體積？', answer: '1000' },
+    { prompt: '一個長方體長 8cm、寬 5cm、高 3cm，容積？', answer: '120' },
   ]) {
     await prisma.questionTemplate.create({
       data: { skillId: volumeIntro.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '體積=長×寬×高，表面積=6×邊長²' },
+    })
+  }
+
+  // ─── G5: 方程（equation）───
+  for (const q of [
+    { prompt: 'x + 5 = 12，x = ?', answer: '7', expl: '12 - 5 = 7，所以 x = 7' },
+    { prompt: 'x - 3 = 8，x = ?', answer: '11', expl: '8 + 3 = 11，所以 x = 11' },
+    { prompt: '2x = 10，x = ?', answer: '5', expl: '10 ÷ 2 = 5，所以 x = 5' },
+    { prompt: 'x ÷ 4 = 3，x = ?', answer: '12', expl: '3 × 4 = 12，所以 x = 12' },
+    { prompt: 'x + 7 = 15，x = ?', answer: '8', expl: '15 - 7 = 8，所以 x = 8' },
+    { prompt: 'x - 6 = 5，x = ?', answer: '11', expl: '5 + 6 = 11，所以 x = 11' },
+    { prompt: '3x = 18，x = ?', answer: '6', expl: '18 ÷ 3 = 6，所以 x = 6' },
+    { prompt: 'x ÷ 5 = 4，x = ?', answer: '20', expl: '4 × 5 = 20，所以 x = 20' },
+    { prompt: 'x + 9 = 20，x = ?', answer: '11', expl: '20 - 9 = 11' },
+    { prompt: 'x - 12 = 8，x = ?', answer: '20', expl: '8 + 12 = 20' },
+    { prompt: '4x = 24，x = ?', answer: '6', expl: '24 ÷ 4 = 6' },
+    { prompt: 'x ÷ 6 = 5，x = ?', answer: '30', expl: '5 × 6 = 30' },
+    { prompt: '2x + 3 = 11，x = ?', answer: '4', expl: '先減 3：11-3=8，再除以 2：8÷2=4' },
+    { prompt: '3x - 4 = 14，x = ?', answer: '6', expl: '先加 4：14+4=18，再除以 3：18÷3=6' },
+    { prompt: '5x + 5 = 30，x = ?', answer: '5', expl: '先減 5：30-5=25，再除以 5：25÷5=5' },
+    { prompt: '2x - 1 = 9，x = ?', answer: '5', expl: '先加 1：9+1=10，再除以 2：10÷2=5' },
+    { prompt: 'x + x = 14，x = ?', answer: '7', expl: '兩個 x 加起來是 14，所以 x = 7' },
+    { prompt: '3x - x = 12，x = ?', answer: '6', expl: '3x - x = 2x = 12，x = 6' },
+    { prompt: '小華有 x 元，買了 25 元的書後剩下 30 元，小華原有 ? 元', answer: '55', expl: 'x - 25 = 30，x = 55' },
+    { prompt: '一個數乘以 4 等於 36，這個數是？', answer: '9', expl: '4x = 36，x = 9' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: equation.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: q.expl ?? '用加減乘除的逆運算來解未知數' },
+    })
+  }
+
+  // ─── G5: 多邊形的公式計算（polygon-formula）───
+  for (const q of [
+    { prompt: '平行四邊形底 6cm、高 4cm，面積？', answer: '24', expl: '面積 = 底 × 高 = 6 × 4 = 24 cm²' },
+    { prompt: '三角形底 8cm、高 5cm，面積？', answer: '20', expl: '面積 = 底 × 高 ÷ 2 = 8 × 5 ÷ 2 = 20 cm²' },
+    { prompt: '梯形上底 3cm、下底 7cm、高 4cm，面積？', answer: '20', expl: '面積 = (上底+下底) × 高 ÷ 2 = 10 × 4 ÷ 2 = 20 cm²' },
+    { prompt: '平行四邊形底 10cm、高 6cm，面積？', answer: '60' },
+    { prompt: '三角形底 12cm、高 8cm，面積？', answer: '48' },
+    { prompt: '梯形上底 4cm、下底 6cm、高 5cm，面積？', answer: '25' },
+    { prompt: '平行四邊形面積 48cm²、底 8cm，高？', answer: '6', expl: '高 = 面積 ÷ 底 = 48 ÷ 8 = 6 cm' },
+    { prompt: '三角形面積 30cm²、底 10cm，高？', answer: '6', expl: '高 = 面積 × 2 ÷ 底 = 60 ÷ 10 = 6 cm' },
+    { prompt: '梯形面積 36cm²、高 6cm、上底 4cm，下底？', answer: '8', expl: '(4+下底)×6÷2=36，4+下底=12，下底=8' },
+    { prompt: '平行四邊形底 5cm、高 3cm，面積？', answer: '15' },
+    { prompt: '三角形底 6cm、高 9cm，面積？', answer: '27' },
+    { prompt: '梯形上底 2cm、下底 8cm、高 3cm，面積？', answer: '15' },
+    { prompt: '平行四邊形面積 72cm²、高 8cm，底？', answer: '9' },
+    { prompt: '三角形面積 24cm²、高 6cm，底？', answer: '8' },
+    { prompt: '梯形上底 5cm、下底 9cm、高 4cm，面積？', answer: '28' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: polygonFormula.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: q.expl ?? '平行四邊形面積=底×高；三角形面積=底×高÷2；梯形面積=(上底+下底)×高÷2' },
+    })
+  }
+
+  // ─── G5: 因數與倍數（factors-multiples）───
+  for (const q of [
+    { prompt: '12 的因數有哪些？（由小到大填寫，逗號分隔）', answer: '1,2,3,4,6,12', expl: '12 = 1×12 = 2×6 = 3×4' },
+    { prompt: '8 的倍數列出 3 個（由小到大填寫，逗號分隔）', answer: '8,16,24', expl: '8×1=8, 8×2=16, 8×3=24' },
+    { prompt: '6 和 8 的最大公因數（GCF）是？', answer: '2', expl: '6的因數：1,2,3,6；8的因數：1,2,4,8；共同最大的是 2' },
+    { prompt: '4 和 6 的最小公倍數（LCM）是？', answer: '12', expl: '4的倍數：4,8,12,16...；6的倍數：6,12,18...；共同最小的是 12' },
+    { prompt: '15 的因數有哪些？（逗號分隔）', answer: '1,3,5,15' },
+    { prompt: '9 和 12 的最大公因數？', answer: '3' },
+    { prompt: '6 和 9 的最小公倍數？', answer: '18' },
+    { prompt: '24 的因數有哪些？（逗號分隔）', answer: '1,2,3,4,6,8,12,24' },
+    { prompt: '10 和 15 的最大公因數？', answer: '5' },
+    { prompt: '8 和 10 的最小公倍數？', answer: '40' },
+    { prompt: '質數：只有 1 和自己本身兩個因數。以下是質數的有？1, 2, 3, 4, 5, 6', answer: '2,3,5', expl: '2只能被1和2整除；3只能被1和3整除；5只能被1和5整除' },
+    { prompt: '合數：有 3 個（含）以上的因數。以下是合數的有？2, 4, 6, 7, 9', answer: '4,6,9' },
+    { prompt: '16 和 24 的最大公因數？', answer: '8' },
+    { prompt: '12 和 18 的最小公倍數？', answer: '36' },
+    { prompt: '7 是質數還是合數？', answer: '質數' },
+    { prompt: '36 的因數有哪些？（逗號分隔）', answer: '1,2,3,4,6,9,12,18,36' },
+    { prompt: '20 和 30 的最大公因數？', answer: '10' },
+    { prompt: '9 和 15 的最小公倍數？', answer: '45' },
+    { prompt: '下列哪個是質數？8, 11, 15, 21', answer: '11' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: factorsMultiples.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: q.expl ?? '因數：能整除該數的整數；倍數：該數乘以整數的結果' },
     })
   }
 
@@ -2041,9 +2205,23 @@ async function main() {
     { prompt: '直徑 8cm 周長？(π=3.14)', answer: '25.12' }, { prompt: '半徑 4cm 面積？(π=3.14)', answer: '50.24' },
     { prompt: '半徑 6cm 周長？(π=3.14)', answer: '37.68' }, { prompt: '半徑 2cm 面積？(π=3.14)', answer: '12.56' },
     { prompt: '直徑 14cm 半徑？', answer: '7' }, { prompt: '半徑 10cm 周長？(π=3.14)', answer: '62.8' },
+    { prompt: '圓的定義：到定點等距離的點所形成的圖形，定點稱為？', answer: '圓心' },
+    { prompt: '連接圓心和圓上任意一點的線段叫？', answer: '半徑' },
+    { prompt: '通過圓心且兩端在圓上的線段叫？', answer: '直徑' },
+    { prompt: '直徑是半徑的幾倍？', answer: '2' },
+    { prompt: '圓周率 π 大約等於？', answer: '3.14' },
+    { prompt: '圓周率是圓的什麼除以直徑？', answer: '圓周長' },
+    { prompt: '半徑 8cm 直徑？', answer: '16' },
+    { prompt: '直徑 20cm 半徑？', answer: '10' },
+    { prompt: '半徑 9cm 周長？(π=3.14)', answer: '56.52' },
+    { prompt: '直徑 12cm 周長？(π=3.14)', answer: '37.68' },
+    { prompt: '半徑 1cm 面積？(π=3.14)', answer: '3.14' },
+    { prompt: '直徑 6cm 面積？(π=3.14)', answer: '28.26' },
+    { prompt: '半徑 0.5cm 周長？(π=3.14)', answer: '3.14' },
+    { prompt: '圓面積公式是？', answer: 'πr²' },
   ]) {
     await prisma.questionTemplate.create({
-      data: { skillId: circle.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '圓周長=2πr=πd，圓面積=πr²' },
+      data: { skillId: circle.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '圓的定義：到圓心等距的點集合；圓周長=2πr=πd，圓面積=πr²' },
     })
   }
   for (const q of [
@@ -2069,6 +2247,57 @@ async function main() {
   ]) {
     await prisma.questionTemplate.create({
       data: { skillId: prismVolume.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '柱體體積=底面積×高，圓柱=πr²×高' },
+    })
+  }
+
+  // ─── G6: 負數（negative-numbers）───
+  for (const q of [
+    { prompt: '溫度從 0°C 下降 5°C 是幾度？', answer: '-5' },
+    { prompt: '溫度從 3°C 下降 8°C 是幾度？', answer: '-5' },
+    { prompt: '負數在數線上，0 的左邊還是右邊？', answer: '左邊' },
+    { prompt: '-3 和 -7 哪個比較大？', answer: '-3' },
+    { prompt: '-5 和 2 哪個比較小？', answer: '-5' },
+    { prompt: '|-3| = ?（絕對值）', answer: '3' },
+    { prompt: '|-8| = ?', answer: '8' },
+    { prompt: '-2 + (-3) = ?', answer: '-5' },
+    { prompt: '5 + (-3) = ?', answer: '2' },
+    { prompt: '-4 + 7 = ?', answer: '3' },
+    { prompt: '-6 - 2 = ?', answer: '-8' },
+    { prompt: '3 - (-2) = ?', answer: '5' },
+    { prompt: '-4 - (-1) = ?', answer: '-3' },
+    { prompt: '海拔 0 公尺，潛水艇在水下 50 公尺是？', answer: '-50' },
+    { prompt: '比 -3 大 1 的數是？', answer: '-2' },
+    { prompt: '比 -5 小 2 的數是？', answer: '-7' },
+    { prompt: '-8 和 0 之間有幾個整數？', answer: '7' },
+    { prompt: '|-7| - |3| = ?', answer: '4' },
+    { prompt: '|-5| + |-2| = ?', answer: '7' },
+    { prompt: '-1, 0, -3, 2 由小到大排序', answer: '-3,-1,0,2' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: negativeNumbers.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '負數小於 0，在數線上 0 的左邊；絕對值表示該數到 0 的距離' },
+    })
+  }
+
+  // ─── G6: 圓錐與圓柱（cone-cylinder）───
+  for (const q of [
+    { prompt: '圓柱半徑 3cm、高 5cm，表面積？(π=3.14)', answer: '150.72', expl: '表面積=2πr²+2πrh=2×3.14×9+2×3.14×3×5=56.52+94.2=150.72' },
+    { prompt: '圓柱半徑 2cm、高 6cm，體積？(π=3.14)', answer: '75.36', expl: '體積=πr²h=3.14×4×6=75.36' },
+    { prompt: '圓錐半徑 3cm、高 6cm，體積？(π=3.14)', answer: '56.52', expl: '圓錐體積=1/3×πr²h=1/3×3.14×9×6=56.52' },
+    { prompt: '圓錐半徑 4cm、高 9cm，體積？(π=3.14)', answer: '150.72' },
+    { prompt: '圓柱半徑 5cm、高 10cm，體積？(π=3.14)', answer: '785' },
+    { prompt: '圓錐半徑 2cm、高 3cm，體積？(π=3.14)', answer: '12.56' },
+    { prompt: '圓柱半徑 4cm、高 8cm，表面積？(π=3.14)', answer: '301.44' },
+    { prompt: '圓錐半徑 6cm、高 5cm，體積？(π=3.14)', answer: '188.4' },
+    { prompt: '圓柱半徑 1cm、高 10cm，體積？(π=3.14)', answer: '31.4' },
+    { prompt: '圓錐半徑 3cm、高 9cm，體積？(π=3.14)', answer: '84.78' },
+    { prompt: '圓柱半徑 2cm、高 5cm，表面積？(π=3.14)', answer: '87.92' },
+    { prompt: '等底等高的圓柱和圓錐，圓柱體積是圓錐的幾倍？', answer: '3', expl: '圓柱體積=πr²h，圓錐體積=1/3πr²h，所以圓柱是圓錐的 3 倍' },
+    { prompt: '等底等高的圓錐體積 30cm³，圓柱體積？', answer: '90' },
+    { prompt: '圓柱半徑 6cm、高 2cm，體積？(π=3.14)', answer: '226.08' },
+    { prompt: '圓錐半徑 5cm、高 12cm，體積？(π=3.14)', answer: '314' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: coneCylinder.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: q.expl ?? '圓柱體積=πr²h，表面積=2πr²+2πrh；圓錐體積=1/3×πr²h' },
     })
   }
 
