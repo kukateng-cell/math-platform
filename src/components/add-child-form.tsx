@@ -54,6 +54,8 @@ export default function AddChildForm() {
           <option value="K">幼兒園 (K)</option>
           <option value="G1">一年級 (G1)</option>
           <option value="G2">二年級 (G2)</option>
+          <option value="G3">三年級 (G3)</option>
+          <option value="G4">四年級 (G4)</option>
         </select>
         {state?.errors?.gradeLevel && (
           <p className="text-sm text-red-500">{state.errors.gradeLevel[0]}</p>

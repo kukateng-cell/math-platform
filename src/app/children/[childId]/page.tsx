@@ -42,7 +42,7 @@ function relativeTime(date: Date | string): string {
 
 // ============ 年級中文 ============
 function gradeLabel(level: string): string {
-  const map: Record<string, string> = { K: '幼兒園', G1: '一年級', G2: '二年級' }
+  const map: Record<string, string> = { K: '幼兒園', G1: '一年級', G2: '二年級', G3: '三年級', G4: '四年級' }
   return map[level] ?? level
 }
 

@@ -345,3 +345,77 @@ export async function getRecentAttempts(limit = 50) {
     },
   })
 }
+
+// ============ 所有孩子總覽（管理員用） ============
+// 回傳全平台所有孩子檔案，附帶：
+// - 完成練習次數
+// - 已練習技能數 / 已掌握技能數（masteryLevel >= 0.95 且 recentTotal > 0）
+// - 最近 5 次完成練習的平均正確率
+// - 最近一次完成練習時間
+// - 歸屬家長暱稱（若有）
+export async function getAllChildrenStats() {
+  await requireAdmin()
+  const totalSkills = await prisma.skill.count({ where: { isActive: true } })
+
+  const children = await prisma.childProfile.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: {
+      parent: { select: { name: true, email: true } },
+      sessions: {
+        where: { completedAt: { not: null } },
+        orderBy: { startedAt: 'desc' },
+        take: 5,
+        select: { correctCount: true, totalQuestions: true, startedAt: true },
+      },
+      masterySnapshots: {
+        select: { recentTotal: true, masteryLevel: true },
+      },
+      _count: {
+        select: {
+          sessions: { where: { completedAt: { not: null } } },
+        },
+      },
+    },
+  })
+
+  return children.map((c) => {
+    const practicedSkills = c.masterySnapshots.filter((m) => m.recentTotal > 0).length
+    const masteredSkills = c.masterySnapshots.filter(
+      (m) => m.recentTotal > 0 && m.masteryLevel >= 0.95
+    ).length
+
+    const lastSession = c.sessions[0]
+    const recentSessions = c.sessions
+    const avgAccuracy = recentSessions.length > 0
+      ? Math.round(
+          (recentSessions.reduce(
+            (sum, s) => sum + (s.totalQuestions > 0 ? s.correctCount / s.totalQuestions : 0),
+            0
+          ) / recentSessions.length) * 100
+        )
+      : null
+
+    return {
+      id: c.id,
+      nickname: c.nickname,
+      email: c.email,
+      gradeLevel: c.gradeLevel,
+      mode: c.mode,
+      stars: c.stars,
+      streak: c.streak,
+      lastPracticeAt: c.lastPracticeAt,
+      createdAt: c.createdAt,
+      parent: c.parent,
+      sessionCount: c._count.sessions,
+      practicedSkills,
+      masteredSkills,
+      totalSkills,
+      skillPct: totalSkills > 0 ? Math.round((masteredSkills / totalSkills) * 100) : 0,
+      lastSession,
+      avgAccuracy,
+    }
+  })
+}
+
+
+
