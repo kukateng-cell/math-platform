@@ -9,7 +9,9 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "node --experimental-strip-types prisma/seed.ts"
+    "db:seed": "node --experimental-strip-types prisma/seed.ts",
+    "db:seed:demo": "node --experimental-strip-types scripts/seed-demo.ts",
+    "db:clean:demo": "node --experimental-strip-types scripts/clean-demo.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
