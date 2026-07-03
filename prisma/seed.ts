@@ -1548,6 +1548,8 @@ async function main() {
     { code: 'perfect-score', name: '完美得分', icon: '🎯', condition: '一次練習全對' },
     { code: 'all-skills', name: '全能學習者', icon: '📚', condition: '所有技能都練過至少一次' },
     { code: 'addition-master', name: '加法達人', icon: '🧮', condition: '加法技能正確率 ≥ 90%（最近 20 題）' },
+    { code: 'promotion-pass', name: '升學挑戰成功', icon: '🎓', condition: '第一次升學測試通過' },
+    { code: 'promotion-star', name: '學業明星', icon: '⭐', condition: '通過 3 次升學測試' },
   ]
 
   for (const badge of badges) {

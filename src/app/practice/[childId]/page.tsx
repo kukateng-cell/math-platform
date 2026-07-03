@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation'
 import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest } from '@/actions/practice'
 import { getSession } from '@/lib/session'
 import { childLogout } from '@/actions/child-auth'
+import { getChildBadges } from '@/actions/achievement'
 import { SkillFolders } from '@/components/skill-folders'
+import AchievementBadges from '@/components/achievement-badges'
 
 export default async function PracticeSelectPage({
   params,
@@ -26,6 +28,9 @@ export default async function PracticeSelectPage({
 
   // 檢查升學資格
   const promotion = await checkPromotionEligibility(childId)
+
+  // 成就徽章
+  const badges = await getChildBadges(childId)
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
@@ -101,6 +106,11 @@ export default async function PracticeSelectPage({
         childId={childId}
         childGradeLevel={child.gradeLevel}
       />
+
+      {/* 成就徽章（簡潔模式） */}
+      <div className="mt-8">
+        <AchievementBadges badges={badges} compact />
+      </div>
     </main>
   )
 }
