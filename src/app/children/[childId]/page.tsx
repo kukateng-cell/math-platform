@@ -323,6 +323,14 @@ export default async function ChildOverviewPage({
       {/* ============ 成就徽章 ============ */}
       <section className="mb-10">
         <AchievementBadges badges={badges} />
+        <div className="mt-4 text-center">
+          <Link
+            href={`/achievements/${childId}`}
+            className="inline-block rounded-lg border border-neutral-300 px-5 py-2 text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+          >
+            查看全部成就 🏅
+          </Link>
+        </div>
       </section>
 
       {/* ============ 最近練習紀錄 ============ */}
