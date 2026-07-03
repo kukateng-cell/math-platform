@@ -7,6 +7,7 @@ import {
   verifyResetOtp,
   resetPassword,
 } from '@/actions/auth'
+import CaptchaChallenge from './captcha-challenge'
 
 type Props = {
   initialCaptcha: { question: string; token: string }
@@ -242,20 +243,7 @@ export default function ForgotPasswordForm({ initialCaptcha }: Props) {
       </div>
 
       {/* CAPTCHA */}
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-gray-600 dark:bg-gray-800">
-        <input type="hidden" name="captchaToken" value={captcha.token} />
-        <label className="mb-1 block text-sm font-medium text-neutral-600 dark:text-gray-300">
-          🤖 請回答驗證問題
-        </label>
-        <p className="mb-2 text-center text-lg font-bold">{captcha.question}</p>
-        <input
-          name="captchaAnswer"
-          type="number"
-          placeholder="輸入答案"
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-center text-lg outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-          required
-        />
-      </div>
+      <CaptchaChallenge serverCaptcha={captcha} />
 
       {resetState?.message && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-300">

@@ -23,6 +23,16 @@ function checkRateLimit(key: string, max = 5, windowMs = 60_000) {
   return entry.count <= max
 }
 
+// ============ 重新產生 CAPTCHA（供前端「換一題」按鈕呼叫）============
+// 回傳新的 { question, token }，token 為新簽名的 JWT（5 分鐘有效）
+// 使用 useActionState 相容簽名，避免 server action 直接呼叫失效問題
+export async function refreshCaptchaAction(
+  prevState: { question: string; token: string } | undefined,
+  _formData: FormData
+): Promise<{ question: string; token: string }> {
+  return createCaptcha()
+}
+
 // ============ 註冊（含 CAPTCHA）============
 export async function signup(state: FormState, formData: FormData): Promise<FormState> {
   const validated = SignupFormSchema.safeParse({
