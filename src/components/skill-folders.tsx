@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { startSession } from '@/actions/practice'
+import { gradeRank } from '@/lib/grade'
 
 // ============ 型別（與 getChildSkills 回傳一致）============
 export type SkillFolderItem = {
@@ -15,9 +16,8 @@ export type SkillFolderItem = {
   recentTotal: number
 }
 
-// ============ 年級設定 ============
-// 順序、中文標籤、資料夾圖示、配色
-const GRADE_ORDER = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6']
+// ============ 年級視覺設定 ============
+// 中文標籤、資料夾圖示、配色（順序與等級比較統一放 lib/grade.ts）
 
 type GradeConfig = { label: string; icon: string; accent: string }
 
@@ -41,11 +41,6 @@ function gradeConfig(level: string): GradeConfig {
   )
 }
 
-function gradeSortKey(level: string): number {
-  const idx = GRADE_ORDER.indexOf(level)
-  return idx === -1 ? 999 : idx
-}
-
 // ============ 主元件 ============
 export function SkillFolders({
   skills,
@@ -64,7 +59,7 @@ export function SkillFolders({
     groups.set(s.gradeLevel, arr)
   }
   const sortedGrades = [...groups.keys()].sort(
-    (a, b) => gradeSortKey(a) - gradeSortKey(b)
+    (a, b) => gradeRank(a) - gradeRank(b)
   )
 
   // 預設展開「孩子目前年級」的資料夾；若該年級沒有技能則展開第一個
