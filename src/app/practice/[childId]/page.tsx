@@ -4,7 +4,7 @@ import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibil
 import { getSession } from '@/lib/session'
 import { childLogout } from '@/actions/child-auth'
 import { getChildBadges } from '@/actions/achievement'
-import { SkillFolders } from '@/components/skill-folders'
+import { SkillTree } from '@/components/skill-tree'
 import AchievementBadges from '@/components/achievement-badges'
 
 export default async function PracticeSelectPage({
@@ -99,9 +99,11 @@ export default async function PracticeSelectPage({
         </div>
       )}
 
-      {/* 技能列表（依年級分類成資料夾）*/}
-      <h2 className="mb-3 mt-2 text-lg font-semibold">依年級選擇練習</h2>
-      <SkillFolders
+      {/* 技能樹 */}
+      <div className="mb-2 mt-2 text-center">
+        <p className="text-sm text-neutral-500 dark:text-gray-400">🌳 點擊年級節點展開技能樹</p>
+      </div>
+      <SkillTree
         skills={skills}
         childId={childId}
         childGradeLevel={child.gradeLevel}
