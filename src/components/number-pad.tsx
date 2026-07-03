@@ -101,9 +101,8 @@ export default function NumberPad({
           autoFocus
           autoComplete="off"
           enterKeyHint="done"
+          style={{ fontSize: '16px' }} /* iOS 防止自動縮放 */
           onKeyDown={(e) => {
-            // 中文輸入法（IME）組字時，Enter 是「確認候選字」而非送出答案。
-            // isComposing 或 keyCode 229 表示正在組字中，此時不攔截 Enter。
             if (e.nativeEvent.isComposing || e.keyCode === 229) return
             if (e.key === 'Enter') {
               e.preventDefault()
@@ -115,7 +114,7 @@ export default function NumberPad({
         <button
           onClick={onSubmit}
           disabled={!value.trim() || disabled}
-          className="mt-3 w-full rounded-xl bg-blue-600 py-4 text-lg font-bold text-white transition hover:bg-blue-700 active:scale-95 disabled:opacity-40"
+          className="mt-3 w-full rounded-xl bg-blue-600 py-4 text-lg font-bold text-white transition hover:bg-blue-700 active:scale-95 disabled:opacity-40 min-h-[52px]"
         >
           ✓ 確認答案
         </button>
@@ -125,7 +124,7 @@ export default function NumberPad({
 
   // ============ 數字模式：數字鍵盤 ============
   return (
-    <div className="mx-auto w-full max-w-xs">
+    <div className="mx-auto w-full max-w-sm sm:max-w-xs">
       {/* 輸入顯示 */}
       <div className="mb-4 flex h-16 items-center justify-center rounded-xl border-2 border-neutral-200 bg-white px-4 dark:border-gray-600 dark:bg-gray-900">
         <span className="text-4xl font-bold tracking-widest text-neutral-800 dark:text-white">
@@ -143,7 +142,8 @@ export default function NumberPad({
                   key={ci}
                   onClick={() => handleKey(k)}
                   disabled={disabled}
-                  className={`flex-1 rounded-xl py-4 text-2xl font-bold transition active:scale-95 ${
+                  aria-label={k === '⌫' ? '刪除' : k === '.' ? '小數點' : typeof k === 'number' ? `數字 ${k}` : String(k)}
+                  className={`flex-1 min-h-[52px] rounded-xl py-3 text-2xl font-bold transition active:scale-95 sm:py-4 ${
                     k === '⌫'
                       ? 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
                       : k === '.'
@@ -163,14 +163,15 @@ export default function NumberPad({
           <button
             onClick={handleClear}
             disabled={disabled || !value}
-            className="flex-1 rounded-xl bg-neutral-100 py-4 text-base font-bold text-neutral-500 transition hover:bg-neutral-200 active:scale-95 disabled:opacity-40 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 sm:text-lg"
+            aria-label="清空"
+            className="flex-1 min-h-[52px] rounded-xl bg-neutral-100 py-3 text-base font-bold text-neutral-500 transition hover:bg-neutral-200 active:scale-95 disabled:opacity-40 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 sm:py-4 sm:text-lg"
           >
             清空
           </button>
           <button
             onClick={onSubmit}
             disabled={!value || disabled}
-            className="flex-[2] rounded-xl bg-blue-600 py-4 text-lg font-bold text-white transition hover:bg-blue-700 active:scale-95 disabled:opacity-40"
+            className="flex-[2] min-h-[52px] rounded-xl bg-blue-600 py-3 text-lg font-bold text-white transition hover:bg-blue-700 active:scale-95 disabled:opacity-40 sm:py-4"
           >
             ✓ 確認答案
           </button>

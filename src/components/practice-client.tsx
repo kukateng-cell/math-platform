@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { submitAnswer, type SubmitResult } from '@/actions/practice'
 import NumberPad from './number-pad'
 import NumberLine from './number-line'
+import { displayAnswer } from '@/lib/answer-i18n'
 
 type QuestionItem = {
   templateId: string
@@ -341,7 +342,7 @@ export default function PracticeClient({
                   icon = '🤝'
                   label = '家長協助'
                   cls = 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                  detail = '答案：' + r.correctAnswer
+                  detail = '答案：' + displayAnswer(r.correctAnswer)
                 } else if (r.correct) {
                   icon = '✅'
                   label = '答對'
@@ -350,7 +351,7 @@ export default function PracticeClient({
                   icon = '❌'
                   label = '答錯'
                   cls = 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'
-                  detail = '正確答案：' + r.correctAnswer
+                  detail = '正確答案：' + displayAnswer(r.correctAnswer)
                 }
               }
               return (
@@ -505,10 +506,10 @@ export default function PracticeClient({
                 disabled={!!lastResult || submitting}
                 aria-pressed={selected === opt}
                 aria-keyshortcuts={"" + (optIdx + 1)}
-                className={"rounded-xl border-2 px-4 py-5 text-2xl font-bold transition " + cls}
+                className={"rounded-xl border-2 px-4 py-5 text-2xl font-bold transition min-h-[60px] " + cls}
               >
                 <span className="inline-flex items-center gap-2">
-                  {opt}
+                  {displayAnswer(opt)}
                   {!lastResult && (
                     <span className="text-xs text-neutral-400 dark:text-gray-500">({optIdx + 1})</span>
                   )}
@@ -557,7 +558,7 @@ export default function PracticeClient({
             role="alert"
           >
             <p className="text-lg font-bold">
-              {lastResult.correct ? '✓ 答對了！' : '✗ 正確答案是 ' + lastResult.correctAnswer}
+              {lastResult.correct ? '✓ 答對了！' : '✗ 正確答案是 ' + displayAnswer(lastResult.correctAnswer)}
             </p>
             {lastResult.explanation && (
               <p className="mt-2 text-sm opacity-80">💡 {lastResult.explanation}</p>
@@ -583,7 +584,8 @@ export default function PracticeClient({
               <button
                 onClick={handleSubmit}
                 disabled={submitDisabled}
-                className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
+                aria-label="送出答案"
+                className="min-h-[52px] w-full rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-40 sm:w-auto"
               >
                 {submitting ? '送出中…' : '送出答案'}
               </button>
@@ -591,7 +593,8 @@ export default function PracticeClient({
           ) : (
             <button
               onClick={nextQuestion}
-              className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700"
+              aria-label="下一題"
+              className="min-h-[52px] w-full rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 sm:w-auto"
             >
               下一題 →
             </button>
