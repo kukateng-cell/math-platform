@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { gradeRank } from '@/lib/grade'
 
 // ============ 掌握度快照更新 ============
 // 每次練習結束後，依最近 N 題（不計 assisted）重算掌握度
@@ -148,4 +149,26 @@ export function getRecommendation(
       ? '繼續保持，多練一組會更熟練'
       : '再加把勁，多練習幾次就會了',
   }
+}
+
+// ============ 年級完成度檢查 ============
+// 檢查某年級的所有技能是否都已掌握（masteryLevel >= 0.95）
+export async function isGradeAllMastered(
+  childId: string,
+  gradeLevel: string
+): Promise<boolean> {
+  const skills = await prisma.skill.findMany({
+    where: { gradeLevel, isActive: true },
+    select: { id: true },
+  })
+  if (skills.length === 0) return false
+
+  const snapshots = await prisma.masterySnapshot.findMany({
+    where: { childId, skillId: { in: skills.map((s) => s.id) } },
+  })
+
+  return skills.every((skill) => {
+    const snap = snapshots.find((s) => s.skillId === skill.id)
+    return snap && snap.recentTotal > 0 && snap.masteryLevel >= 0.95
+  })
 }

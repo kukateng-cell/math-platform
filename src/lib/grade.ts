@@ -28,3 +28,16 @@ export function accessibleGrades(childGrade: string): string[] {
   if (rank >= GRADE_ORDER.length) return [...GRADE_ORDER]
   return GRADE_ORDER.slice(0, rank + 1)
 }
+
+// ============ 升學相關 ============
+// 取得下一年級（K → G1, G1 → G2, ... G6 → null）
+export function getNextGrade(currentGrade: string): string | null {
+  const rank = gradeRank(currentGrade)
+  const next = GRADE_ORDER[rank + 1]
+  return next ?? null
+}
+
+// 是否為最後一個年級（G6）
+export function isLastGrade(grade: string): boolean {
+  return grade === 'G6'
+}
