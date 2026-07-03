@@ -220,28 +220,77 @@ async function main() {
     },
   })
 
+  // ─── G3 擴充空技能 ───
+  const threeDigitAddSub = await prisma.skill.upsert({
+    where: { code: 'three-digit-add-sub' },
+    update: { order: 15 },
+    create: {
+      code: 'three-digit-add-sub',
+      name: '三位數加減',
+      description: '三位數的加法與減法，進位與借位',
+      gradeLevel: 'G3',
+      order: 15,
+    },
+  })
+
+  const introFraction = await prisma.skill.upsert({
+    where: { code: 'intro-fraction' },
+    update: { order: 16 },
+    create: {
+      code: 'intro-fraction',
+      name: '分數基礎',
+      description: '分數的單位分數、分數數線與等值分數',
+      gradeLevel: 'G3',
+      order: 16,
+    },
+  })
+
+  const timeCalc = await prisma.skill.upsert({
+    where: { code: 'time-calc' },
+    update: { order: 17 },
+    create: {
+      code: 'time-calc',
+      name: '時間計算',
+      description: '時間單位換算、經過時間的計算',
+      gradeLevel: 'G3',
+      order: 17,
+    },
+  })
+
+  const areaPerimeter = await prisma.skill.upsert({
+    where: { code: 'area-perimeter' },
+    update: { order: 18 },
+    create: {
+      code: 'area-perimeter',
+      name: '面積與周長',
+      description: '正方形與長方形的面積和周長計算',
+      gradeLevel: 'G3',
+      order: 18,
+    },
+  })
+
   const mixedOps = await prisma.skill.upsert({
     where: { code: 'mixed-operations' },
-    update: { order: 15, prerequisiteId: divideAdvanced.id },
+    update: { order: 19, prerequisiteId: divideAdvanced.id },
     create: {
       code: 'mixed-operations',
       name: '四則混合',
       description: '加減乘除混合運算，先乘除後加減',
       gradeLevel: 'G3',
-      order: 15,
+      order: 19,
       prerequisiteId: divideAdvanced.id,
     },
   })
 
   const fractionIntro = await prisma.skill.upsert({
     where: { code: 'fraction-intro' },
-    update: { order: 16, prerequisiteId: mixedOps.id },
+    update: { order: 20, prerequisiteId: mixedOps.id },
     create: {
       code: 'fraction-intro',
       name: '分數初步',
       description: '認識分數、真分數、帶分數與簡單分數比較',
       gradeLevel: 'G3',
-      order: 16,
+      order: 20,
       prerequisiteId: mixedOps.id,
     },
   })
@@ -270,6 +319,91 @@ async function main() {
       gradeLevel: 'G4',
       order: 18,
       prerequisiteId: fractionCompare.id,
+    },
+  })
+
+  // ─── G4 擴充空技能 ───
+  const largeMultiply = await prisma.skill.upsert({
+    where: { code: 'large-multiply' },
+    update: { order: 21 },
+    create: {
+      code: 'large-multiply',
+      name: '大數乘法',
+      description: '兩位數×一位數、進位乘法',
+      gradeLevel: 'G4',
+      order: 21,
+    },
+  })
+
+  const largeNumbers = await prisma.skill.upsert({
+    where: { code: 'large-numbers' },
+    update: { order: 22 },
+    create: {
+      code: 'large-numbers',
+      name: '大數認識',
+      description: '萬以內的數、位值與大小比較',
+      gradeLevel: 'G4',
+      order: 22,
+    },
+  })
+
+  const threeByTwoMul = await prisma.skill.upsert({
+    where: { code: 'three-by-two-mul' },
+    update: { order: 23 },
+    create: {
+      code: 'three-by-two-mul',
+      name: '三位數×兩位數',
+      description: '三位數乘以兩位數的直式計算',
+      gradeLevel: 'G4',
+      order: 23,
+    },
+  })
+
+  const twoDigitDiv = await prisma.skill.upsert({
+    where: { code: 'two-digit-div' },
+    update: { order: 24 },
+    create: {
+      code: 'two-digit-div',
+      name: '兩位數除法',
+      description: '三位數除以兩位數的直式計算',
+      gradeLevel: 'G4',
+      order: 24,
+    },
+  })
+
+  const arithmeticLaws = await prisma.skill.upsert({
+    where: { code: 'arithmetic-laws' },
+    update: { order: 25 },
+    create: {
+      code: 'arithmetic-laws',
+      name: '運算規律',
+      description: '加法交換律、結合律與乘法分配律',
+      gradeLevel: 'G4',
+      order: 25,
+    },
+  })
+
+  const decimalProperty = await prisma.skill.upsert({
+    where: { code: 'decimal-property' },
+    update: { order: 26 },
+    create: {
+      code: 'decimal-property',
+      name: '小數性質',
+      description: '小數的位值、位名與大小比較',
+      gradeLevel: 'G4',
+      order: 26,
+    },
+  })
+
+  const triangle = await prisma.skill.upsert({
+    where: { code: 'triangle' },
+    update: { order: 27 },
+    create: {
+      code: 'triangle',
+      name: '三角形',
+      description: '三角形的分類（等腰、正三角形）與角度和',
+      gradeLevel: 'G4',
+      order: 27,
     },
   })
 
@@ -972,6 +1106,24 @@ async function main() {
     })
   }
 
+  // ─── 九九乘法補充 20 題 ───
+  for (const q of [
+    { prompt: '2 × 8 = ?', answer: '16' }, { prompt: '3 × 7 = ?', answer: '21' },
+    { prompt: '4 × 9 = ?', answer: '36' }, { prompt: '5 × 6 = ?', answer: '30' },
+    { prompt: '6 × 8 = ?', answer: '48' }, { prompt: '7 × 7 = ?', answer: '49' },
+    { prompt: '8 × 9 = ?', answer: '72' }, { prompt: '9 × 6 = ?', answer: '54' },
+    { prompt: '3 × 8 = ?', answer: '24' }, { prompt: '4 × 7 = ?', answer: '28' },
+    { prompt: '5 × 9 = ?', answer: '45' }, { prompt: '6 × 7 = ?', answer: '42' },
+    { prompt: '7 × 8 = ?', answer: '56' }, { prompt: '8 × 6 = ?', answer: '48' },
+    { prompt: '9 × 9 = ?', answer: '81' }, { prompt: '2 × 6 = ?', answer: '12' },
+    { prompt: '6 × 6 = ?', answer: '36' }, { prompt: '7 × 9 = ?', answer: '63' },
+    { prompt: '4 × 8 = ?', answer: '32' }, { prompt: '5 × 7 = ?', answer: '35' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: multiplyTable.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}，用九九乘法口訣來算` },
+    })
+  }
+
   // ───────── 11. 除法入門（intro-divide）: 25+ 題 ─────────
   // DIV 參數化模板 × 3
   const introDivTemplates = [
@@ -1526,6 +1678,83 @@ async function main() {
     })
   }
 
+  // ─── G3: 三位數加減 ───
+  for (const q of [
+    { prompt: '356 + 231 = ?', answer: '587' }, { prompt: '789 - 345 = ?', answer: '444' },
+    { prompt: '405 + 328 = ?', answer: '733' }, { prompt: '672 - 489 = ?', answer: '183' },
+    { prompt: '518 + 293 = ?', answer: '811' }, { prompt: '951 - 637 = ?', answer: '314' },
+    { prompt: '264 + 577 = ?', answer: '841' }, { prompt: '823 - 456 = ?', answer: '367' },
+    { prompt: '609 + 294 = ?', answer: '903' }, { prompt: '745 - 368 = ?', answer: '377' },
+    { prompt: '437 + 386 = ?', answer: '823' }, { prompt: '514 - 279 = ?', answer: '235' },
+    { prompt: '398 + 475 = ?', answer: '873' }, { prompt: '620 - 431 = ?', answer: '189' },
+    { prompt: '546 + 389 = ?', answer: '935' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: threeDigitAddSub.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}，注意進位與借位` },
+    })
+  }
+
+  // ─── G3: 分數基礎 ───
+  for (const q of [
+    { prompt: '把圓平分成 6 份，1 份是幾分之幾？', answer: '1/6' },
+    { prompt: '把長方形平分成 5 份，2 份是幾分之幾？', answer: '2/5' },
+    { prompt: '1/4 > 1/6 對嗎？', answer: '對' },
+    { prompt: '1/3 < 1/2 對嗎？', answer: '對' },
+    { prompt: '4/6 約分 = ?', answer: '2/3' },
+    { prompt: '2/4 約分 = ?', answer: '1/2' },
+    { prompt: '3/9 約分 = ?', answer: '1/3' },
+    { prompt: '1/2 = ?/4', answer: '2' },
+    { prompt: '1/3 = ?/6', answer: '2' },
+    { prompt: '在數線上，0 到 1 分成 4 格，第 3 格是幾分之幾？', answer: '3/4' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: introFraction.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '分數的分子與分母、約分與等值分數' },
+    })
+  }
+
+  // ─── G3: 時間計算 ───
+  for (const q of [
+    { prompt: '1 小時 = ? 分鐘', answer: '60' },
+    { prompt: '2 小時 = ? 分鐘', answer: '120' },
+    { prompt: '1 分鐘 = ? 秒', answer: '60' },
+    { prompt: '3 分鐘 = ? 秒', answer: '180' },
+    { prompt: '1 天 = ? 小時', answer: '24' },
+    { prompt: '半小時 = ? 分鐘', answer: '30' },
+    { prompt: '從 3:00 到 4:30 經過了 ? 分鐘', answer: '90' },
+    { prompt: '從 9:15 到 10:00 經過了 ? 分鐘', answer: '45' },
+    { prompt: '從 7:30 到 8:15 經過了 ? 分鐘', answer: '45' },
+    { prompt: '從 10:00 到 12:30 經過了 ? 分鐘', answer: '150' },
+    { prompt: '1 小時 30 分 = ? 分鐘', answer: '90' },
+    { prompt: '2 小時 15 分 = ? 分鐘', answer: '135' },
+    { prompt: '90 分鐘 = ? 小時 ? 分鐘', answer: '1小時30分' },
+    { prompt: '75 分鐘 = ? 小時 ? 分鐘', answer: '1小時15分' },
+    { prompt: '從 11:45 到 12:15 經過了 ? 分鐘', answer: '30' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: timeCalc.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '時間單位換算：1 小時 = 60 分，1 分 = 60 秒；算經過時間可用減法' },
+    })
+  }
+
+  // ─── G3: 面積與周長 ───
+  for (const q of [
+    { prompt: '正方形邊長 3cm，周長？', answer: '12' },
+    { prompt: '長方形長 5cm 寬 3cm，周長？', answer: '16' },
+    { prompt: '正方形邊長 6cm，面積？', answer: '36' },
+    { prompt: '長方形長 7cm 寬 4cm，面積？', answer: '28' },
+    { prompt: '正方形邊長 10cm，周長？', answer: '40' },
+    { prompt: '長方形長 8cm 寬 2cm，周長？', answer: '20' },
+    { prompt: '正方形邊長 4cm，面積？', answer: '16' },
+    { prompt: '長方形長 9cm 寬 5cm，面積？', answer: '45' },
+    { prompt: '正方形周長 20cm，邊長？', answer: '5' },
+    { prompt: '長方形長 6cm 寬 4cm，周長和面積分各是多少？', answer: '20和24' },
+    { prompt: '正方形邊長 2cm，周長是面積的幾倍？', answer: '2' },
+    { prompt: '長方形長 12cm 寬 6cm，面積是周長的幾倍？', answer: '2' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: areaPerimeter.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '正方形周長=4×邊長，面積=邊長²；長方形周長=2×(長+寬)，面積=長×寬' },
+    })
+  }
+
   // ─── G4: 分數比較與加減 ───
   for (const q of [
     { prompt: '2/5 + 1/5 = ?', answer: '3/5' }, { prompt: '5/8 - 3/8 = ?', answer: '2/8' },
@@ -1574,6 +1803,145 @@ async function main() {
   ]) {
     await prisma.questionTemplate.create({
       data: { skillId: longDivision.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `用直式除法計算：${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+
+  // ─── G4: 大數乘法 ───
+  for (const t of [
+    { prompt: '{a} × {b} = ?', params: { aMin: 12, aMax: 45, bMin: 3, bMax: 9 } },
+    { prompt: '{a} × {b} = ?', params: { aMin: 20, aMax: 60, bMin: 4, bMax: 8 } },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: largeMultiply.id, type: 'MUL', prompt: t.prompt, paramsJson: JSON.stringify(t.params), answer: '{a*b}', explanation: '一位數乘兩位數，先乘十位再乘個位' },
+    })
+  }
+  for (const q of [
+    { prompt: '23 × 4 = ?', answer: '92' }, { prompt: '35 × 6 = ?', answer: '210' },
+    { prompt: '42 × 7 = ?', answer: '294' }, { prompt: '18 × 8 = ?', answer: '144' },
+    { prompt: '56 × 5 = ?', answer: '280' }, { prompt: '67 × 3 = ?', answer: '201' },
+    { prompt: '29 × 4 = ?', answer: '116' }, { prompt: '73 × 6 = ?', answer: '438' },
+    { prompt: '44 × 7 = ?', answer: '308' }, { prompt: '81 × 5 = ?', answer: '405' },
+    { prompt: '38 × 9 = ?', answer: '342' }, { prompt: '52 × 8 = ?', answer: '416' },
+    { prompt: '15 × 12 = ?', answer: '180' }, { prompt: '24 × 11 = ?', answer: '264' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: largeMultiply.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+
+  // ─── G4: 大數認識 ───
+  for (const q of [
+    { prompt: '10 個十是？', answer: '100' },
+    { prompt: '10 個百是？', answer: '1000' },
+    { prompt: '2386 的「3」在什麼位？', answer: '百位' },
+    { prompt: '5104 的「1」在什麼位？', answer: '百位' },
+    { prompt: '7000 + 300 + 50 + 2 = ?', answer: '7352' },
+    { prompt: '8462 = 8000 + ? + 60 + 2', answer: '400' },
+    { prompt: '3520 < 5300 對嗎？', answer: '對' },
+    { prompt: '9999 + 1 = ?', answer: '10000' },
+    { prompt: '6000 + 4000 = ?', answer: '10000' },
+    { prompt: '最大的四位數是？', answer: '9999' },
+    { prompt: '最小的四位數是？', answer: '1000' },
+    { prompt: '7890 ≈ ?（四捨五入到千位）', answer: '8000' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: largeNumbers.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '認識萬以內的數與位值' },
+    })
+  }
+
+  // ─── G4: 三位數×兩位數 ───
+  for (const q of [
+    { prompt: '123 × 12 = ?', answer: '1476' },
+    { prompt: '234 × 15 = ?', answer: '3510' },
+    { prompt: '345 × 11 = ?', answer: '3795' },
+    { prompt: '456 × 13 = ?', answer: '5928' },
+    { prompt: '127 × 14 = ?', answer: '1778' },
+    { prompt: '218 × 16 = ?', answer: '3488' },
+    { prompt: '305 × 12 = ?', answer: '3660' },
+    { prompt: '412 × 21 = ?', answer: '8652' },
+    { prompt: '136 × 17 = ?', answer: '2312' },
+    { prompt: '250 × 18 = ?', answer: '4500' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: threeByTwoMul.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `直式計算：${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+
+  // ─── G4: 兩位數除法 ───
+  for (const q of [
+    { prompt: '100 ÷ 25 = ?', answer: '4' },
+    { prompt: '144 ÷ 12 = ?', answer: '12' },
+    { prompt: '180 ÷ 15 = ?', answer: '12' },
+    { prompt: '200 ÷ 20 = ?', answer: '10' },
+    { prompt: '120 ÷ 12 = ?', answer: '10' },
+    { prompt: '168 ÷ 14 = ?', answer: '12' },
+    { prompt: '150 ÷ 25 = ?', answer: '6' },
+    { prompt: '132 ÷ 11 = ?', answer: '12' },
+    { prompt: '216 ÷ 18 = ?', answer: '12' },
+    { prompt: '260 ÷ 13 = ?', answer: '20' },
+    { prompt: '300 ÷ 15 = ?', answer: '20' },
+    { prompt: '252 ÷ 14 = ?', answer: '18' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: twoDigitDiv.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `除數是兩位數，先看被除數的前兩位：${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+
+  // ─── G4: 運算規律 ───
+  for (const q of [
+    { prompt: '7 + 5 = 5 + ?', answer: '7', expl: '加法交換律' },
+    { prompt: '(2 + 3) + 4 = 2 + (3 + ?)', answer: '4', expl: '加法結合律' },
+    { prompt: '3 × (5 + 2) = 3 × 5 + 3 × ?', answer: '2', expl: '乘法分配律' },
+    { prompt: '8 × (10 + 3) = 8 × 10 + 8 × ?', answer: '3' },
+    { prompt: '6 + 8 + 4 = (6 + 4) + 8 = ?', answer: '18' },
+    { prompt: '12 + 7 + 8 = (12 + 8) + 7 = ?', answer: '27' },
+    { prompt: '25 × 4 = 100， 25 × 8 = ?', answer: '200' },
+    { prompt: '4 × 13 × 25 = (4 × 25) × 13 = ?', answer: '1300' },
+    { prompt: '99 × 7 + 99 = 99 × (7 + 1) = ?', answer: '792' },
+    { prompt: '125 + 99 = 125 + 100 - 1 = ?', answer: '224' },
+    { prompt: '350 - 199 = 350 - 200 + 1 = ?', answer: '151' },
+    { prompt: '一個數減去 0 等於？', answer: '它本身' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: arithmeticLaws.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: q.expl ?? '利用運算規律可以讓計算更簡便' },
+    })
+  }
+
+  // ─── G4: 小數性質 ───
+  for (const q of [
+    { prompt: '0.3 的位名是？', answer: '十分位' },
+    { prompt: '0.45 的「4」在什麼位？', answer: '十分位' },
+    { prompt: '0.78 的「8」在什麼位？', answer: '百分位' },
+    { prompt: '0.3 = 0.30 對嗎？', answer: '對' },
+    { prompt: '0.5 和 0.50 哪個大？', answer: '一樣大' },
+    { prompt: '把 3.2 寫成小數：三又十分之二', answer: '3.2' },
+    { prompt: '0.6 > 0.58 對嗎？', answer: '對' },
+    { prompt: '0.07 < 0.1 對嗎？', answer: '對' },
+    { prompt: '0.4 + 0.05 = ?', answer: '0.45' },
+    { prompt: '將 0.8 寫成分數', answer: '4/5' },
+    { prompt: '將 0.25 寫成百分數', answer: '25%' },
+    { prompt: '2.35 = 2 + 0.3 + ?', answer: '0.05' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: decimalProperty.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '小數的位值、位名、大小比較與分數轉換' },
+    })
+  }
+
+  // ─── G4: 三角形 ───
+  for (const q of [
+    { prompt: '三角形有幾個角？', answer: '3' },
+    { prompt: '三角形三個角的和是多少度？', answer: '180' },
+    { prompt: '兩邊一樣長的三角形叫？', answer: '等腰三角形' },
+    { prompt: '三邊一樣長的三角形叫？', answer: '正三角形' },
+    { prompt: '有一個角是直角三角形的叫？', answer: '直角三角形' },
+    { prompt: '等腰三角形的底角會怎麼樣？', answer: '相等' },
+    { prompt: '三角形中，最大角是 90 度，這是什麼三角形？', answer: '直角三角形' },
+    { prompt: '正三角形的每個角 = ? 度', answer: '60' },
+    { prompt: '三角形兩邊長 5cm 和 7cm，第三邊最大約？', answer: '11' },
+    { prompt: '三角形有幾條邊？', answer: '3' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: triangle.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '三角形分類、內角和 180°、兩邊和大於第三邊' },
     })
   }
 
