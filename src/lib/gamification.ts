@@ -56,6 +56,8 @@ type BadgeCheckContext = {
   sessionCorrectCount: number
   sessionTotalQuestions: number
   allCorrect: boolean // 本次練習是否全對（不計 assisted）
+  isPromotion?: boolean // 是否為升學測試
+  passedPromotion?: boolean // 升學測試是否通過
 }
 
 export async function checkBadges(ctx: BadgeCheckContext) {
@@ -176,6 +178,27 @@ export async function checkBadges(ctx: BadgeCheckContext) {
             const rate = correctCount / recentAddAttempts.length
             earned = rate >= 0.9
           }
+        }
+        break
+      }
+
+      case 'promotion-pass': {
+        // 第一次升學測試通過
+        earned = !!ctx.passedPromotion
+        break
+      }
+
+      case 'promotion-star': {
+        // 通過 3 次升學測試（gradeRank K=0,G1=1,G2=2,G3=3…）
+        // 目前年級 ≥ G3 代表至少通過 3 次
+        const { gradeRank } = await import('@/lib/grade')
+        const child = await prisma.childProfile.findUnique({
+          where: { id: childId },
+          select: { gradeLevel: true },
+        })
+        if (child) {
+          const rank = gradeRank(child.gradeLevel) ?? 0
+          earned = rank >= 3
         }
         break
       }

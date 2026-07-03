@@ -307,19 +307,16 @@ export async function submitAnswer(payload: {
 
     await updateStars(childId, starsEarned)
     await updateStreak(childId)
-    await checkBadges({
-      childId,
-      sessionCorrectCount: starsEarned,
-      sessionTotalQuestions: total,
-      allCorrect,
-    })
 
-    // ============ 升學測試處理 ============
-    // 從 questionsJson 檢查是否為升學測試
+    // ============ 升學測試處理（需在徽章檢查之前判定）============
+    let isPromotionTest = false
+    let passedPromotion = false
+    let targetGrade: string | null = null
     try {
       const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
       if (Array.isArray(storedQuestions) && storedQuestions[0]?.__isPromotion) {
-        const targetGrade = storedQuestions[0].__targetGrade as string
+        isPromotionTest = true
+        targetGrade = storedQuestions[0].__targetGrade as string
         // 正確率 ≥ 80%（不計 assisted）即升學成功
         const legitAttempts = sessionAttempts.filter((a) => !a.assisted)
         const correctCount = legitAttempts.filter((a) => a.isCorrect).length
@@ -332,9 +329,21 @@ export async function submitAnswer(payload: {
             where: { id: childId },
             data: { gradeLevel: targetGrade },
           })
+          passedPromotion = true
+          // 升學測試通過：獎勵雙倍星星（再加一倍）
+          await updateStars(childId, starsEarned)
         }
       }
     } catch { /* ignore */ }
+
+    await checkBadges({
+      childId,
+      sessionCorrectCount: starsEarned,
+      sessionTotalQuestions: total,
+      allCorrect,
+      isPromotion: isPromotionTest,
+      passedPromotion,
+    })
   }
 
   revalidatePath('/dashboard')
@@ -446,13 +455,50 @@ export async function startPromotionTest(childId: string) {
     throw new Error('目前年級沒有題目可供測試')
   }
 
-  // 從每個技能取等量題目，總共 10 題
+  // 也取得下一年級的題目（用來出「預覽題」評估真實實力）
+  const nextSkills = await prisma.skill.findMany({
+    where: { gradeLevel: next, isActive: true },
+    include: { questions: { where: { isActive: true } } },
+  })
+
   const QUESTIONS_PER_SESSION = 10
-  const questionsPerSkill = Math.max(1, Math.floor(QUESTIONS_PER_SESSION / skills.length))
+  // 目前年級約 5 題（保留已學知識的考驗）
+  const currentGradeCount = Math.min(5, Math.floor(QUESTIONS_PER_SESSION / 2))
+  // 下一年級約 5 題（預覽題，真正有難度）
+  const nextGradeCount = Math.min(QUESTIONS_PER_SESSION - currentGradeCount,
+    nextSkills.reduce((sum, s) => sum + s.questions.length, 0))
+
   const allQuestions: { templateId: string; prompt: string; answer: string; options?: string[]; explanation?: string }[] = []
 
+  // 從目前年級出題（驗證已學內容）
+  const questionsPerSkill = Math.max(1, Math.floor(currentGradeCount / skills.length))
   for (const skill of skills) {
     const templates = shuffle(skill.questions).slice(0, questionsPerSkill)
+    for (const t of templates) {
+      const q = generateQuestion({
+        id: t.id,
+        type: t.type,
+        prompt: t.prompt,
+        paramsJson: t.paramsJson,
+        answer: t.answer,
+        options: t.options,
+      })
+      allQuestions.push({
+        templateId: q.templateId!,
+        prompt: q.prompt,
+        answer: q.answer,
+        options: q.options,
+        explanation: t.explanation ?? undefined,
+      })
+    }
+  }
+
+  // 從下一年級出題（預覽題 — 真正有難度的挑戰）
+  const nextQuestionsPerSkill = nextSkills.length > 0
+    ? Math.max(1, Math.floor(nextGradeCount / nextSkills.length))
+    : 0
+  for (const skill of nextSkills) {
+    const templates = shuffle(skill.questions).slice(0, nextQuestionsPerSkill)
     for (const t of templates) {
       const q = generateQuestion({
         id: t.id,
