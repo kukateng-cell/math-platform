@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { getChildSkills } from '@/actions/practice'
 import { getChildBadges } from '@/actions/achievement'
 import AchievementBadges from '@/components/achievement-badges'
+import GradeSelector from '@/components/grade-selector'
 import type { Recommendation } from '@/lib/mastery'
 
 // ============ 授權輔助 ============
@@ -189,6 +190,10 @@ export default async function ChildOverviewPage({
               <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                 {gradeLabel(child.gradeLevel)}
               </span>
+              {/* 家長可調整孩子年級 */}
+              {isParent && (
+                <GradeSelector childId={child.id} currentGrade={child.gradeLevel} />
+              )}
               {lastSession ? (
                 <span>上次練習 {relativeTime(lastSession.startedAt)}</span>
               ) : (
@@ -318,6 +323,14 @@ export default async function ChildOverviewPage({
       {/* ============ 成就徽章 ============ */}
       <section className="mb-10">
         <AchievementBadges badges={badges} />
+        <div className="mt-4 text-center">
+          <Link
+            href={`/achievements/${childId}`}
+            className="inline-block rounded-lg border border-neutral-300 px-5 py-2 text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+          >
+            查看全部成就 🏅
+          </Link>
+        </div>
       </section>
 
       {/* ============ 最近練習紀錄 ============ */}

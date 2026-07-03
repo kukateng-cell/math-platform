@@ -333,3 +333,34 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
   // 重設完成 → 引導回登入頁
   return { ok: true, message: '密碼已重設成功，請使用新密碼登入' }
 }
+
+// ============ 家長更新孩子年級 ============
+export async function updateChildGrade(formData: FormData) {
+  const session = await getSession()
+  if (!session) throw new Error('請先登入')
+
+  const childId = String(formData.get('childId') || '')
+  const gradeLevel = String(formData.get('gradeLevel') || '')
+
+  const validGrades = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6']
+  if (!validGrades.includes(gradeLevel)) {
+    throw new Error('無效的年級')
+  }
+
+  // 確認是這名家長的孩子
+  const child = await prisma.childProfile.findFirst({
+    where: {
+      id: childId,
+      parentId: session.userId,
+    },
+  })
+  if (!child) throw new Error('找不到孩子或無權限')
+
+  await prisma.childProfile.update({
+    where: { id: childId },
+    data: { gradeLevel },
+  })
+
+  revalidatePath(`/children/${childId}`)
+  revalidatePath('/dashboard')
+}

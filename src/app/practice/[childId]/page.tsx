@@ -112,6 +112,16 @@ export default async function PracticeSelectPage({
       {/* 成就徽章（簡潔模式） */}
       <div className="mt-8">
         <AchievementBadges badges={badges} compact />
+        {badges.some((b) => b.earned) && (
+          <div className="mt-3 text-center">
+            <Link
+              href={`/achievements/${childId}`}
+              className="text-xs font-medium text-neutral-500 underline underline-offset-2 transition hover:text-neutral-800 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              查看全部成就 🏅
+            </Link>
+          </div>
+        )}
       </div>
     </main>
   )
