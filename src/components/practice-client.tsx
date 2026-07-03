@@ -131,16 +131,8 @@ export default function PracticeClient({
     : selected
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (lastResult) return
     // 中文輸入法（IME）組字中不攔截按鍵（Enter 是確認候選字）
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
-    if (interaction === 'choice' && current.options && e.key >= '1' && e.key <= '4') {
-      const optIndex = Number(e.key) - 1
-      if (optIndex < current.options.length) {
-        choose(current.options[optIndex])
-      }
-      return
-    }
     if (e.key === 'Enter') {
       e.preventDefault()
       if (submittingRef.current || submitting) return
@@ -150,8 +142,41 @@ export default function PracticeClient({
         submittingRef.current = true
         handleSubmit()
       }
+      return
+    }
+    // 已答題時不處理數字鍵選擇
+    if (lastResult) return
+    if (interaction === 'choice' && current.options && e.key >= '1' && e.key <= '4') {
+      const optIndex = Number(e.key) - 1
+      if (optIndex < current.options.length) {
+        choose(current.options[optIndex])
+      }
     }
   }
+
+  // 全局 Enter 監聽：無論焦點在哪，Enter 都可提交答案或進下一題
+  useEffect(() => {
+    function onGlobalKey(e: KeyboardEvent) {
+      if (e.key !== 'Enter') return
+      // 若焦點在輸入框（如 NumberPad 文字模式），不攔截（輸入框自行處理）
+      const active = document.activeElement
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return
+      // IME 組字中不攔截
+      if (e.isComposing || e.keyCode === 229) return
+      if (submittingRef.current || submitting) return
+      if (lastResult) {
+        e.preventDefault()
+        nextQuestion()
+      } else if (currentAnswer) {
+        e.preventDefault()
+        submittingRef.current = true
+        handleSubmit()
+      }
+    }
+    window.addEventListener('keydown', onGlobalKey)
+    return () => window.removeEventListener('keydown', onGlobalKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastResult, currentAnswer, submitting])
 
   function choose(val: string) {
     if (submitting || lastResult) return
@@ -377,7 +402,7 @@ export default function PracticeClient({
     bgFlash === 'green' ? 'animate-flash-green' : bgFlash === 'red' ? 'animate-flash-red' : ''
 
   return (
-    <div className={"flex w-full flex-col gap-6 " + bgFlashClass} onKeyDown={handleKeyDown}>
+    <div className={"flex w-full flex-col gap-6 outline-none " + bgFlashClass} onKeyDown={handleKeyDown} tabIndex={0}>
       <div>
         <div className="mb-1 flex items-center justify-between text-xs text-neutral-500 dark:text-gray-400 sm:text-sm">
           <span className="truncate pr-2">{skillName}</span>
