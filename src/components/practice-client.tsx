@@ -75,6 +75,7 @@ export default function PracticeClient({
   const [elapsed, setElapsed] = useState('00:00')
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
+  const [showHint, setShowHint] = useState(false)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
@@ -235,6 +236,7 @@ export default function PracticeClient({
     setLineValue(null)
     setLastResult(null)
     setAssisted(false)
+    setShowHint(false)
     setFeedback(null)
     setRevealCorrect(false)
     setBgFlash(null)
@@ -471,6 +473,25 @@ export default function PracticeClient({
       >
         <p className="text-3xl font-bold tracking-wide">{current.prompt}</p>
       </div>
+
+      {/* 💡 提示按鈕 — 作答前可預先查看解題提示 */}
+      {current.explanation && !lastResult && (
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setShowHint(!showHint)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+          >
+            <span className="text-base">{showHint ? '🔽' : '💡'}</span>
+            {showHint ? '隱藏提示' : '顯示提示'}
+          </button>
+          {showHint && (
+            <div className="mx-auto mt-2 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-800 animate-fade-in-up dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              💡 {current.explanation}
+            </div>
+          )}
+        </div>
+      )}
 
       {interaction === 'choice' && current.options ? (
         <div className="grid grid-cols-2 gap-3">
