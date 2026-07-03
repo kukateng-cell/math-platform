@@ -506,7 +506,7 @@ export default function PracticeClient({
                 disabled={!!lastResult || submitting}
                 aria-pressed={selected === opt}
                 aria-keyshortcuts={"" + (optIdx + 1)}
-                className={"rounded-xl border-2 px-4 py-5 text-2xl font-bold transition " + cls}
+                className={"rounded-xl border-2 px-4 py-5 text-2xl font-bold transition min-h-[60px] " + cls}
               >
                 <span className="inline-flex items-center gap-2">
                   {displayAnswer(opt)}
@@ -584,7 +584,8 @@ export default function PracticeClient({
               <button
                 onClick={handleSubmit}
                 disabled={submitDisabled}
-                className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
+                aria-label="送出答案"
+                className="min-h-[52px] w-full rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-40 sm:w-auto"
               >
                 {submitting ? '送出中…' : '送出答案'}
               </button>
@@ -592,7 +593,8 @@ export default function PracticeClient({
           ) : (
             <button
               onClick={nextQuestion}
-              className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700"
+              aria-label="下一題"
+              className="min-h-[52px] w-full rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 sm:w-auto"
             >
               下一題 →
             </button>
