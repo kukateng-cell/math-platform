@@ -38,6 +38,10 @@ export default function RootLayout({
     if (localStorage.getItem('reduced-motion') === 'true') {
       document.documentElement.classList.add('reduce-motion');
     }
+    var theme = localStorage.getItem('theme') || 'system';
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var isDark = theme === 'dark' || (theme !== 'light' && prefersDark);
+    if (isDark) document.documentElement.classList.add('dark');
   } catch(e) {}
 })();
             `,
