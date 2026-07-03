@@ -61,19 +61,20 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   const answer = String(formData.get('answer') || '').trim()
   const options = String(formData.get('options') || '').trim() || null
   const explanation = String(formData.get('explanation') || '').trim() || null
-  const paramsJson = String(formData.get('paramsJson') || '').trim() || null
+  const paramsJsonRaw = String(formData.get('paramsJson') || '').trim()
 
   if (!skillId || !prompt || !answer) {
     return { message: '技能、題目、答案為必填' }
   }
 
   // 參數化題（ADD/SUB/MUL/DIV/WORD_PROBLEM）必須有合法 JSON 參數
+  let mergedParamsJson: string | null = paramsJsonRaw || null
   if (type === 'ADD' || type === 'SUB' || type === 'MUL' || type === 'DIV' || type === 'WORD_PROBLEM') {
-    if (!paramsJson) {
+    if (!paramsJsonRaw) {
       return { message: '參數化題型（ADD/SUB）必須填寫參數 JSON' }
     }
     try {
-      const parsed = JSON.parse(paramsJson)
+      const parsed = JSON.parse(paramsJsonRaw)
       if (typeof parsed.aMin !== 'number' || typeof parsed.aMax !== 'number' ||
           typeof parsed.bMin !== 'number' || typeof parsed.bMax !== 'number') {
         return { message: '參數 JSON 需包含 aMin, aMax, bMin, bMax 數字欄位' }
@@ -83,8 +84,34 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
     }
   }
 
+  // ============ 合併互動模式到 paramsJson ============
+  // 表單的 interaction（choice/numberline/fillin）與 rangeMin/rangeMax/inputMode
+  // 需要寫進 paramsJson，練習端才讀得到。
+  // 對於參數化題（已有 paramsJson）→ 合併欄位；對於直接題（無 paramsJson）→ 若非 choice 則建立。
+  const interaction = String(formData.get('interaction') || 'choice')
+  const rangeMinRaw = String(formData.get('rangeMin') || '').trim()
+  const rangeMaxRaw = String(formData.get('rangeMax') || '').trim()
+  const inputMode = String(formData.get('inputMode') || 'numeric')
+  const extra: Record<string, unknown> = {}
+  if (interaction && interaction !== 'choice') extra.interaction = interaction
+  if (rangeMinRaw !== '') extra.rangeMin = Number(rangeMinRaw)
+  if (rangeMaxRaw !== '') extra.rangeMax = Number(rangeMaxRaw)
+  if (interaction === 'fillin' && inputMode === 'text') {
+    extra.inputMode = 'text'
+    const ph = String(formData.get('placeholder') || '').trim()
+    if (ph) extra.placeholder = ph
+  }
+
+  if (Object.keys(extra).length > 0) {
+    let base: Record<string, unknown> = {}
+    if (mergedParamsJson) {
+      try { base = JSON.parse(mergedParamsJson) } catch { base = {} }
+    }
+    mergedParamsJson = JSON.stringify({ ...base, ...extra })
+  }
+
   await prisma.questionTemplate.create({
-    data: { skillId, type, prompt, answer, options, explanation, paramsJson },
+    data: { skillId, type, prompt, answer, options, explanation, paramsJson: mergedParamsJson },
   })
   revalidatePath('/admin')
   return { ok: true }
@@ -224,6 +251,7 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
   if (!existing) return { message: '題目不存在' }
 
   // 參數化題（ADD/SUB/MUL/DIV/WORD_PROBLEM）必須有合法 JSON 參數
+  let mergedParamsJson: string | null = paramsJson
   if (existing.type === 'ADD' || existing.type === 'SUB' || existing.type === 'MUL' || existing.type === 'DIV' || existing.type === 'WORD_PROBLEM') {
     if (!paramsJson) {
       return { message: '參數化題型（ADD/SUB）必須填寫參數 JSON' }
@@ -239,9 +267,29 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
     }
   }
 
+  // 合併表單的 rangeMin/rangeMax/inputMode/placeholder 到 paramsJson
+  // （編輯模式 interaction 不可變更，但 rangeMin/rangeMax 可調整）
+  const extra: Record<string, unknown> = {}
+  const rangeMinRaw = String(formData.get('rangeMin') || '').trim()
+  const rangeMaxRaw = String(formData.get('rangeMax') || '').trim()
+  if (rangeMinRaw !== '') extra.rangeMin = Number(rangeMinRaw)
+  if (rangeMaxRaw !== '') extra.rangeMax = Number(rangeMaxRaw)
+  const inputMode = String(formData.get('inputMode') || '')
+  const placeholder = String(formData.get('placeholder') || '').trim()
+  if (inputMode) extra.inputMode = inputMode
+  if (placeholder) extra.placeholder = placeholder
+
+  if (Object.keys(extra).length > 0) {
+    let base: Record<string, unknown> = {}
+    if (mergedParamsJson) {
+      try { base = JSON.parse(mergedParamsJson) } catch { base = {} }
+    }
+    mergedParamsJson = JSON.stringify({ ...base, ...extra })
+  }
+
   await prisma.questionTemplate.update({
     where: { id },
-    data: { skillId, prompt, answer, options, explanation, paramsJson },
+    data: { skillId, prompt, answer, options, explanation, paramsJson: mergedParamsJson },
   })
   revalidatePath('/admin')
   revalidatePath('/admin/questions')
