@@ -8,6 +8,7 @@ import { getChildSession } from '@/lib/child-session'
 import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
+import { accessibleGrades, canAccessGrade } from '@/lib/grade'
 
 const QUESTIONS_PER_SESSION = 10
 
@@ -90,6 +91,10 @@ export async function startSession(childId: string, skillId: string) {
     include: { questions: { where: { isActive: true } } },
   })
   if (!skill || !skill.isActive) throw new Error('技能不存在或已停用')
+  // 年級權限：低年級不可練習高年級的技能（避免知道 ID 就能越級）
+  if (!canAccessGrade(child.gradeLevel, skill.gradeLevel)) {
+    throw new Error('這個技能超出您的年級範圍')
+  }
   // 空題庫保護
   if (skill.questions.length === 0) {
     throw new Error('這個技能目前沒有題目，請聯繫管理員')
@@ -321,8 +326,11 @@ export async function getChildSkills(childId: string) {
   })
   if (!child) return null
 
+  // 年級權限：低年級不可看高年級；高年級可往下複習低年級
+  const grades = accessibleGrades(child.gradeLevel)
+
   const skills = await prisma.skill.findMany({
-    where: { isActive: true },
+    where: { isActive: true, gradeLevel: { in: grades } },
     orderBy: { order: 'asc' },
     include: { _count: { select: { questions: { where: { isActive: true } } } } },
   })
