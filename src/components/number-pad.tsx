@@ -86,7 +86,7 @@ export default function NumberPad({
     return () => window.removeEventListener('keydown', onKey)
   }, [mode, disabled, value, maxLength, onChange, onSubmit])
 
-  // ============ 文字模式：直接用輸入框 ============
+  // ============ 文字模式：直接用輸入框（支援中文輸入法 IME）============
   if (mode === 'text') {
     return (
       <div className="mx-auto w-full max-w-xs sm:max-w-sm">
@@ -96,11 +96,14 @@ export default function NumberPad({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          placeholder={placeholder}
+          placeholder={placeholder || '輸入答案（可輸入中文）'}
           autoFocus
           autoComplete="off"
           enterKeyHint="done"
           onKeyDown={(e) => {
+            // 中文輸入法（IME）組字時，Enter 是「確認候選字」而非送出答案。
+            // isComposing 或 keyCode 229 表示正在組字中，此時不攔截 Enter。
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return
             if (e.key === 'Enter') {
               e.preventDefault()
               if (value.trim()) onSubmit()

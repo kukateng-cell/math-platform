@@ -78,6 +78,8 @@ export default function PracticeClient({
   const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
   const completionLinkRef = useRef<HTMLAnchorElement | null>(null)
+  // 答題回饋區塊：答完後自動滾動至此，避免使用者要手動往下滑找「下一題」
+  const feedbackRef = useRef<HTMLDivElement | null>(null)
   const submittingRef = useRef(false)
 
   const current = questions[index]
@@ -107,6 +109,19 @@ export default function PracticeClient({
     return () => clearInterval(interval)
   }, [])
 
+  // 答題後自動捲動到「回饋 + 下一題」區塊
+  // 等回饋動畫展開後再滾動（留一點時間讓 DOM 更新），尊重「減少動畫模式」
+  useEffect(() => {
+    if (!lastResult) return
+    const el = feedbackRef.current
+    if (!el) return
+    const smooth = !document.documentElement.classList.contains('reduce-motion')
+    const timer = setTimeout(() => {
+      el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [lastResult])
+
   const interaction = current.interaction || (!current.options || current.options.length === 0 ? 'fillin' : 'choice')
 
   const currentAnswer = interaction === 'numberline'
@@ -117,6 +132,8 @@ export default function PracticeClient({
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (lastResult) return
+    // 中文輸入法（IME）組字中不攔截按鍵（Enter 是確認候選字）
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (interaction === 'choice' && current.options && e.key >= '1' && e.key <= '4') {
       const optIndex = Number(e.key) - 1
       if (optIndex < current.options.length) {
@@ -476,51 +493,54 @@ export default function PracticeClient({
         </div>
       )}
 
-      {lastResult && (
-        <div
-          className={"animate-fade-in-up rounded-xl p-4 text-center " + (lastResult.correct ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300')}
-          role="alert"
-        >
-          <p className="text-lg font-bold">
-            {lastResult.correct ? '✓ 答對了！' : '✗ 正確答案是 ' + lastResult.correctAnswer}
-          </p>
-          {lastResult.explanation && (
-            <p className="mt-2 text-sm opacity-80">💡 {lastResult.explanation}</p>
+      {/* 答題回饋 + 下一題操作區：包在同一個容器，答題後自動滾動至此區塊 */}
+      <div ref={feedbackRef} className="flex flex-col gap-3">
+        {lastResult && (
+          <div
+            className={"animate-fade-in-up rounded-xl p-4 text-center " + (lastResult.correct ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300')}
+            role="alert"
+          >
+            <p className="text-lg font-bold">
+              {lastResult.correct ? '✓ 答對了！' : '✗ 正確答案是 ' + lastResult.correctAnswer}
+            </p>
+            {lastResult.explanation && (
+              <p className="mt-2 text-sm opacity-80">💡 {lastResult.explanation}</p>
+            )}
+          </div>
+        )}
+
+        {interaction !== 'fillin' && (
+          <label className="flex items-center justify-center gap-2 text-sm text-neutral-500 dark:text-gray-400">
+            <input
+              type="checkbox"
+              checked={assisted}
+              onChange={(e) => setAssisted(e.target.checked)}
+              disabled={!!lastResult}
+            />
+            這題有家長協助（不計入能力判斷）
+          </label>
+        )}
+
+        <div className="flex justify-center">
+          {!lastResult ? (
+            interaction !== 'fillin' ? (
+              <button
+                onClick={handleSubmit}
+                disabled={submitDisabled}
+                className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
+              >
+                {submitting ? '送出中…' : '送出答案'}
+              </button>
+            ) : null
+          ) : (
+            <button
+              onClick={nextQuestion}
+              className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700"
+            >
+              下一題 →
+            </button>
           )}
         </div>
-      )}
-
-      {interaction !== 'fillin' && (
-        <label className="flex items-center justify-center gap-2 text-sm text-neutral-500 dark:text-gray-400">
-          <input
-            type="checkbox"
-            checked={assisted}
-            onChange={(e) => setAssisted(e.target.checked)}
-            disabled={!!lastResult}
-          />
-          這題有家長協助（不計入能力判斷）
-        </label>
-      )}
-
-      <div className="flex justify-center">
-        {!lastResult ? (
-          interaction !== 'fillin' ? (
-            <button
-              onClick={handleSubmit}
-              disabled={submitDisabled}
-              className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
-            >
-              {submitting ? '送出中…' : '送出答案'}
-            </button>
-          ) : null
-        ) : (
-          <button
-            onClick={nextQuestion}
-            className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition hover:bg-blue-700"
-          >
-            下一題 →
-          </button>
-        )}
       </div>
 
       {/* 中途結束練習確認 */}
