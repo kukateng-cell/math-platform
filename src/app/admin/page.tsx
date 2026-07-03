@@ -13,7 +13,7 @@ export default async function AdminPage() {
     { label: '技能', value: stats.skills, href: '/admin/skills', icon: '🎯' },
     { label: '啟用題目', value: stats.questions, href: '/admin/questions', icon: '📝' },
     { label: '作答紀錄', value: stats.attempts, href: '/admin/attempts', icon: '📊' },
-    { label: '孩子檔案', value: stats.children, href: '#', icon: '🧒' },
+    { label: '孩子檔案', value: stats.children, href: '/admin/children', icon: '🧒' },
   ]
 
   return (
@@ -34,20 +34,27 @@ export default async function AdminPage() {
         ))}
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           href="/admin/skills"
-          className="rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-blue-300"
+          className="rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-blue-300 dark:border-gray-700 dark:bg-gray-900"
         >
           <h3 className="font-semibold">🎯 技能管理</h3>
-          <p className="mt-1 text-sm text-neutral-500">新增、修改、停用技能與前置關係</p>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">新增、修改、停用技能與前置關係</p>
         </Link>
         <Link
           href="/admin/questions"
-          className="rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-blue-300"
+          className="rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-blue-300 dark:border-gray-700 dark:bg-gray-900"
         >
           <h3 className="font-semibold">📝 題目管理</h3>
-          <p className="mt-1 text-sm text-neutral-500">新增題目、參數化模板、停用問題題目</p>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">新增題目、參數化模板、停用問題題目</p>
+        </Link>
+        <Link
+          href="/admin/children"
+          className="rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-blue-300 dark:border-gray-700 dark:bg-gray-900"
+        >
+          <h3 className="font-semibold">🧒 孩子總覽</h3>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">查看所有孩子的練習狀況、掌握度與進度</p>
         </Link>
       </div>
     </main>

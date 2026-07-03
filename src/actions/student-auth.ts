@@ -12,7 +12,7 @@ import { sendOtpEmail } from '@/lib/email'
 const SelfStudySignupSchema = z.object({
   email: z.string().email('請輸入有效的 Email').trim(),
   nickname: z.string().min(1, '請輸入暱稱').max(20).trim(),
-  gradeLevel: z.enum(['K', 'G1', 'G2']),
+  gradeLevel: z.enum(['K', 'G1', 'G2', 'G3', 'G4']),
 })
 
 // 自主學習登入：只需 Email（密碼由驗證碼取代）
