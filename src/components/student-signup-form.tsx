@@ -47,6 +47,8 @@ export default function StudentSignupForm({ initialCaptcha }: Props) {
             <option value="G2">二年級 (G2)</option>
             <option value="G3">三年級 (G3)</option>
             <option value="G4">四年級 (G4)</option>
+            <option value="G5">五年級 (G5)</option>
+            <option value="G6">六年級 (G6)</option>
           </select>
         </div>
         {/* CAPTCHA */}
