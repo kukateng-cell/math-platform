@@ -88,8 +88,9 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
 
   // 發送郵件（非同步，不阻斷流程）
   sendOtpEmail(user.email, otpCode)
-  // 開發階段也直接顯示在前端
-  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  // 開發階段或 SHOW_OTP_IN_UI=true 時直接顯示在前端
+  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
+  const devOtp = showOtp ? otpCode : undefined
 
   const tempToken = await createTempToken(user.id)
 
@@ -155,8 +156,9 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
     ? user.email.replace(/(.{3}).+@/, '$1***@')
     : '您的信箱'
 
-  // 開發階段直接顯示驗證碼
-  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  // 開發階段或 SHOW_OTP_IN_UI=true 時直接顯示驗證碼
+  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
+  const devOtp = showOtp ? otpCode : undefined
 
   return {
     otpRequired: true,

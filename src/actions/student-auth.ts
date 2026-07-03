@@ -67,7 +67,8 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
   // 發送 OTP
   const otpCode = generateOtp(child.id)
   sendOtpEmail(email, otpCode)
-  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
+  const devOtp = showOtp ? otpCode : undefined
   const tempToken = await createTempToken(child.id)
 
   return {
@@ -129,7 +130,8 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
 
   const otpCode = generateOtp(child.id)
   sendOtpEmail(child.email, otpCode)
-  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
+  const devOtp = showOtp ? otpCode : undefined
   const tempToken = await createTempToken(child.id)
 
   return {
