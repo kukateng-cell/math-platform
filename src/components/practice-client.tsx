@@ -274,6 +274,33 @@ export default function PracticeClient({
           </div>
         )}
 
+        {/* 升學測試結果 */}
+        {lastResult?.promotion && (
+          <div className={`w-full max-w-md rounded-2xl p-5 text-center shadow-lg ${
+            lastResult.promotion.passed
+              ? 'bg-gradient-to-r from-yellow-300 to-orange-400 text-white'
+              : 'border border-neutral-200 bg-white dark:border-gray-700 dark:bg-gray-900'
+          }`}>
+            {lastResult.promotion.passed ? (
+              <>
+                <div className="mb-1 text-4xl">🎉</div>
+                <h3 className="text-lg font-bold">升學成功！</h3>
+                <p className="mt-1 text-sm opacity-90">
+                  已晉升至 {lastResult.promotion.newGrade}！繼續挑戰新內容吧 🚀
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="mb-1 text-4xl">💪</div>
+                <h3 className="text-lg font-bold text-neutral-800 dark:text-white">升學測試未通過</h3>
+                <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">
+                  正確率需達 80% 才能升學至 {lastResult.promotion.targetGrade}，再練熟一些後重新挑戰！
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
         {/* 每題結果一覽 */}
         <div className="w-full max-w-md">
           <h3 className="mb-2 text-sm font-semibold text-neutral-500 dark:text-gray-400">每題結果一覽</h3>
@@ -481,7 +508,11 @@ export default function PracticeClient({
           onChange={setFillValue}
           onSubmit={handleSubmit}
           disabled={!!lastResult}
-          mode={current.inputMode === 'text' ? 'text' : 'numeric'}
+          // 自動判斷輸入模式：
+          // - inputMode 明確設為 'text' → 文字模式（鍵盤輸入中文/英文）
+          // - inputMode 明確設為 'numeric' → 數字鍵盤
+          // - 未設定時，依答案內容自動偵測：非純數字答案（含中文/單位）→ 文字模式
+          mode={current.inputMode === 'text' || (current.inputMode !== 'numeric' && current.answer && !/^-?\d+(\.\d+)?$/.test(current.answer)) ? 'text' : 'numeric'}
           maxLength={current.maxLength}
           placeholder={current.placeholder}
         />

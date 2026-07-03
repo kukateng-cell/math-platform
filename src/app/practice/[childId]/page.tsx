@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getChildSkills, startSession, hasPracticeAccess } from '@/actions/practice'
+import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest } from '@/actions/practice'
 import { getSession } from '@/lib/session'
 import { childLogout } from '@/actions/child-auth'
 import { SkillFolders } from '@/components/skill-folders'
@@ -24,6 +24,9 @@ export default async function PracticeSelectPage({
 
   const { child, skills, recommendation } = data
 
+  // 檢查升學資格
+  const promotion = await checkPromotionEligibility(childId)
+
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
       <div className="mb-6">
@@ -42,6 +45,32 @@ export default async function PracticeSelectPage({
           {child.nickname} 的練習選單
         </h1>
       </div>
+
+      {/* 升學測試提示 */}
+      {promotion.eligible && promotion.nextGrade && (
+        <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 p-5 text-white shadow-lg">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-2xl">🎓</span>
+                <span className="text-sm font-medium uppercase tracking-wide opacity-90">升學測試</span>
+              </div>
+              <p className="font-bold">
+                已掌握 {promotion.currentGrade} 的所有內容！<br />
+                參加升學測試來挑戰 {promotion.nextGrade}
+              </p>
+            </div>
+            <form action={startPromotionTest.bind(null, childId)}>
+              <button
+                type="submit"
+                className="whitespace-nowrap rounded-xl bg-white/20 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:bg-white/30"
+              >
+                開始測試 →
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 推薦區 */}
       {recommendation.skillId && (

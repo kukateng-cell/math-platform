@@ -23,7 +23,7 @@ export default function NumberPad({
   onSubmit,
   disabled,
   mode = 'numeric',
-  maxLength = 5,
+  maxLength = 10,
   placeholder = '輸入答案',
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -97,6 +97,7 @@ export default function NumberPad({
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           placeholder={placeholder || '輸入答案（可輸入中文）'}
+          maxLength={100}
           autoFocus
           autoComplete="off"
           enterKeyHint="done"

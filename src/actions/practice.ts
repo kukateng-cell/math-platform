@@ -6,8 +6,9 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { getChildSession } from '@/lib/child-session'
 import { generateQuestion, shuffle } from '@/lib/question'
-import { updateMastery, getRecommendation } from '@/lib/mastery'
+import { updateMastery, getRecommendation, isGradeAllMastered } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
+import { getNextGrade, gradeRank } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
 
 const QUESTIONS_PER_SESSION = 10
@@ -210,6 +211,12 @@ export type SubmitResult = {
   finished: boolean
   sessionId: string
   explanation?: string
+  /** 升學測試結果（僅在 finished=true 時有值） */
+  promotion?: {
+    passed: boolean
+    newGrade: string | null
+    targetGrade: string | null
+  } | null
 }
 
 // 提交一題作答（伺服器從快照重算正確答案，不信任前端）
@@ -304,12 +311,49 @@ export async function submitAnswer(payload: {
       sessionTotalQuestions: total,
       allCorrect,
     })
+
+    // ============ 升學測試處理 ============
+    // 從 questionsJson 檢查是否為升學測試
+    try {
+      const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
+      if (Array.isArray(storedQuestions) && storedQuestions[0]?.__isPromotion) {
+        const targetGrade = storedQuestions[0].__targetGrade as string
+        // 正確率 ≥ 80%（不計 assisted）即升學成功
+        const legitAttempts = sessionAttempts.filter((a) => !a.assisted)
+        const correctCount = legitAttempts.filter((a) => a.isCorrect).length
+        const passRate = legitAttempts.length > 0
+          ? correctCount / legitAttempts.length
+          : 0
+
+        if (passRate >= 0.8 && targetGrade) {
+          await prisma.childProfile.update({
+            where: { id: childId },
+            data: { gradeLevel: targetGrade },
+          })
+        }
+      }
+    } catch { /* ignore */ }
   }
 
   revalidatePath('/dashboard')
   revalidatePath('/children')
 
-  return { correct, correctAnswer, finished, sessionId: payload.sessionId, explanation: q.explanation }
+  // 回傳時檢查是否為升學測試且剛完成，附加升學結果
+  let promotionResult: SubmitResult['promotion'] = null
+  if (finished) {
+    try {
+      const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
+      if (Array.isArray(storedQuestions) && storedQuestions[0]?.__isPromotion) {
+        const targetGrade = storedQuestions[0].__targetGrade as string
+        const childId = practiceSession.childId
+        const child = await prisma.childProfile.findUnique({ where: { id: childId } })
+        const passed = child?.gradeLevel === targetGrade
+        promotionResult = { passed, newGrade: passed ? targetGrade : null, targetGrade }
+      }
+    } catch { /* ignore */ }
+  }
+
+  return { correct, correctAnswer, finished, sessionId: payload.sessionId, explanation: q.explanation, promotion: promotionResult }
 }
 
 // 取得孩子的技能選單與推薦
@@ -352,4 +396,99 @@ export async function getChildSkills(childId: string) {
     }),
     recommendation: getRecommendation(skills, child.masterySnapshots),
   }
+}
+
+// ============ 升學測試 ============
+// 檢查孩子是否能參加升學測試（目前年級的所有技能已掌握）
+export async function checkPromotionEligibility(childId: string): Promise<{
+  eligible: boolean
+  currentGrade: string
+  nextGrade: string | null
+}> {
+  const auth = await getPracticeAuth()
+  if (!auth) return { eligible: false, currentGrade: '', nextGrade: null }
+  if (!(await canAccessChild(childId))) return { eligible: false, currentGrade: '', nextGrade: null }
+
+  const child = await prisma.childProfile.findUnique({ where: { id: childId } })
+  if (!child) return { eligible: false, currentGrade: '', nextGrade: null }
+
+  const next = getNextGrade(child.gradeLevel)
+  if (!next) return { eligible: false, currentGrade: child.gradeLevel, nextGrade: null }
+
+  const allMastered = await isGradeAllMastered(childId, child.gradeLevel)
+  return { eligible: allMastered, currentGrade: child.gradeLevel, nextGrade: next }
+}
+
+// 開始升學測試：從目前年級所有技能中隨機出題
+export async function startPromotionTest(childId: string) {
+  const auth = await getPracticeAuth()
+  if (!auth) throw new Error('未授權')
+  if (!(await canAccessChild(childId))) throw new Error('找不到孩子檔案')
+
+  const child = await prisma.childProfile.findUnique({ where: { id: childId } })
+  if (!child) throw new Error('找不到孩子檔案')
+
+  const next = getNextGrade(child.gradeLevel)
+  if (!next) throw new Error('已經是最後一個年級，不需升學測試')
+
+  // 確認目前年級所有技能已掌握
+  const allMastered = await isGradeAllMastered(childId, child.gradeLevel)
+  if (!allMastered) throw new Error('尚未完成所有技能，無法參加升學測試')
+
+  // 取得目前年級的所有技能
+  const skills = await prisma.skill.findMany({
+    where: { gradeLevel: child.gradeLevel, isActive: true },
+    include: { questions: { where: { isActive: true } } },
+  })
+  if (skills.length === 0 || skills.every((s) => s.questions.length === 0)) {
+    throw new Error('目前年級沒有題目可供測試')
+  }
+
+  // 從每個技能取等量題目，總共 10 題
+  const QUESTIONS_PER_SESSION = 10
+  const questionsPerSkill = Math.max(1, Math.floor(QUESTIONS_PER_SESSION / skills.length))
+  const allQuestions: { templateId: string; prompt: string; answer: string; options?: string[]; explanation?: string }[] = []
+
+  for (const skill of skills) {
+    const templates = shuffle(skill.questions).slice(0, questionsPerSkill)
+    for (const t of templates) {
+      const q = generateQuestion({
+        id: t.id,
+        type: t.type,
+        prompt: t.prompt,
+        paramsJson: t.paramsJson,
+        answer: t.answer,
+        options: t.options,
+      })
+      allQuestions.push({
+        templateId: q.templateId!,
+        prompt: q.prompt,
+        answer: q.answer,
+        options: q.options,
+        explanation: t.explanation ?? undefined,
+      })
+    }
+  }
+
+  // 洗牌後取 QUESTIONS_PER_SESSION 題
+  const finalQuestions = shuffle(allQuestions).slice(0, QUESTIONS_PER_SESSION)
+
+  // 用 __isPromotion: true 標記這是升學測試
+  const sessionQuestions = finalQuestions.map((q) => ({
+    ...q,
+    __isPromotion: true,
+    __targetGrade: next,
+  }))
+
+  const practiceSession = await prisma.practiceSession.create({
+    data: {
+      childId,
+      skillId: skills[0].id, // 用第一個技能存關聯
+      parentId: auth.type === 'parent' ? auth.userId : child.parentId,
+      totalQuestions: QUESTIONS_PER_SESSION,
+      questionsJson: JSON.stringify(sessionQuestions),
+    },
+  })
+
+  redirect(`/practice/${childId}/${skills[0].id}/${practiceSession.id}`)
 }
