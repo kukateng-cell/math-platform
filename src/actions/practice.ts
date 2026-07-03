@@ -10,6 +10,7 @@ import { updateMastery, getRecommendation, isGradeAllMastered } from '@/lib/mast
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
 import { getNextGrade, gradeRank } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
+import { isAnswerCorrect } from '@/lib/answer-i18n'
 
 const QUESTIONS_PER_SESSION = 10
 
@@ -256,7 +257,8 @@ export async function submitAnswer(payload: {
   if (!q) throw new Error('題目不存在')
 
   const correctAnswer = q.answer
-  const correct = payload.userAnswer.trim() === correctAnswer.trim()
+  // 中英文等價驗證：例如「left」「左邊」都視為正確
+  const correct = isAnswerCorrect(payload.userAnswer, correctAnswer)
 
   await prisma.attempt.create({
     data: {
