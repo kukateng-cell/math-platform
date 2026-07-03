@@ -326,13 +326,14 @@ export async function deleteQuestion(formData: FormData) {
 // ============ 資料查詢 ============
 export async function getAdminStats() {
   await requireAdmin()
-  const [skills, questions, attempts, children] = await Promise.all([
+  const [skills, questions, attempts, children, badges] = await Promise.all([
     prisma.skill.count(),
     prisma.questionTemplate.count({ where: { isActive: true } }),
     prisma.attempt.count(),
     prisma.childProfile.count(),
+    prisma.badge.count(),
   ])
-  return { skills, questions, attempts, children }
+  return { skills, questions, attempts, children, badges }
 }
 
 export async function getRecentAttempts(limit = 50) {
@@ -344,6 +345,59 @@ export async function getRecentAttempts(limit = 50) {
       session: { include: { child: true, skill: true } },
     },
   })
+}
+
+// ============ 徽章管理 ============
+export type BadgeFormState =
+  | { errors?: Record<string, string[]>; message?: string; ok?: boolean }
+  | undefined
+
+export async function createBadge(state: BadgeFormState, formData: FormData): Promise<BadgeFormState> {
+  await requireAdmin()
+  const code = String(formData.get('code') || '').trim()
+  const name = String(formData.get('name') || '').trim()
+  const icon = String(formData.get('icon') || '🏅').trim()
+  const condition = String(formData.get('condition') || '').trim()
+
+  if (!code || !name || !condition) {
+    return { message: '代碼、名稱、條件為必填' }
+  }
+
+  try {
+    await prisma.badge.create({ data: { code, name, icon, condition } })
+  } catch {
+    return { message: '建立失敗（代碼可能重複）' }
+  }
+  revalidatePath('/admin')
+  revalidatePath('/admin/badges')
+  return { ok: true }
+}
+
+export async function updateBadge(state: BadgeFormState, formData: FormData): Promise<BadgeFormState> {
+  await requireAdmin()
+  const id = String(formData.get('id') || '')
+  const name = String(formData.get('name') || '').trim()
+  const icon = String(formData.get('icon') || '🏅').trim()
+  const condition = String(formData.get('condition') || '').trim()
+
+  if (!name || !condition) {
+    return { message: '名稱、條件為必填' }
+  }
+
+  await prisma.badge.update({ where: { id }, data: { name, icon, condition } })
+  revalidatePath('/admin')
+  revalidatePath('/admin/badges')
+  return { ok: true }
+}
+
+export async function deleteBadge(formData: FormData) {
+  await requireAdmin()
+  const id = String(formData.get('id'))
+  // 若有孩子已獲得此徽章，先刪除關聯
+  await prisma.childBadge.deleteMany({ where: { badgeId: id } })
+  await prisma.badge.delete({ where: { id } })
+  revalidatePath('/admin')
+  revalidatePath('/admin/badges')
 }
 
 // ============ 所有孩子總覽（管理員用） ============

@@ -14,6 +14,7 @@ export default async function AdminPage() {
     { label: '啟用題目', value: stats.questions, href: '/admin/questions', icon: '📝' },
     { label: '作答紀錄', value: stats.attempts, href: '/admin/attempts', icon: '📊' },
     { label: '孩子檔案', value: stats.children, href: '/admin/children', icon: '🧒' },
+    { label: '成就徽章', value: stats.badges, href: '/admin/badges', icon: '🏅' },
   ]
 
   return (
@@ -55,6 +56,13 @@ export default async function AdminPage() {
         >
           <h3 className="font-semibold">🧒 孩子總覽</h3>
           <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">查看所有孩子的練習狀況、掌握度與進度</p>
+        </Link>
+        <Link
+          href="/admin/badges"
+          className="rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-blue-300 dark:border-gray-700 dark:bg-gray-900"
+        >
+          <h3 className="font-semibold">🏅 成就徽章</h3>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">新增、編輯、刪除成就徽章定義</p>
         </Link>
       </div>
     </main>
