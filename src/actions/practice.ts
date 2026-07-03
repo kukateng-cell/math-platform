@@ -66,6 +66,12 @@ type StoredQuestion = {
   /** 數字線範圍 */
   rangeMin?: number
   rangeMax?: number
+  /** 填答輸入模式：numeric(數字+小數點) / text(文字) */
+  inputMode?: string
+  /** 數字模式最多位數 */
+  maxLength?: number
+  /** 文字模式 placeholder */
+  placeholder?: string
 }
 
 // 開始一次練習：在伺服器生成題目快照後建立 session
@@ -107,12 +113,18 @@ export async function startSession(childId: string, skillId: string) {
     let interaction: string | undefined
     let rangeMin: number | undefined
     let rangeMax: number | undefined
+    let inputMode: string | undefined
+    let maxLength: number | undefined
+    let placeholder: string | undefined
     if (t.paramsJson) {
       try {
         const parsed = JSON.parse(t.paramsJson)
         interaction = parsed.interaction
         rangeMin = parsed.rangeMin
         rangeMax = parsed.rangeMax
+        inputMode = parsed.inputMode
+        maxLength = parsed.maxLength
+        placeholder = parsed.placeholder
       } catch { /* ignore */ }
     }
 
@@ -125,6 +137,9 @@ export async function startSession(childId: string, skillId: string) {
       interaction,
       rangeMin,
       rangeMax,
+      inputMode,
+      maxLength,
+      placeholder,
     })
   }
 

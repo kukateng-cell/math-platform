@@ -1,9 +1,29 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
+import { getChildSession } from '@/lib/child-session'
 import { prisma } from '@/lib/prisma'
 import { getChildSkills } from '@/actions/practice'
 import type { Recommendation } from '@/lib/mastery'
+
+// ============ 授權輔助 ============
+// 孩子檔案頁同時支援兩種身分：
+// - 家長（家長 session）：可查看自己建立/綁定的孩子
+// - 孩子（自主學習 session）：只能查看自己的檔案
+type OverviewAuth =
+  | { type: 'parent'; userId: string }
+  | { type: 'child'; childId: string }
+  | null
+
+async function getOverviewAuth(): Promise<OverviewAuth> {
+  const session = await getSession()
+  if (session) return { type: 'parent', userId: session.userId }
+
+  const childSession = await getChildSession()
+  if (childSession) return { type: 'child', childId: childSession.childId }
+
+  return null
+}
 
 // ============ 相對時間輔助 ============
 function relativeTime(date: Date | string): string {
@@ -66,15 +86,12 @@ function RecommendationBanner({
           <p className="text-lg font-bold">{rec.reason}</p>
         </div>
         {rec.skillId && (
-          <form action="/actions/practice/start" method="POST">
-            {/* 用 client component 替代 form action */}
-            <Link
-              href={`/practice/${childId}`}
-              className="inline-block whitespace-nowrap rounded-xl bg-white/20 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:bg-white/30"
-            >
-              開始練習 →
-            </Link>
-          </form>
+          <Link
+            href={`/practice/${childId}`}
+            className="inline-block whitespace-nowrap rounded-xl bg-white/20 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:bg-white/30"
+          >
+            開始練習 →
+          </Link>
         )}
       </div>
     </div>
@@ -89,38 +106,73 @@ export default async function ChildOverviewPage({
 }) {
   const { childId } = await params
 
-  // 權限檢查
-  const session = await getSession()
-  if (!session) redirect('/login')
+  // 權限檢查：支援家長 session 或孩子 session
+  const auth = await getOverviewAuth()
+  if (!auth) redirect('/login')
 
-  const child = await prisma.childProfile.findFirst({
-    where: { id: childId, parentId: session.userId },
-    include: {
-      sessions: {
-        orderBy: { startedAt: 'desc' },
-        take: 10,
-        include: { skill: true },
-      },
-      badges: {
-        include: { badge: true },
-        orderBy: { earnedAt: 'desc' },
-      },
-    },
-  })
+  // 家長：可查看自己建立或透過 ParentChild 綁定的孩子
+  // 孩子（自主學習）：只能查看自己的檔案（childId 必須等於 session 中的 childId）
+  const child = auth.type === 'parent'
+    ? await prisma.childProfile.findFirst({
+        where: {
+          id: childId,
+          OR: [
+            { parentId: auth.userId },
+            { parentLinks: { some: { parentId: auth.userId } } },
+          ],
+        },
+        include: {
+          sessions: {
+            orderBy: { startedAt: 'desc' },
+            take: 10,
+            include: { skill: true },
+          },
+          badges: {
+            include: { badge: true },
+            orderBy: { earnedAt: 'desc' },
+          },
+        },
+      })
+    : auth.childId === childId
+      ? await prisma.childProfile.findFirst({
+          where: { id: childId },
+          include: {
+            sessions: {
+              orderBy: { startedAt: 'desc' },
+              take: 10,
+              include: { skill: true },
+            },
+            badges: {
+              include: { badge: true },
+              orderBy: { earnedAt: 'desc' },
+            },
+          },
+        })
+      : null
   if (!child) notFound()
 
   const skillsData = await getChildSkills(childId)
   const lastSession = child.sessions[0]
+  const isParent = auth.type === 'parent'
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
       {/* ============ 頂部導覽 ============ */}
-      <Link
-        href="/dashboard"
-        className="inline-flex items-center gap-1 text-sm text-neutral-500 transition hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white"
-      >
-        ← 返回孩子列表
-      </Link>
+      {isParent ? (
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1 text-sm text-neutral-500 transition hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white"
+        >
+          ← 返回孩子列表
+        </Link>
+      ) : (
+        <Link
+          href={`/practice/${childId}`}
+          className="inline-flex items-center gap-1 text-sm text-neutral-500 transition hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white"
+        >
+          ← 返回練習選單
+        </Link>
+      )}
 
       {/* ============ 孩子資訊 ============ */}
       <div className="mt-3 mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

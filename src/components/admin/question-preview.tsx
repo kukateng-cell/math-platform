@@ -18,6 +18,9 @@ const TYPE_LABEL: Record<string, string> = {
   DIRECT: '直接題目',
   ADD: '參數化加法',
   SUB: '參數化減法',
+  MUL: '參數化乘法',
+  DIV: '參數化除法',
+  WORD_PROBLEM: '參數化文字題',
 }
 
 export default function QuestionPreview({ question }: { question: QuestionData }) {
@@ -56,7 +59,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
     }
     return generateQuestion({
       id: question.id,
-      type: question.type as 'ADD' | 'SUB',
+      type: question.type as 'ADD' | 'SUB' | 'MUL' | 'DIV' | 'WORD_PROBLEM',
       prompt: question.prompt,
       paramsJson: question.paramsJson,
       answer: question.answer,
@@ -69,7 +72,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
     setPreview(
       generateQuestion({
         id: question.id,
-        type: question.type as 'ADD' | 'SUB',
+        type: question.type as 'ADD' | 'SUB' | 'MUL' | 'DIV' | 'WORD_PROBLEM',
         prompt: question.prompt,
         paramsJson: question.paramsJson,
         answer: question.answer,

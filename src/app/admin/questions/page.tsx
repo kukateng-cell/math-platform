@@ -11,6 +11,9 @@ const TYPE_LABEL: Record<string, string> = {
   DIRECT: '直接',
   ADD: '加法',
   SUB: '減法',
+  MUL: '乘法',
+  DIV: '除法',
+  WORD_PROBLEM: '文字題',
 }
 
 const PAGE_SIZE = 20
