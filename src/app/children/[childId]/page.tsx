@@ -4,6 +4,8 @@ import { getSession } from '@/lib/session'
 import { getChildSession } from '@/lib/child-session'
 import { prisma } from '@/lib/prisma'
 import { getChildSkills } from '@/actions/practice'
+import { getChildBadges } from '@/actions/achievement'
+import AchievementBadges from '@/components/achievement-badges'
 import type { Recommendation } from '@/lib/mastery'
 
 // ============ 授權輔助 ============
@@ -154,6 +156,7 @@ export default async function ChildOverviewPage({
   const skillsData = await getChildSkills(childId)
   const lastSession = child.sessions[0]
   const isParent = auth.type === 'parent'
+  const badges = await getChildBadges(childId)
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
@@ -314,32 +317,7 @@ export default async function ChildOverviewPage({
 
       {/* ============ 成就徽章 ============ */}
       <section className="mb-10">
-        <h2 className="mb-4 text-lg font-semibold">成就徽章</h2>
-
-        {child.badges.length === 0 ? (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-gray-700 dark:bg-gray-900">
-            <div className="mb-2 text-4xl">🏅</div>
-            <p className="text-sm text-neutral-400 dark:text-gray-500">還沒有獲得徽章，繼續練習吧！</p>
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-3">
-            {child.badges.map((cb) => (
-              <div
-                key={cb.id}
-                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 shadow-sm"
-                title={cb.badge.condition}
-              >
-                <span className="text-2xl">{cb.badge.icon}</span>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-amber-900">{cb.badge.name}</p>
-                  <p className="text-xs text-amber-600">
-                    {new Date(cb.earnedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })} 獲得
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <AchievementBadges badges={badges} />
       </section>
 
       {/* ============ 最近練習紀錄 ============ */}
