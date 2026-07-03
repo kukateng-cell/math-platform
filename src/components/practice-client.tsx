@@ -14,6 +14,12 @@ type QuestionItem = {
   interaction?: string
   rangeMin?: number
   rangeMax?: number
+  /** 輸入模式：numeric(數字+小數點) / text(文字)，預設 numeric */
+  inputMode?: string
+  /** 數字模式最多位數 */
+  maxLength?: number
+  /** 文字模式 placeholder */
+  placeholder?: string
 }
 
 type QuestionResult = {
@@ -67,6 +73,7 @@ export default function PracticeClient({
   const [bgFlash, setBgFlash] = useState<'green' | 'red' | null>(null)
   const [elapsed, setElapsed] = useState('00:00')
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
@@ -329,10 +336,18 @@ export default function PracticeClient({
     <div className={"mx-auto flex w-full max-w-lg flex-col gap-4 px-1 sm:gap-6 " + bgFlashClass} onKeyDown={handleKeyDown}>
       <div>
         <div className="mb-1 flex items-center justify-between text-xs text-neutral-500 dark:text-gray-400 sm:text-sm">
-          <span className="truncate">{skillName}</span>
+          <span className="truncate pr-2">{skillName}</span>
           <span className="flex shrink-0 items-center gap-2 sm:gap-3">
             <span className="font-mono">⏱️ {elapsed}</span>
             <span>{index + 1} / {totalQuestions}</span>
+            <button
+              type="button"
+              onClick={() => setShowExitConfirm(true)}
+              className="rounded-md px-2 py-0.5 text-xs font-medium text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              aria-label="結束練習"
+            >
+              ✕ 結束
+            </button>
           </span>
         </div>
         <div className="mb-1 flex justify-end text-[10px] font-medium text-indigo-500 sm:text-xs">
@@ -449,6 +464,9 @@ export default function PracticeClient({
           onChange={setFillValue}
           onSubmit={handleSubmit}
           disabled={!!lastResult}
+          mode={current.inputMode === 'text' ? 'text' : 'numeric'}
+          maxLength={current.maxLength}
+          placeholder={current.placeholder}
         />
       ) : null}
 
@@ -504,6 +522,39 @@ export default function PracticeClient({
           </button>
         )}
       </div>
+
+      {/* 中途結束練習確認 */}
+      {showExitConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExitConfirm(false)
+          }}
+        >
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl dark:bg-gray-900">
+            <div className="mb-2 text-center text-4xl">🤔</div>
+            <h3 className="mb-1 text-center text-lg font-semibold dark:text-white">要結束練習嗎？</h3>
+            <p className="mb-4 text-center text-sm text-neutral-500 dark:text-gray-400">
+              目前做到第 {index + 1} / {totalQuestions} 題，<br />已完成 {questionResults.length} 題的紀錄會保留。
+            </p>
+            <div className="flex flex-col gap-2">
+              <a
+                href={`/practice/${childId}`}
+                className="rounded-lg bg-red-600 px-4 py-2.5 text-center text-sm font-medium text-white transition hover:bg-red-700"
+              >
+                確定結束
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowExitConfirm(false)}
+                className="rounded-lg border border-neutral-300 px-4 py-2.5 text-center text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+              >
+                繼續練習
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
