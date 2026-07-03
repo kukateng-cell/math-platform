@@ -217,3 +217,109 @@ export async function getCurrentUser() {
     select: { id: true, name: true, email: true, role: true },
   })
 }
+
+// ============================================================
+// 忘記密碼（密碼重設）
+// 流程：請求重設 (Email+CAPTCHA) → OTP 驗證 → 設定新密碼
+// 沿用現有的 generateOtp / tempToken / verifyOtp 機制
+// ============================================================
+
+// ============ 忘記密碼 Step 1：輸入 Email → 發送 OTP ============
+export async function requestPasswordReset(state: FormState, formData: FormData): Promise<FormState> {
+  const email = String(formData.get('email') || '').trim().toLowerCase()
+
+  if (!email) {
+    return { message: '請輸入 Email', captcha: await createCaptcha() }
+  }
+
+  // CAPTCHA 驗證
+  const captchaToken = String(formData.get('captchaToken') || '')
+  const captchaAnswer = String(formData.get('captchaAnswer') || '')
+  if (!(await verifyCaptcha(captchaToken, captchaAnswer))) {
+    return { message: '驗證碼錯誤，請重新作答', captcha: await createCaptcha() }
+  }
+
+  // 限速（避免用來探測哪些 email 存在 / 郵件轟炸）
+  if (!checkRateLimit(`reset:${email}`)) {
+    return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
+  }
+
+  const user = await prisma.user.findUnique({ where: { email } })
+
+  // 基於安全：不論 email 是否存在，回應都一樣（避免列舉帳號）
+  // 但只有 email 真的存在時才會發送 OTP
+  let devOtp: string | undefined
+  let tempToken = ''
+  if (user) {
+    const otpCode = generateOtp(user.id)
+    sendOtpEmail(user.email, otpCode)
+    tempToken = await createTempToken(user.id)
+    const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
+    devOtp = showOtp ? otpCode : undefined
+  }
+
+  return {
+    otpRequired: true,
+    tempToken,
+    devOtp,
+    message: `若此 Email 已註冊，驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
+  }
+}
+
+// ============ 忘記密碼 Step 2：驗證 OTP → 取得重設權限 token ============
+export async function verifyResetOtp(state: FormState, formData: FormData): Promise<FormState> {
+  const tempToken = String(formData.get('tempToken') || '')
+  const otpCode = String(formData.get('otpCode') || '')
+
+  if (!tempToken || !otpCode) {
+    return { message: '缺少必要參數' }
+  }
+
+  const userId = await verifyTempToken(tempToken)
+  if (!userId) {
+    return { message: '驗證已過期，請重新申請重設密碼' }
+  }
+
+  if (!verifyOtp(userId, otpCode)) {
+    return { message: '驗證碼錯誤或已過期' }
+  }
+
+  // OTP 通過 → 發給一個新的「可重設密碼」短期 token（10 分鐘）
+  const resetToken = await createTempToken(userId)
+  return { ok: true, tempToken: resetToken, message: '驗證成功，請設定新密碼' }
+}
+
+// ============ 忘記密碼 Step 3：設定新密碼 ============
+export async function resetPassword(state: FormState, formData: FormData): Promise<FormState> {
+  const tempToken = String(formData.get('tempToken') || '')
+  const password = String(formData.get('password') || '')
+  const confirmPassword = String(formData.get('confirmPassword') || '')
+
+  if (!tempToken) {
+    return { message: '驗證已過期，請重新申請重設密碼' }
+  }
+
+  const userId = await verifyTempToken(tempToken)
+  if (!userId) {
+    return { message: '驗證已過期，請重新申請重設密碼' }
+  }
+
+  // 密碼規則沿用註冊的 SignupFormSchema（至少 8 碼、含字母與數字）
+  const pwdCheck = SignupFormSchema.shape.password.safeParse(password)
+  if (!pwdCheck.success) {
+    return { errors: { password: pwdCheck.error.errors.map((e) => e.message) } }
+  }
+
+  if (password !== confirmPassword) {
+    return { message: '兩次輸入的密碼不一致' }
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10)
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  })
+
+  // 重設完成 → 引導回登入頁
+  return { ok: true, message: '密碼已重設成功，請使用新密碼登入' }
+}
