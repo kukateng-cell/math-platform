@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { createQuestion, updateQuestion, type AdminFormState } from '@/actions/admin'
 
 type BaseSkill = { id: string; name: string }
@@ -24,6 +24,21 @@ export default function QuestionForm(props: Props) {
 
   const actionFn = mode === 'create' ? createQuestion : updateQuestion
   const [state, action, pending] = useActionState<AdminFormState, FormData>(actionFn, undefined)
+
+  // 從現有 paramsJson 解析互動模式（編輯模式初始值）
+  const initialInteraction = (() => {
+    if (mode !== 'edit' || !props.question.paramsJson) return 'choice'
+    try {
+      return (JSON.parse(props.question.paramsJson).interaction as string) ?? 'choice'
+    } catch { return 'choice' }
+  })()
+  const [interaction, setInteraction] = useState(initialInteraction)
+  const [inputMode, setInputMode] = useState<'numeric' | 'text'>(() => {
+    if (mode !== 'edit' || !props.question.paramsJson) return 'numeric'
+    try {
+      return (JSON.parse(props.question.paramsJson).inputMode as string) === 'text' ? 'text' : 'numeric'
+    } catch { return 'numeric' }
+  })
 
   if (state?.ok && mode === 'edit' && props.onDone) {
     props.onDone()
@@ -80,6 +95,7 @@ export default function QuestionForm(props: Props) {
               <option value="SUB">參數化減法</option>
               <option value="MUL">參數化乘法</option>
               <option value="DIV">參數化除法</option>
+              <option value="WORD_PROBLEM">參數化文字題</option>
             </select>
           )}
         </div>
@@ -93,14 +109,10 @@ export default function QuestionForm(props: Props) {
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                value={(() => {
-                  const p = mode === 'edit' ? props.question.paramsJson : null
-                  if (!p) return '選擇題'
-                  try {
-                    const parsed = JSON.parse(p)
-                    return parsed.interaction === 'numberline' ? '數字線' : parsed.interaction === 'fillin' ? '填答鍵盤' : '選擇題'
-                  } catch { return '選擇題' }
-                })()}
+                value={
+                  interaction === 'numberline' ? '數字線' :
+                  interaction === 'fillin' ? '填答鍵盤' : '選擇題'
+                }
                 readOnly
                 disabled
                 className="flex-1 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500"
@@ -110,16 +122,9 @@ export default function QuestionForm(props: Props) {
           ) : (
             <select
               name="interaction"
-              defaultValue="choice"
+              value={interaction}
+              onChange={(e) => setInteraction(e.target.value as 'choice' | 'numberline' | 'fillin')}
               className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-              onChange={(e) => {
-                const hint = document.querySelector<HTMLInputElement>('input[name="paramsJson"]')
-                if (e.target.value === 'numberline' && hint && !hint.value) {
-                  hint.placeholder = '{"interaction":"numberline","rangeMin":0,"rangeMax":10}'
-                } else if (e.target.value === 'fillin' && hint && !hint.value) {
-                  hint.placeholder = '{"interaction":"fillin"}'
-                }
-              }}
             >
               <option value="choice">選擇題</option>
               <option value="numberline">數字線</option>
@@ -138,6 +143,75 @@ export default function QuestionForm(props: Props) {
         </div>
       </div>
 
+      {/* 數字線範圍 */}
+      {interaction === 'numberline' && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium">數字線最小值</label>
+            <input
+              name="rangeMin"
+              type="number"
+              defaultValue={mode === 'edit' && props.question.paramsJson
+                ? (() => { try { return JSON.parse(props.question.paramsJson).rangeMin ?? 0 } catch { return 0 } })()
+                : 0}
+              className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium">數字線最大值</label>
+            <input
+              name="rangeMax"
+              type="number"
+              defaultValue={mode === 'edit' && props.question.paramsJson
+                ? (() => { try { return JSON.parse(props.question.paramsJson).rangeMax ?? 10 } catch { return 10 } })()
+                : 10}
+              className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 填答輸入模式 */}
+      {interaction === 'fillin' && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium">填答類型</label>
+            {mode === 'edit' ? (
+              <input
+                type="text"
+                value={inputMode === 'text' ? '文字輸入（鍵盤）' : '數字鍵盤'}
+                readOnly
+                disabled
+                className="rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-neutral-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500"
+              />
+            ) : (
+              <select
+                name="inputMode"
+                value={inputMode}
+                onChange={(e) => setInputMode(e.target.value as 'numeric' | 'text')}
+                className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+              >
+                <option value="numeric">數字鍵盤（含小數點）</option>
+                <option value="text">文字輸入（鍵盤）</option>
+              </select>
+            )}
+          </div>
+          {inputMode === 'text' && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">placeholder（提示文字）</label>
+              <input
+                name="placeholder"
+                defaultValue={mode === 'edit' && props.question.paramsJson
+                  ? (() => { try { return JSON.parse(props.question.paramsJson).placeholder ?? '' } catch { return '' } })()
+                  : ''}
+                placeholder="例：輸入答案"
+                className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium">題目 *</label>
         <input
@@ -148,25 +222,14 @@ export default function QuestionForm(props: Props) {
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium">答案 *</label>
-          <input
-            name="answer"
-            defaultValue={mode === 'edit' ? props.question.answer : undefined}
-            placeholder="直接題：7　參數化：{a+b}"
-            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium">選項（選擇題用，逗號分隔）</label>
-          <input
-            name="options"
-            defaultValue={mode === 'edit' ? (props.question.options ?? '') : undefined}
-            placeholder="留空為填答題"
-            className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-          />
-        </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium">答案 *</label>
+        <input
+          name="answer"
+          defaultValue={mode === 'edit' ? props.question.answer : undefined}
+          placeholder="直接題：7　參數化：{a+b}"
+          className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+        />
       </div>
 
       <div className="flex flex-col gap-1">

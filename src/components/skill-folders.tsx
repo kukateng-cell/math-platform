@@ -1,0 +1,219 @@
+'use client'
+
+import { useState } from 'react'
+import { startSession } from '@/actions/practice'
+
+// ============ 型別（與 getChildSkills 回傳一致）============
+export type SkillFolderItem = {
+  id: string
+  name: string
+  description?: string | null
+  gradeLevel: string
+  questionCount: number
+  masteryLevel: number
+  recentCorrect: number
+  recentTotal: number
+}
+
+// ============ 年級設定 ============
+// 順序、中文標籤、資料夾圖示、配色
+const GRADE_ORDER = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6']
+
+type GradeConfig = { label: string; icon: string; accent: string }
+
+const GRADE_CONFIG: Record<string, GradeConfig> = {
+  K: { label: '幼兒園', icon: '🧸', accent: 'from-pink-400 to-rose-400' },
+  G1: { label: '一年級', icon: '📘', accent: 'from-sky-400 to-blue-500' },
+  G2: { label: '二年級', icon: '📗', accent: 'from-emerald-400 to-green-500' },
+  G3: { label: '三年級', icon: '📙', accent: 'from-amber-400 to-orange-500' },
+  G4: { label: '四年級', icon: '📕', accent: 'from-violet-400 to-purple-500' },
+  G5: { label: '五年級', icon: '📓', accent: 'from-teal-400 to-cyan-500' },
+  G6: { label: '六年級', icon: '📔', accent: 'from-fuchsia-400 to-pink-500' },
+}
+
+function gradeConfig(level: string): GradeConfig {
+  return (
+    GRADE_CONFIG[level] ?? {
+      label: level,
+      icon: '📁',
+      accent: 'from-slate-400 to-slate-500',
+    }
+  )
+}
+
+function gradeSortKey(level: string): number {
+  const idx = GRADE_ORDER.indexOf(level)
+  return idx === -1 ? 999 : idx
+}
+
+// ============ 主元件 ============
+export function SkillFolders({
+  skills,
+  childId,
+  childGradeLevel,
+}: {
+  skills: SkillFolderItem[]
+  childId: string
+  childGradeLevel: string
+}) {
+  // 依年級分組（依照定義的年級順序排序）
+  const groups = new Map<string, SkillFolderItem[]>()
+  for (const s of skills) {
+    const arr = groups.get(s.gradeLevel) ?? []
+    arr.push(s)
+    groups.set(s.gradeLevel, arr)
+  }
+  const sortedGrades = [...groups.keys()].sort(
+    (a, b) => gradeSortKey(a) - gradeSortKey(b)
+  )
+
+  // 預設展開「孩子目前年級」的資料夾；若該年級沒有技能則展開第一個
+  const defaultGrade =
+    groups.has(childGradeLevel) ? childGradeLevel : sortedGrades[0]
+
+  const [open, setOpen] = useState<Record<string, boolean>>(
+    defaultGrade ? { [defaultGrade]: true } : {}
+  )
+
+  const toggle = (g: string) =>
+    setOpen((prev) => ({ ...prev, [g]: !prev[g] }))
+
+  if (sortedGrades.length === 0) {
+    return (
+      <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-900">
+        <div className="mb-3 text-5xl">📂</div>
+        <p className="text-sm text-neutral-400 dark:text-gray-500">
+          目前沒有可練習的技能
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {sortedGrades.map((grade) => {
+        const list = groups.get(grade)!
+        const cfg = gradeConfig(grade)
+        const isOpen = !!open[grade]
+        const isChildGrade = grade === childGradeLevel
+        const availableCount = list.filter((s) => s.questionCount > 0).length
+
+        return (
+          <div
+            key={grade}
+            className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition dark:bg-gray-900 ${
+              isChildGrade
+                ? 'border-blue-300 dark:border-blue-700'
+                : 'border-neutral-200 dark:border-gray-700'
+            }`}
+          >
+            {/* ============ 資料夾標頭（可點擊展開/收合）============ */}
+            <button
+              type="button"
+              onClick={() => toggle(grade)}
+              aria-expanded={isOpen}
+              className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-neutral-50 dark:hover:bg-gray-800/60"
+            >
+              {/* 資料夾圖示 */}
+              <span
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${cfg.accent} text-2xl shadow-sm`}
+              >
+                {cfg.icon}
+              </span>
+
+              {/* 年級名稱 + 份數 */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="truncate text-base font-bold">
+                    {cfg.label}
+                  </h3>
+                  {isChildGrade && (
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                      我的年級
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs text-neutral-500 dark:text-gray-400">
+                  {list.length} 個練習{availableCount < list.length && `（${availableCount} 個可練習）`}
+                </p>
+              </div>
+
+              {/* 展開/收合箭頭 */}
+              <span
+                className={`shrink-0 text-neutral-400 transition-transform duration-200 dark:text-gray-500 ${
+                  isOpen ? 'rotate-90' : ''
+                }`}
+              >
+                ▶
+              </span>
+            </button>
+
+            {/* ============ 展開內容：該年級的技能清單 ============ */}
+            {isOpen && (
+              <div className="space-y-2 border-t border-neutral-100 bg-neutral-50/50 p-3 dark:border-gray-800 dark:bg-gray-800/30">
+                {list.map((skill) => (
+                  <SkillRow
+                    key={skill.id}
+                    skill={skill}
+                    childId={childId}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ============ 單一技能列（沿用原本的練習卡片設計）============
+function SkillRow({
+  skill,
+  childId,
+}: {
+  skill: SkillFolderItem
+  childId: string
+}) {
+  const rate =
+    skill.recentTotal > 0 ? Math.round(skill.masteryLevel * 100) : null
+
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <h4 className="truncate font-semibold">{skill.name}</h4>
+          {skill.questionCount === 0 && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+              尚無題目
+            </span>
+          )}
+        </div>
+        {skill.description && (
+          <p className="mt-1 truncate text-sm text-neutral-600 dark:text-gray-400">
+            {skill.description}
+          </p>
+        )}
+        {rate !== null && (
+          <p className="mt-1 text-xs text-neutral-400 dark:text-gray-500">
+            最近正確率 {rate}%（{skill.recentCorrect}/{skill.recentTotal}）
+          </p>
+        )}
+      </div>
+      {skill.questionCount > 0 ? (
+        <form action={startSession.bind(null, childId, skill.id)}>
+          <button
+            type="submit"
+            className="ml-3 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+          >
+            練習
+          </button>
+        </form>
+      ) : (
+        <span className="ml-3 shrink-0 text-sm text-neutral-400 dark:text-gray-500">
+          無題目
+        </span>
+      )}
+    </div>
+  )
+}

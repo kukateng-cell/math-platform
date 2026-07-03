@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 夜間模式由 <html> 上的 .dark class 控制（可由切換按鈕或系統偏好觸發） */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -12,15 +15,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #fafafa;
-  }
-  /* 確保所有未明確設定顏色的文字在深色模式下為白色 */
-  html {
-    color-scheme: dark;
-  }
+/* 當 <html> 帶有 .dark 時套用夜間配色（覆蓋 :root 變數） */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  /* 確保所有未明確設定顏色的文字在深色模式下為白色，並讓捲軸/表單控制項配色一致 */
+  color-scheme: dark;
 }
 
 body {
