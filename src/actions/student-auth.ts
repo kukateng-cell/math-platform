@@ -142,6 +142,44 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
   }
 }
 
+// ============ 自學模式：重新發送 OTP（使用者主動「換一組驗證碼」）============
+// 走 OTP 冷卻機制（60 秒內不可重發），產生新 6 位數碼並寄信
+export async function selfStudyResendOtp(state: SelfStudyState, formData: FormData): Promise<SelfStudyState> {
+  const { verifyTempToken, generateOtp, canResendOtp, getResendCooldownSeconds } = await import('@/lib/otp')
+
+  const tempToken = String(formData.get('tempToken') || '')
+  if (!tempToken) return { error: '階段已過期，請重新操作' }
+
+  const childId = await verifyTempToken(tempToken)
+  if (!childId) return { error: '階段已過期，請重新操作' }
+
+  // 冷卻檢查
+  if (!canResendOtp(childId)) {
+    const cooldown = getResendCooldownSeconds(childId)
+    return {
+      otpRequired: true,
+      tempToken,
+      message: `請 ${cooldown} 秒後再重新發送`,
+    }
+  }
+
+  const child = await prisma.childProfile.findUnique({ where: { id: childId } })
+  if (!child || !child.email) return { error: '帳號不存在', tempToken }
+
+  // 產生新 OTP 並寄出
+  const otpCode = generateOtp(childId)
+  sendOtpEmail(child.email, otpCode)
+  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
+  const devOtp = showOtp ? otpCode : undefined
+
+  return {
+    otpRequired: true,
+    tempToken,
+    devOtp,
+    message: `新驗證碼已發送至 ${child.email.replace(/(.{3}).+@/, '$1***@')}`,
+  }
+}
+
 // ============ 學生綁定家長 ============
 export async function linkParent(state: StudentState, formData: FormData): Promise<StudentState> {
   const { getChildSession: getChild } = await import('@/lib/child-session')
