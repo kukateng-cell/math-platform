@@ -481,7 +481,11 @@ export default function PracticeClient({
           onChange={setFillValue}
           onSubmit={handleSubmit}
           disabled={!!lastResult}
-          mode={current.inputMode === 'text' ? 'text' : 'numeric'}
+          // 自動判斷輸入模式：
+          // - inputMode 明確設為 'text' → 文字模式（鍵盤輸入中文/英文）
+          // - inputMode 明確設為 'numeric' → 數字鍵盤
+          // - 未設定時，依答案內容自動偵測：非純數字答案（含中文/單位）→ 文字模式
+          mode={current.inputMode === 'text' || (current.inputMode !== 'numeric' && current.answer && !/^-?\d+(\.\d+)?$/.test(current.answer)) ? 'text' : 'numeric'}
           maxLength={current.maxLength}
           placeholder={current.placeholder}
         />
