@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getChildSkills, startSession, hasPracticeAccess } from '@/actions/practice'
 import { getSession } from '@/lib/session'
 import { childLogout } from '@/actions/child-auth'
+import { SkillFolders } from '@/components/skill-folders'
 
 export default async function PracticeSelectPage({
   params,
@@ -64,50 +65,13 @@ export default async function PracticeSelectPage({
         </div>
       )}
 
-      {/* 技能列表 */}
-      <div className="space-y-3">
-        {skills.map((skill) => {
-          const rate = skill.recentTotal > 0 ? Math.round(skill.masteryLevel * 100) : null
-          return (
-            <div
-              key={skill.id}
-              className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold">{skill.name}</h3>
-                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-gray-700 dark:text-gray-300">
-                    {skill.gradeLevel}
-                  </span>
-                  {skill.questionCount === 0 && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
-                      尚無題目
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-sm text-neutral-600 dark:text-gray-400">{skill.description}</p>
-                {rate !== null && (
-                  <p className="mt-1 text-xs text-neutral-400 dark:text-gray-500">
-                    最近正確率 {rate}%（{skill.recentCorrect}/{skill.recentTotal}）
-                  </p>
-                )}
-              </div>
-              {skill.questionCount > 0 ? (
-                <form action={startSession.bind(null, childId, skill.id)}>
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                  >
-                    練習
-                  </button>
-                </form>
-              ) : (
-                <span className="text-sm text-neutral-400 dark:text-gray-500">無題目</span>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      {/* 技能列表（依年級分類成資料夾）*/}
+      <h2 className="mb-3 mt-2 text-lg font-semibold">依年級選擇練習</h2>
+      <SkillFolders
+        skills={skills}
+        childId={childId}
+        childGradeLevel={child.gradeLevel}
+      />
     </main>
   )
 }
