@@ -180,6 +180,254 @@ async function main() {
     },
   })
 
+  // ============ G3 橋接技能：進階四則運算與分數初步 ============
+  const addSub100 = await prisma.skill.upsert({
+    where: { code: 'add-sub-100' },
+    update: { order: 12, prerequisiteId: divideBasic.id },
+    create: {
+      code: 'add-sub-100',
+      name: '百以內加減',
+      description: '兩位數加減法，進位與借位練習',
+      gradeLevel: 'G3',
+      order: 12,
+      prerequisiteId: divideBasic.id,
+    },
+  })
+
+  const multiplyAdvanced = await prisma.skill.upsert({
+    where: { code: 'multiply-advanced' },
+    update: { order: 13, prerequisiteId: addSub100.id },
+    create: {
+      code: 'multiply-advanced',
+      name: '乘法進階',
+      description: '一位數×兩位數、乘法應用',
+      gradeLevel: 'G3',
+      order: 13,
+      prerequisiteId: addSub100.id,
+    },
+  })
+
+  const divideAdvanced = await prisma.skill.upsert({
+    where: { code: 'divide-advanced' },
+    update: { order: 14, prerequisiteId: multiplyAdvanced.id },
+    create: {
+      code: 'divide-advanced',
+      name: '除法進階',
+      description: '兩位數除以一位數、有餘數的除法',
+      gradeLevel: 'G3',
+      order: 14,
+      prerequisiteId: multiplyAdvanced.id,
+    },
+  })
+
+  const mixedOps = await prisma.skill.upsert({
+    where: { code: 'mixed-operations' },
+    update: { order: 15, prerequisiteId: divideAdvanced.id },
+    create: {
+      code: 'mixed-operations',
+      name: '四則混合',
+      description: '加減乘除混合運算，先乘除後加減',
+      gradeLevel: 'G3',
+      order: 15,
+      prerequisiteId: divideAdvanced.id,
+    },
+  })
+
+  const fractionIntro = await prisma.skill.upsert({
+    where: { code: 'fraction-intro' },
+    update: { order: 16, prerequisiteId: mixedOps.id },
+    create: {
+      code: 'fraction-intro',
+      name: '分數初步',
+      description: '認識分數、真分數、帶分數與簡單分數比較',
+      gradeLevel: 'G3',
+      order: 16,
+      prerequisiteId: mixedOps.id,
+    },
+  })
+
+  // ============ G4 橋接技能：分數與小數 ============
+  const fractionCompare = await prisma.skill.upsert({
+    where: { code: 'fraction-compare' },
+    update: { order: 17, prerequisiteId: fractionIntro.id },
+    create: {
+      code: 'fraction-compare',
+      name: '分數比較與加減',
+      description: '同分母分數比較、加減與帶分數轉換',
+      gradeLevel: 'G4',
+      order: 17,
+      prerequisiteId: fractionIntro.id,
+    },
+  })
+
+  const decimalIntro = await prisma.skill.upsert({
+    where: { code: 'decimal-intro' },
+    update: { order: 18, prerequisiteId: fractionCompare.id },
+    create: {
+      code: 'decimal-intro',
+      name: '小數初步',
+      description: '認識小數、小數的位值、小數比大小',
+      gradeLevel: 'G4',
+      order: 18,
+      prerequisiteId: fractionCompare.id,
+    },
+  })
+
+  const areaIntro = await prisma.skill.upsert({
+    where: { code: 'area-intro' },
+    update: { order: 19 },
+    create: {
+      code: 'area-intro',
+      name: '面積',
+      description: '正方形和長方形的面積公式與應用',
+      gradeLevel: 'G4',
+      order: 19,
+    },
+  })
+
+  const longDivision = await prisma.skill.upsert({
+    where: { code: 'long-division' },
+    update: { order: 20, prerequisiteId: decimalIntro.id },
+    create: {
+      code: 'long-division',
+      name: '直式除法',
+      description: '三位數除以一位數的直式計算與應用',
+      gradeLevel: 'G4',
+      order: 20,
+      prerequisiteId: decimalIntro.id,
+    },
+  })
+
+  // ============ G5 小數與分數進階 ============
+  const decimalOps = await prisma.skill.upsert({
+    where: { code: 'decimal-operations' },
+    update: { order: 21, prerequisiteId: decimalIntro.id },
+    create: {
+      code: 'decimal-operations',
+      name: '小數加減法',
+      description: '小數的加法和減法，對齊小數點',
+      gradeLevel: 'G5',
+      order: 21,
+      prerequisiteId: decimalIntro.id,
+    },
+  })
+
+  const fractionOps = await prisma.skill.upsert({
+    where: { code: 'fraction-operations' },
+    update: { order: 22, prerequisiteId: fractionCompare.id },
+    create: {
+      code: 'fraction-operations',
+      name: '分數加減法',
+      description: '異分母分數加減、通分與約分',
+      gradeLevel: 'G5',
+      order: 22,
+      prerequisiteId: fractionCompare.id,
+    },
+  })
+
+  const decimalMulDiv = await prisma.skill.upsert({
+    where: { code: 'decimal-multiply-divide' },
+    update: { order: 23, prerequisiteId: decimalOps.id },
+    create: {
+      code: 'decimal-multiply-divide',
+      name: '小數乘除法',
+      description: '小數乘以整數、小數除以整數的計算',
+      gradeLevel: 'G5',
+      order: 23,
+      prerequisiteId: decimalOps.id,
+    },
+  })
+
+  const fractionMulDiv = await prisma.skill.upsert({
+    where: { code: 'fraction-multiply-divide' },
+    update: { order: 24, prerequisiteId: fractionOps.id },
+    create: {
+      code: 'fraction-multiply-divide',
+      name: '分數乘除法',
+      description: '分數乘以分數、分數除以分數的計算',
+      gradeLevel: 'G5',
+      order: 24,
+      prerequisiteId: fractionOps.id,
+    },
+  })
+
+  const volumeIntro = await prisma.skill.upsert({
+    where: { code: 'volume-intro' },
+    update: { order: 25 },
+    create: {
+      code: 'volume-intro',
+      name: '體積',
+      description: '長方體和正方體的體積公式與應用',
+      gradeLevel: 'G5',
+      order: 25,
+    },
+  })
+
+  // ============ G6 比例、百分比與幾何 ============
+  const ratio = await prisma.skill.upsert({
+    where: { code: 'ratio' },
+    update: { order: 26, prerequisiteId: fractionMulDiv.id },
+    create: {
+      code: 'ratio',
+      name: '比與比例',
+      description: '比的意義、化簡比、比例式的應用',
+      gradeLevel: 'G6',
+      order: 26,
+      prerequisiteId: fractionMulDiv.id,
+    },
+  })
+
+  const percent = await prisma.skill.upsert({
+    where: { code: 'percent' },
+    update: { order: 27, prerequisiteId: ratio.id },
+    create: {
+      code: 'percent',
+      name: '百分比',
+      description: '百分率、百分比的計算、折扣與加成',
+      gradeLevel: 'G6',
+      order: 27,
+      prerequisiteId: ratio.id,
+    },
+  })
+
+  const circle = await prisma.skill.upsert({
+    where: { code: 'circle' },
+    update: { order: 28 },
+    create: {
+      code: 'circle',
+      name: '圓',
+      description: '圓周率、圓周長與圓面積的計算',
+      gradeLevel: 'G6',
+      order: 28,
+    },
+  })
+
+  const speed = await prisma.skill.upsert({
+    where: { code: 'speed' },
+    update: { order: 29, prerequisiteId: ratio.id },
+    create: {
+      code: 'speed',
+      name: '速率',
+      description: '速度、距離、時間的關係與計算',
+      gradeLevel: 'G6',
+      order: 29,
+      prerequisiteId: ratio.id,
+    },
+  })
+
+  const prismVolume = await prisma.skill.upsert({
+    where: { code: 'prism-volume' },
+    update: { order: 30, prerequisiteId: volumeIntro.id },
+    create: {
+      code: 'prism-volume',
+      name: '柱體體積',
+      description: '圓柱與角柱的體積計算',
+      gradeLevel: 'G6',
+      order: 30,
+      prerequisiteId: volumeIntro.id,
+    },
+  })
+
   // ============ 題目模板 ============
   // 必須按外鍵依賴順序清除，避免 SQLite 外鍵約束錯誤
   await prisma.attempt.deleteMany({})
@@ -1092,8 +1340,372 @@ async function main() {
     })
   }
 
+  // ═══════════════════════════════════════════════
+  // 加大現有題庫：為 K-2 技能補充更多題目
+  // ═══════════════════════════════════════════════
+
+  // ─── 數數 補充 12 題 ───
+  for (const q of [
+    { prompt: '★ ★ ★ ★ ★ ★ ★ ★ ★ 有幾個★？', answer: '9', options: '8,9,10' },
+    { prompt: '● ● ● ● ● ● ● 有幾個●？', answer: '7', options: '6,7,8' },
+    { prompt: '■ ■ ■ ■ ■ ■ 有幾個■？', answer: '6', options: '5,6,7' },
+    { prompt: '◆ ◆ ◆ ◆ ◆ ◆ ◆ ◆ 有幾個◆？', answer: '8', options: '7,8,9' },
+    { prompt: '♥ ♥ ♥ ♥ ♥ 有幾個♥？', answer: '5', options: '4,5,6' },
+    { prompt: '⭐ ⭐ ⭐ ⭐ ⭐ ⭐ 有幾個⭐？', answer: '6', options: '5,6,7' },
+    { prompt: '💎 💎 💎 有幾個💎？', answer: '3', options: '2,3,4' },
+    { prompt: '🌺 🌺 🌺 🌺 🌺 🌺 🌺 🌺 🌺 有幾個🌺？', answer: '9', options: '8,9,10' },
+    { prompt: '🍎 🍎 🍎 🍎 🍎 🍎 🍎 🍎 有幾個🍎？', answer: '8', options: '7,8,9' },
+    { prompt: '🐟 🐟 🐟 🐟 🐟 🐟 有幾條🐟？', answer: '6', options: '5,6,7' },
+    { prompt: '🐱 🐱 🐱 🐱 🐱 🐱 🐱 有幾隻🐱？', answer: '7', options: '6,7,8' },
+    { prompt: '🌸 🌸 🌸 🌸 有幾朵🌸？', answer: '4', options: '3,4,5' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: countObjects.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, options: q.options, explanation: `一個一個數，總共有 ${q.answer} 個` },
+    })
+  }
+
+  // ─── 10 以內加法 補充 15 題 ───
+  for (const q of [
+    { prompt: '2 + 6 = ?', answer: '8' }, { prompt: '6 + 2 = ?', answer: '8' },
+    { prompt: '3 + 5 = ?', answer: '8' }, { prompt: '5 + 3 = ?', answer: '8' },
+    { prompt: '4 + 6 = ?', answer: '10' }, { prompt: '6 + 4 = ?', answer: '10' },
+    { prompt: '7 + 2 = ?', answer: '9' }, { prompt: '2 + 7 = ?', answer: '9' },
+    { prompt: '8 + 1 = ?', answer: '9' }, { prompt: '1 + 6 = ?', answer: '7' },
+    { prompt: '7 + 1 = ?', answer: '8' }, { prompt: '3 + 6 = ?', answer: '9' },
+    { prompt: '6 + 1 = ?', answer: '7' }, { prompt: '4 + 5 = ?', answer: '9' },
+    { prompt: '5 + 5 = ?', answer: '10' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: addWithin10.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}，把兩個數合起來` },
+    })
+  }
+
+  // ─── 10 以內減法 補充 15 題 ───
+  for (const q of [
+    { prompt: '8 - 2 = ?', answer: '6' }, { prompt: '8 - 6 = ?', answer: '2' },
+    { prompt: '7 - 1 = ?', answer: '6' }, { prompt: '9 - 3 = ?', answer: '6' },
+    { prompt: '9 - 7 = ?', answer: '2' }, { prompt: '10 - 6 = ?', answer: '4' },
+    { prompt: '10 - 8 = ?', answer: '2' }, { prompt: '6 - 2 = ?', answer: '4' },
+    { prompt: '6 - 5 = ?', answer: '1' }, { prompt: '5 - 3 = ?', answer: '2' },
+    { prompt: '8 - 4 = ?', answer: '4' }, { prompt: '8 - 7 = ?', answer: '1' },
+    { prompt: '9 - 2 = ?', answer: '7' }, { prompt: '9 - 5 = ?', answer: '4' },
+    { prompt: '7 - 2 = ?', answer: '5' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: subWithin10.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}，從大數裡拿走小數` },
+    })
+  }
+
+  // ─── 20 以內加法 補充 15 題 ───
+  for (const q of [
+    { prompt: '14 + 4 = ?', answer: '18' }, { prompt: '11 + 9 = ?', answer: '20' },
+    { prompt: '8 + 12 = ?', answer: '20' }, { prompt: '15 + 5 = ?', answer: '20' },
+    { prompt: '12 + 6 = ?', answer: '18' }, { prompt: '7 + 13 = ?', answer: '20' },
+    { prompt: '9 + 11 = ?', answer: '20' }, { prompt: '16 + 4 = ?', answer: '20' },
+    { prompt: '13 + 7 = ?', answer: '20' }, { prompt: '10 + 9 = ?', answer: '19' },
+    { prompt: '5 + 14 = ?', answer: '19' }, { prompt: '17 + 2 = ?', answer: '19' },
+    { prompt: '3 + 16 = ?', answer: '19' }, { prompt: '12 + 8 = ?', answer: '20' },
+    { prompt: '6 + 14 = ?', answer: '20' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: addWithin20.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}，先算個位數再加十位數` },
+    })
+  }
+
+  // ═══════════════════════════════════════════════
+  // G3 ~ G6 題庫
+  // ═══════════════════════════════════════════════
+
+  // ─── G3: 百以內加減 ───
+  for (const t of [
+    { prompt: '{a} + {b} = ?', params: { aMin: 20, aMax: 50, bMin: 10, bMax: 40, sumMax: 100 } },
+    { prompt: '{a} - {b} = ?', params: { aMin: 30, aMax: 80, bMin: 10, bMax: 40 } },
+    { prompt: '{a} + {b} = ?', params: { aMin: 45, aMax: 70, bMin: 5, bMax: 25, sumMax: 100 } },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: addSub100.id, type: t.prompt.includes('+') ? 'ADD' as const : 'SUB' as const, prompt: t.prompt, paramsJson: JSON.stringify(t.params), answer: t.prompt.includes('+') ? '{a+b}' : '{a-b}', explanation: '先算個位數，再算十位數，注意進位與借位。' },
+    })
+  }
+  for (const q of [
+    { prompt: '56 + 23 = ?', answer: '79' }, { prompt: '87 - 35 = ?', answer: '52' },
+    { prompt: '44 + 38 = ?', answer: '82' }, { prompt: '73 - 46 = ?', answer: '27' },
+    { prompt: '62 + 29 = ?', answer: '91' }, { prompt: '95 - 58 = ?', answer: '37' },
+    { prompt: '38 + 47 = ?', answer: '85' }, { prompt: '81 - 63 = ?', answer: '18' },
+    { prompt: '55 + 36 = ?', answer: '91' }, { prompt: '70 - 44 = ?', answer: '26' },
+    { prompt: '29 + 58 = ?', answer: '87' }, { prompt: '64 - 28 = ?', answer: '36' },
+    { prompt: '46 + 37 = ?', answer: '83' }, { prompt: '92 - 37 = ?', answer: '55' },
+    { prompt: '18 + 75 = ?', answer: '93' }, { prompt: '53 - 29 = ?', answer: '24' },
+    { prompt: '35 + 48 = ?', answer: '83' }, { prompt: '86 - 47 = ?', answer: '39' },
+    { prompt: '67 + 26 = ?', answer: '93' }, { prompt: '100 - 45 = ?', answer: '55' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: addSub100.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+
+  // ─── G3: 乘法進階 ───
+  for (const t of [
+    { prompt: '{a} × {b} = ?', params: { aMin: 3, aMax: 9, bMin: 11, bMax: 20 } },
+    { prompt: '{a} × {b} = ?', params: { aMin: 2, aMax: 8, bMin: 12, bMax: 25 } },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: multiplyAdvanced.id, type: 'MUL', prompt: t.prompt, paramsJson: JSON.stringify(t.params), answer: '{a*b}', explanation: '將兩位數拆成十位和個位分別計算' },
+    })
+  }
+  for (const q of [
+    { prompt: '4 × 12 = ?', answer: '48' }, { prompt: '6 × 13 = ?', answer: '78' },
+    { prompt: '7 × 14 = ?', answer: '98' }, { prompt: '3 × 15 = ?', answer: '45' },
+    { prompt: '5 × 16 = ?', answer: '80' }, { prompt: '8 × 12 = ?', answer: '96' },
+    { prompt: '9 × 11 = ?', answer: '99' }, { prompt: '4 × 18 = ?', answer: '72' },
+    { prompt: '6 × 15 = ?', answer: '90' }, { prompt: '5 × 19 = ?', answer: '95' },
+    { prompt: '7 × 12 = ?', answer: '84' }, { prompt: '3 × 24 = ?', answer: '72' },
+    { prompt: '8 × 11 = ?', answer: '88' }, { prompt: '4 × 22 = ?', answer: '88' },
+    { prompt: '6 × 14 = ?', answer: '84' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: multiplyAdvanced.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+
+  // ─── G3: 除法進階 ───
+  for (const t of [
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 20, aMax: 60, bMin: 3, bMax: 9, aMultipleOfB: true } },
+    { prompt: '{a} ÷ {b} = ?', params: { aMin: 30, aMax: 80, bMin: 2, bMax: 7, aMultipleOfB: true } },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: divideAdvanced.id, type: 'DIV', prompt: t.prompt, paramsJson: JSON.stringify(t.params), answer: '{a/b}', explanation: '利用乘法口訣來算除法' },
+    })
+  }
+  for (const q of [
+    { prompt: '36 ÷ 4 = ?', answer: '9' }, { prompt: '54 ÷ 6 = ?', answer: '9' },
+    { prompt: '48 ÷ 8 = ?', answer: '6' }, { prompt: '63 ÷ 7 = ?', answer: '9' },
+    { prompt: '72 ÷ 9 = ?', answer: '8' }, { prompt: '56 ÷ 7 = ?', answer: '8' },
+    { prompt: '45 ÷ 5 = ?', answer: '9' }, { prompt: '32 ÷ 4 = ?', answer: '8' },
+    { prompt: '42 ÷ 6 = ?', answer: '7' }, { prompt: '60 ÷ 5 = ?', answer: '12' },
+    { prompt: '96 ÷ 8 = ?', answer: '12' }, { prompt: '84 ÷ 7 = ?', answer: '12' },
+    { prompt: '28 ÷ 4 = ?', answer: '7' }, { prompt: '66 ÷ 6 = ?', answer: '11' },
+    { prompt: '78 ÷ 6 = ?', answer: '13' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: divideAdvanced.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+
+  // ─── G3: 四則混合 ───
+  for (const q of [
+    { prompt: '3 + 5 × 2 = ?', answer: '13', expl: '先乘後加：5×2=10，3+10=13' },
+    { prompt: '10 - 6 ÷ 2 = ?', answer: '7', expl: '先除後減：6÷2=3，10-3=7' },
+    { prompt: '4 × 3 + 5 = ?', answer: '17', expl: '4×3=12，12+5=17' },
+    { prompt: '20 ÷ 4 - 3 = ?', answer: '2', expl: '20÷4=5，5-3=2' },
+    { prompt: '6 + 4 × 2 = ?', answer: '14' }, { prompt: '15 - 3 × 2 = ?', answer: '9' },
+    { prompt: '12 ÷ 3 + 1 = ?', answer: '5' }, { prompt: '8 + 8 ÷ 2 = ?', answer: '12' },
+    { prompt: '7 × 2 - 5 = ?', answer: '9' }, { prompt: '18 ÷ 3 + 4 = ?', answer: '10' },
+    { prompt: '(3 + 5) × 2 = ?', answer: '16', expl: '括號先算：8×2=16' },
+    { prompt: '(10 - 2) ÷ 4 = ?', answer: '2' }, { prompt: '(4 + 6) × 3 = ?', answer: '30' },
+    { prompt: '(20 - 5) ÷ 5 = ?', answer: '3' }, { prompt: '2 × (3 + 4) = ?', answer: '14' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: mixedOps.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: q.expl ?? '先乘除後加減，有括號先算括號內' },
+    })
+  }
+
+  // ─── G3: 分數初步 ───
+  for (const q of [
+    { prompt: '把蛋糕平分成 4 份，1 份是幾分之幾？', answer: '1/4' },
+    { prompt: '把圓平分成 8 份，3 份是幾分之幾？', answer: '3/8' },
+    { prompt: '1/2 和 1/3 哪個大？', answer: '1/2' },
+    { prompt: '1/4 + 2/4 = ?', answer: '3/4' },
+    { prompt: '3/5 - 1/5 = ?', answer: '2/5' },
+    { prompt: '2/3 和 3/4 哪個大？', answer: '3/4' },
+    { prompt: '5/8 + 2/8 = ?', answer: '7/8' },
+    { prompt: '7/9 - 4/9 = ?', answer: '3/9' },
+    { prompt: '1 又 1/2 = ?', answer: '3/2' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: fractionIntro.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '認識分數的基本概念與同分母分數加減' },
+    })
+  }
+
+  // ─── G4: 分數比較與加減 ───
+  for (const q of [
+    { prompt: '2/5 + 1/5 = ?', answer: '3/5' }, { prompt: '5/8 - 3/8 = ?', answer: '2/8' },
+    { prompt: '1/2 + 1/4 = ?', answer: '3/4' }, { prompt: '3/4 - 1/2 = ?', answer: '1/4' },
+    { prompt: '1/3 + 1/6 = ?', answer: '1/2' }, { prompt: '約分 6/8 = ?', answer: '3/4' },
+    { prompt: '4/10 化簡 = ?', answer: '2/5' }, { prompt: '5/6 - 1/3 = ?', answer: '1/2' },
+    { prompt: '2/3 + 1/6 = ?', answer: '5/6' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: fractionCompare.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '同分母分數加減、通分與約分練習' },
+    })
+  }
+
+  // ─── G4: 小數初步 ───
+  for (const q of [
+    { prompt: '0.5 = ？分數', answer: '1/2' }, { prompt: '0.25 = ？分數', answer: '1/4' },
+    { prompt: '0.3 > 0.25 對嗎？', answer: '對' }, { prompt: '0.7 + 0.2 = ?', answer: '0.9' },
+    { prompt: '0.8 - 0.3 = ?', answer: '0.5' }, { prompt: '1.5 = ？', answer: '1又1/2' },
+    { prompt: '0.6 + 0.4 = ?', answer: '1.0' }, { prompt: '0.9 - 0.6 = ?', answer: '0.3' },
+    { prompt: '0.1 × 10 = ?', answer: '1' }, { prompt: '3.2 > 2.8 對嗎？', answer: '對' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: decimalIntro.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '認識小數與小數的加減運算' },
+    })
+  }
+
+  // ─── G4: 面積 ───
+  for (const q of [
+    { prompt: '正方形邊長 5cm，面積？', answer: '25' }, { prompt: '長方形 6×4cm，面積？', answer: '24' },
+    { prompt: '正方形邊長 8cm，面積？', answer: '64' }, { prompt: '長方形 9×3cm，面積？', answer: '27' },
+    { prompt: '長方形 12×5cm，面積？', answer: '60' }, { prompt: '正方形邊長 7cm，面積？', answer: '49' },
+    { prompt: '長方形 10×6cm，面積？', answer: '60' }, { prompt: '正方形邊長 2cm，面積？', answer: '4' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: areaIntro.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '正方形面積=邊長×邊長，長方形面積=長×寬' },
+    })
+  }
+
+  // ─── G4: 直式除法 ───
+  for (const q of [
+    { prompt: '240 ÷ 6 = ?', answer: '40' }, { prompt: '368 ÷ 4 = ?', answer: '92' },
+    { prompt: '525 ÷ 5 = ?', answer: '105' }, { prompt: '100 ÷ 4 = ?', answer: '25' },
+    { prompt: '180 ÷ 6 = ?', answer: '30' }, { prompt: '720 ÷ 8 = ?', answer: '90' },
+    { prompt: '300 ÷ 5 = ?', answer: '60' }, { prompt: '567 ÷ 7 = ?', answer: '81' },
+    { prompt: '144 ÷ 6 = ?', answer: '24' }, { prompt: '810 ÷ 9 = ?', answer: '90' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: longDivision.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `用直式除法計算：${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+
+  // ═══════════════════════════════════════════════
+  // G5 題庫
+  // ═══════════════════════════════════════════════
+  for (const q of [
+    { prompt: '1.5 + 2.3 = ?', answer: '3.8' }, { prompt: '4.7 - 1.2 = ?', answer: '3.5' },
+    { prompt: '3.6 + 2.8 = ?', answer: '6.4' }, { prompt: '5.4 - 2.9 = ?', answer: '2.5' },
+    { prompt: '12.5 + 7.3 = ?', answer: '19.8' }, { prompt: '8.6 - 3.7 = ?', answer: '4.9' },
+    { prompt: '0.75 + 0.25 = ?', answer: '1.0' }, { prompt: '6.3 - 4.8 = ?', answer: '1.5' },
+    { prompt: '7.2 + 1.9 = ?', answer: '9.1' }, { prompt: '10.0 - 3.6 = ?', answer: '6.4' },
+    { prompt: '2.45 + 3.55 = ?', answer: '6.0' }, { prompt: '9.1 - 5.6 = ?', answer: '3.5' },
+    { prompt: '4.8 + 5.2 = ?', answer: '10.0' }, { prompt: '15.6 - 7.8 = ?', answer: '7.8' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: decimalOps.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `對齊小數點計算：${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+  for (const q of [
+    { prompt: '1/3 + 1/4 = ?', answer: '7/12' }, { prompt: '2/5 + 1/3 = ?', answer: '11/15' },
+    { prompt: '3/4 - 1/3 = ?', answer: '5/12' }, { prompt: '1/2 + 1/5 = ?', answer: '7/10' },
+    { prompt: '5/6 - 1/2 = ?', answer: '1/3' }, { prompt: '2/3 + 1/5 = ?', answer: '13/15' },
+    { prompt: '7/8 - 1/4 = ?', answer: '5/8' }, { prompt: '3/10 + 1/2 = ?', answer: '4/5' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: fractionOps.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '異分母分數加減：先通分再計算' },
+    })
+  }
+  for (const q of [
+    { prompt: '0.3 × 4 = ?', answer: '1.2' }, { prompt: '2.5 × 3 = ?', answer: '7.5' },
+    { prompt: '1.2 × 5 = ?', answer: '6.0' }, { prompt: '4.8 ÷ 2 = ?', answer: '2.4' },
+    { prompt: '6.3 ÷ 3 = ?', answer: '2.1' }, { prompt: '0.5 × 6 = ?', answer: '3.0' },
+    { prompt: '1.5 × 4 = ?', answer: '6.0' }, { prompt: '7.2 ÷ 8 = ?', answer: '0.9' },
+    { prompt: '3.6 ÷ 4 = ?', answer: '0.9' }, { prompt: '0.8 × 7 = ?', answer: '5.6' },
+    { prompt: '2.4 × 2 = ?', answer: '4.8' }, { prompt: '5.5 ÷ 5 = ?', answer: '1.1' },
+    { prompt: '0.6 × 9 = ?', answer: '5.4' }, { prompt: '9.9 ÷ 3 = ?', answer: '3.3' },
+    { prompt: '1.8 × 5 = ?', answer: '9.0' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: decimalMulDiv.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: `小數乘除法：${q.prompt.replace(' = ?', '')} = ${q.answer}` },
+    })
+  }
+  for (const q of [
+    { prompt: '1/2 × 1/3 = ?', answer: '1/6' }, { prompt: '2/3 × 3/4 = ?', answer: '1/2' },
+    { prompt: '1/4 × 2/5 = ?', answer: '1/10' }, { prompt: '3/5 × 5/6 = ?', answer: '1/2' },
+    { prompt: '1/2 ÷ 1/3 = ?', answer: '3/2' }, { prompt: '2/3 ÷ 1/4 = ?', answer: '8/3' },
+    { prompt: '3/4 ÷ 1/2 = ?', answer: '3/2' }, { prompt: '1/3 × 3/5 = ?', answer: '1/5' },
+    { prompt: '5/6 ÷ 2/3 = ?', answer: '5/4' }, { prompt: '2/5 × 5/7 = ?', answer: '2/7' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: fractionMulDiv.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '分數乘法：分子×分子、分母×分母；除法：乘以倒數' },
+    })
+  }
+  for (const q of [
+    { prompt: '長方體 5×3×2cm，體積？', answer: '30' }, { prompt: '正方體邊長 4cm，體積？', answer: '64' },
+    { prompt: '長方體 6×2×3cm，體積？', answer: '36' }, { prompt: '正方體邊長 2cm，體積？', answer: '8' },
+    { prompt: '長方體 10×4×3cm，體積？', answer: '120' }, { prompt: '正方體邊長 6cm，表面積？', answer: '216' },
+    { prompt: '長方體容器 8×5cm，高？ 水 200cm³', answer: '5' },
+    { prompt: '正方體邊長 3cm，體積？', answer: '27' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: volumeIntro.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '體積=長×寬×高，表面積=6×邊長²' },
+    })
+  }
+
+  // ═══════════════════════════════════════════════
+  // G6 題庫
+  // ═══════════════════════════════════════════════
+  for (const q of [
+    { prompt: '化簡比 6:8 = ?', answer: '3:4' }, { prompt: '化簡比 10:15 = ?', answer: '2:3' },
+    { prompt: 'a:b=2:5, a=6, b=?', answer: '15' }, { prompt: '12:18 化簡 = ?', answer: '2:3' },
+    { prompt: '3:7 = 9:?', answer: '21' }, { prompt: '4:5 = ?:25', answer: '20' },
+    { prompt: '化簡 24:36 = ?', answer: '2:3' }, { prompt: '化簡 15:25 = ?', answer: '3:5' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: ratio.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '比的前項與後項同乘/除相同數字，比值不變' },
+    })
+  }
+  for (const q of [
+    { prompt: '0.5 = ?%', answer: '50%' }, { prompt: '1/4 = ?%', answer: '25%' },
+    { prompt: '3/4 = ?%', answer: '75%' }, { prompt: '200 元打 8 折 = ?', answer: '160' },
+    { prompt: '40 人×60%女生 = ?人', answer: '24' }, { prompt: '0.75 = ?%', answer: '75%' },
+    { prompt: '1/10 = ?%', answer: '10%' }, { prompt: '500 元打 7 折 = ?', answer: '350' },
+    { prompt: '10000×2%利息 = ?', answer: '200' }, { prompt: '2/5 = ?%', answer: '40%' },
+    { prompt: '1/8 = ?%', answer: '12.5%' }, { prompt: '300→240 元是幾折？', answer: '8折' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: percent.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '百分比 = 分數/小數 × 100%' },
+    })
+  }
+  for (const q of [
+    { prompt: '半徑 7cm 直徑？', answer: '14' }, { prompt: '直徑 10cm 半徑？', answer: '5' },
+    { prompt: '半徑 5cm 周長？(π=3.14)', answer: '31.4' }, { prompt: '半徑 3cm 面積？(π=3.14)', answer: '28.26' },
+    { prompt: '直徑 8cm 周長？(π=3.14)', answer: '25.12' }, { prompt: '半徑 4cm 面積？(π=3.14)', answer: '50.24' },
+    { prompt: '半徑 6cm 周長？(π=3.14)', answer: '37.68' }, { prompt: '半徑 2cm 面積？(π=3.14)', answer: '12.56' },
+    { prompt: '直徑 14cm 半徑？', answer: '7' }, { prompt: '半徑 10cm 周長？(π=3.14)', answer: '62.8' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: circle.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '圓周長=2πr=πd，圓面積=πr²' },
+    })
+  }
+  for (const q of [
+    { prompt: '3h 走 180km 速率？', answer: '60' }, { prompt: '12km/h×2h 距離？', answer: '24' },
+    { prompt: '200km÷50km/h 時間？', answer: '4' }, { prompt: '80km/h×4h 距離？', answer: '320' },
+    { prompt: '150km÷75km/h 時間？', answer: '2' }, { prompt: '5km/h×1.5h 距離？', answer: '7.5' },
+    { prompt: '300km÷5h 速率？', answer: '60' }, { prompt: '60km/h×3.5h 距離？', answer: '210' },
+    { prompt: '30min 跑 6km 速率？', answer: '12' }, { prompt: '420km÷70km/h 時間？', answer: '6' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: speed.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '速率=距離÷時間，距離=速率×時間，時間=距離÷速率' },
+    })
+  }
+  for (const q of [
+    { prompt: '圓柱半徑 3cm 高 5cm 體積？(π=3.14)', answer: '141.3' },
+    { prompt: '三角柱底 20cm² 高 8cm 體積？', answer: '160' },
+    { prompt: '圓柱半徑 4cm 高 6cm 體積？(π=3.14)', answer: '301.44' },
+    { prompt: '圓柱半徑 2cm 高 10cm 體積？(π=3.14)', answer: '125.6' },
+    { prompt: '柱體底 15cm² 高 12cm 體積？', answer: '180' },
+    { prompt: '圓柱半徑 5cm 高 4cm 體積？(π=3.14)', answer: '314' },
+    { prompt: '圓柱半徑 1cm 高 7cm 體積？(π=3.14)', answer: '21.98' },
+    { prompt: '三角柱底 24cm² 高 5cm 體積？', answer: '120' },
+  ]) {
+    await prisma.questionTemplate.create({
+      data: { skillId: prismVolume.id, type: 'DIRECT', prompt: q.prompt, answer: q.answer, explanation: '柱體體積=底面積×高，圓柱=πr²×高' },
+    })
+  }
+
+  // 更新成功訊息
+  const totalQ = await prisma.questionTemplate.count()
   console.log(`  ✓ Badges: ${badges.length} seeded`)
-  console.log('  ✓ Skills: 12, Questions seeded')
+  console.log(`  ✓ Skills from K to G6, Questions: ${totalQ}`)
   console.log('✅ Done!')
 }
 
