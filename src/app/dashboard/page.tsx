@@ -20,39 +20,39 @@ export default async function DashboardPage() {
   })
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-6 sm:px-4 sm:py-8">
-      <div className="mb-5 sm:mb-6">
-        <h1 className="text-xl font-bold sm:text-2xl">我的孩子</h1>
-        <p className="mt-1 text-xs text-neutral-500 dark:text-gray-400 sm:text-sm">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">我的孩子</h1>
+        <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">
           建立孩子檔案後，點「開始練習」即可陪孩子一起做題
         </p>
       </div>
 
       {children.length === 0 ? (
-        <div className="rounded-xl border border-neutral-200 bg-white p-6 text-center dark:border-gray-700 dark:bg-gray-900 sm:p-8">
+        <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">
           <p className="mb-4 text-neutral-600 dark:text-gray-300">還沒有建立任何孩子檔案</p>
           <div className="mx-auto max-w-xs">
             <AddChildForm />
           </div>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {children.map((child) => (
             <div
               key={child.id}
-              className="flex flex-col rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-900 sm:p-5"
+              className="flex flex-col rounded-xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900"
             >
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl sm:text-2xl">🧒</span>
-                  <span className="text-base font-semibold sm:text-lg">{child.nickname}</span>
+                  <span className="text-2xl">🧒</span>
+                  <span className="text-lg font-semibold">{child.nickname}</span>
                 </div>
                 <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                   {child.gradeLevel === 'K' ? '幼兒園' : `${child.gradeLevel.replace('G', '')}年級`}
                 </span>
               </div>
 
-              {/* 遊戲化資訊 */}
+              {/* 遊戲化資訊：星星 + 連續天數 */}
               <div className="mb-2 flex items-center gap-3 text-sm">
                 <span className="inline-flex items-center gap-1 text-amber-600" title="累計星星數">
                   ⭐ {child.stars}
@@ -72,26 +72,23 @@ export default async function DashboardPage() {
                 <p className="mb-3 text-sm text-neutral-400 dark:text-gray-500">尚未練習</p>
               )}
 
-              <div className="mt-auto flex flex-col gap-2">
-                <Link
-                  href={`/practice/${child.id}`}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-blue-700"
-                >
-                  開始練習 →
-                </Link>
-                <Link
-                  href={`/children/${child.id}`}
-                  className="rounded-lg border border-neutral-300 px-4 py-2 text-center text-sm transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
-                >
-                  學習概覽
-                </Link>
-                <DeleteChildButton childId={child.id} nickname={child.nickname} />
-              </div>
+              <Link
+                href={`/practice/${child.id}`}
+                className="mb-2 rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-blue-700"
+              >
+                開始練習 →
+              </Link>
+              <Link
+                href={`/children/${child.id}`}
+                className="mb-2 rounded-lg border border-neutral-300 px-4 py-2 text-center text-sm transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+              >
+                學習概覽
+              </Link>
+              <DeleteChildButton childId={child.id} nickname={child.nickname} />
             </div>
           ))}
 
-          {/* 新增孩子按鈕卡片 */}
-          <div className="flex min-h-[200px] items-center justify-center rounded-xl border-2 border-dashed border-neutral-300 p-4 dark:border-gray-600 sm:min-h-[240px]">
+          <div className="flex items-center justify-center">
             <AddChildForm />
           </div>
         </div>

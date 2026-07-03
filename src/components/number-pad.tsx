@@ -26,18 +26,18 @@ export default function NumberPad({ value, onChange, onSubmit, disabled }: Props
   }
 
   return (
-    <div className="mx-auto w-full max-w-[280px] sm:max-w-xs">
+    <div className="mx-auto w-full max-w-xs">
       {/* 輸入顯示 */}
-      <div className="mb-3 flex h-14 items-center justify-center rounded-xl border-2 border-neutral-200 bg-white px-4 dark:border-gray-600 dark:bg-gray-900 sm:mb-4 sm:h-16">
-        <span className="text-3xl font-bold tracking-widest text-neutral-800 dark:text-white sm:text-4xl">
+      <div className="mb-4 flex h-16 items-center justify-center rounded-xl border-2 border-neutral-200 bg-white px-4 dark:border-gray-600 dark:bg-gray-900">
+        <span className="text-4xl font-bold tracking-widest text-neutral-800 dark:text-white">
           {value || <span className="text-neutral-300 dark:text-gray-600">?</span>}
         </span>
       </div>
 
       {/* 鍵盤 */}
-      <div className="flex flex-col gap-1.5 sm:gap-2">
+      <div className="flex flex-col gap-2">
         {keys.map((row, ri) => (
-          <div key={ri} className="flex gap-1.5 sm:gap-2">
+          <div key={ri} className="flex gap-2">
             {row.map((k, ci) => {
               if (k === '') {
                 return <div key={ci} className="flex-1" />
@@ -47,7 +47,7 @@ export default function NumberPad({ value, onChange, onSubmit, disabled }: Props
                   key={ci}
                   onClick={() => handleKey(k)}
                   disabled={disabled}
-                  className={`flex-1 rounded-xl py-3 text-xl font-bold transition active:scale-95 sm:py-4 sm:text-2xl ${
+                  className={`flex-1 rounded-xl py-4 text-2xl font-bold transition active:scale-95 ${
                     k === '⌫'
                       ? 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
                       : 'bg-white text-neutral-800 shadow-sm border border-neutral-200 hover:border-blue-400 hover:bg-blue-50 dark:bg-gray-900 dark:text-white dark:border-gray-600 dark:hover:border-blue-400 dark:hover:bg-blue-950'
