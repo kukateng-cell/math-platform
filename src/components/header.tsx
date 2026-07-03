@@ -8,51 +8,42 @@ export default async function Header() {
 
   return (
     <header className="border-b border-neutral-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold dark:text-white">
+      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 px-4">
+        <Link href="/" className="flex shrink-0 items-center gap-2 font-bold dark:text-white">
           <span className="text-xl">🔢</span>
-          <span>數學小達人</span>
+          <span className="hidden sm:inline">數學小達人</span>
         </Link>
-        <nav className="flex items-center gap-4 text-sm">
+        <nav className="flex min-w-0 items-center gap-1 overflow-x-auto text-xs sm:gap-3 sm:text-sm [&::-webkit-scrollbar]:hidden">
           <ThemeToggle />
           <ReducedMotionToggle />
           {user ? (
             <>
               {user.role === 'ADMIN' ? (
-                <Link href="/admin" className="text-neutral-600 hover:text-neutral-900 dark:text-gray-300 dark:hover:text-white">
+                <Link href="/admin" className="whitespace-nowrap rounded-md px-2 py-1 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white">
                   管理後台
                 </Link>
               ) : (
-                <Link href="/dashboard" className="text-neutral-600 hover:text-neutral-900 dark:text-gray-300 dark:hover:text-white">
+                <Link href="/dashboard" className="whitespace-nowrap rounded-md px-2 py-1 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white">
                   我的孩子
                 </Link>
               )}
-              <span className="text-neutral-400 dark:text-gray-400">{user.name}</span>
+              <span className="hidden truncate text-neutral-400 dark:text-gray-400 sm:inline">{user.name}</span>
               <form action={logout}>
-                <button type="submit" className="text-neutral-500 hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white">
+                <button type="submit" className="whitespace-nowrap rounded-md px-2 py-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white">
                   登出
                 </button>
               </form>
             </>
           ) : (
             <>
-              <Link href="/student/login" className="text-neutral-500 hover:text-neutral-700 dark:text-gray-400 dark:hover:text-gray-200">
-                🧑‍🎓 學生登入
-              </Link>
-              <Link href="/login" className="text-neutral-600 hover:text-neutral-900 dark:text-gray-300 dark:hover:text-white">
-                家長登入
+              <Link href="/student/login" className="whitespace-nowrap rounded-md px-2 py-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200">
+                🧑‍🎓 登入
               </Link>
               <Link
                 href="/student/signup"
-                className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 font-medium text-green-700 hover:bg-green-100"
+                className="whitespace-nowrap rounded-md border border-green-300 bg-green-50 px-2 py-1 font-medium text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
               >
-                🌱 學生註冊
-              </Link>
-              <Link
-                href="/signup"
-                className="rounded-lg bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-700"
-              >
-                家長註冊
+                🌱 註冊
               </Link>
             </>
           )}
