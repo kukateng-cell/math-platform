@@ -84,7 +84,7 @@ export function SkillTree({
   }
 
   return (
-    <div className="relative mx-auto max-w-2xl px-4 py-6">
+    <div className="relative mx-auto w-full max-w-2xl px-4 py-6 sm:max-w-3xl lg:max-w-4xl">
       {/* ===== SVG 小樹（左側裝飾，timeline 風格）===== */}
       <div className="pointer-events-none absolute inset-0 flex justify-start overflow-visible sm:justify-center">
         <svg viewBox="0 0 120 1000" className="h-full w-24 sm:w-28" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
