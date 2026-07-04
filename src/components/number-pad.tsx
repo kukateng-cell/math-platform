@@ -57,6 +57,25 @@ export default function NumberPad({
     onChange('')
   }
 
+  // 數字模式 input 過濾：只允許數字與一個小數點（讓手機/平板系統鍵盤也能輸入）
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (disabled) return
+    let raw = e.target.value.replace(/[^0-9.]/g, '')
+    const firstDot = raw.indexOf('.')
+    if (firstDot !== -1) {
+      raw = raw.slice(0, firstDot + 1) + raw.slice(firstDot + 1).replace(/\./g, '')
+    }
+    if (raw.length > maxLength) raw = raw.slice(0, maxLength)
+    onChange(raw)
+  }
+
+  // 數字模式：每題（value 清空、未禁用）自動聚焦 input，讓手機/平板鍵盤保持彈出
+  useEffect(() => {
+    if (mode !== 'numeric') return
+    if (disabled) return
+    if (value === '') inputRef.current?.focus()
+  }, [mode, disabled, value])
+
   // 數字模式：支援實體鍵盤直接輸入（0-9、小數點、退格、Enter 送出）
   useEffect(() => {
     if (mode !== 'numeric') return
@@ -125,12 +144,29 @@ export default function NumberPad({
   // ============ 數字模式：數字鍵盤 ============
   return (
     <div className="mx-auto w-full max-w-sm sm:max-w-xs">
-      {/* 輸入顯示 */}
-      <div className="mb-4 flex h-16 items-center justify-center rounded-xl border-2 border-neutral-200 bg-white px-4 dark:border-gray-600 dark:bg-gray-900">
-        <span className="text-4xl font-bold tracking-widest text-neutral-800 dark:text-white">
-          {value || <span className="text-neutral-300 dark:text-gray-600">?</span>}
-        </span>
-      </div>
+      {/* 輸入框：使用真實 <input> 讓手機/平板能喚起系統數字鍵盤 */}
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="decimal"
+        pattern="[0-9.]*"
+        value={value}
+        onChange={handleInputChange}
+        disabled={disabled}
+        autoFocus
+        autoComplete="off"
+        enterKeyHint="done"
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            if (value) onSubmit()
+          }
+        }}
+        placeholder="?"
+        aria-label="答案輸入框"
+        className="mb-4 h-16 w-full rounded-xl border-2 border-neutral-200 bg-white px-4 text-center text-4xl font-bold tracking-widest text-neutral-800 outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:border-blue-400"
+      />
 
       {/* 鍵盤 */}
       <div className="flex flex-col gap-2">
@@ -141,6 +177,7 @@ export default function NumberPad({
                 <button
                   key={ci}
                   onClick={() => handleKey(k)}
+                  onMouseDown={(e) => e.preventDefault()}
                   disabled={disabled}
                   aria-label={k === '⌫' ? '刪除' : k === '.' ? '小數點' : typeof k === 'number' ? `數字 ${k}` : String(k)}
                   className={`flex-1 min-h-[52px] rounded-xl py-3 text-2xl font-bold transition active:scale-95 sm:py-4 ${
@@ -162,6 +199,7 @@ export default function NumberPad({
         <div className="mt-2 flex gap-1.5 sm:gap-2">
           <button
             onClick={handleClear}
+            onMouseDown={(e) => e.preventDefault()}
             disabled={disabled || !value}
             aria-label="清空"
             className="flex-1 min-h-[52px] rounded-xl bg-neutral-100 py-3 text-base font-bold text-neutral-500 transition hover:bg-neutral-200 active:scale-95 disabled:opacity-40 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 sm:py-4 sm:text-lg"
