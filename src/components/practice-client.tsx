@@ -5,12 +5,13 @@ import {
   submitAnswer,
   startSession,
   startNextPractice,
-  getRecommendedNext,
+  getNextPractice,
   type SubmitResult,
 } from '@/actions/practice'
 import NumberPad from './number-pad'
 import NumberLine from './number-line'
 import { displayAnswer } from '@/lib/answer-i18n'
+import type { Recommendation } from '@/lib/mastery'
 
 type QuestionItem = {
   templateId: string
@@ -98,13 +99,8 @@ export default function PracticeClient({
 
   // ============ 「下一個練習」推薦 ============
   // 完成練習後查詢系統推薦的下一個技能，讓使用者可直接開始下一個練習
-  type NextRecommendation = {
-    type: string
-    skillId: string | null
-    skillName: string | null
-    reason: string
-  }
-  const [nextRec, setNextRec] = useState<NextRecommendation | null>(null)
+  // 型別直接引用 Recommendation 聯集，呼叫端可對 type 做 exhaustive 判斷
+  const [nextRec, setNextRec] = useState<Recommendation | null>(null)
   const [recLoading, setRecLoading] = useState(false)
 
   const isFinished =
@@ -115,7 +111,7 @@ export default function PracticeClient({
     if (!isFinished) return
     let cancelled = false
     setRecLoading(true)
-    getRecommendedNext(childId)
+    getNextPractice(childId)
       .then((rec) => {
         if (!cancelled) setNextRec(rec)
       })

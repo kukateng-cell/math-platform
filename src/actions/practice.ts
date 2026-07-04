@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { getChildSession } from '@/lib/child-session'
 import { generateQuestion, shuffle } from '@/lib/question'
-import { updateMastery, getRecommendation, isGradeAllMastered } from '@/lib/mastery'
+import { updateMastery, getRecommendation, isGradeAllMastered, type Recommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
 import { getNextGrade, gradeRank } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
@@ -410,45 +410,26 @@ export async function getChildSkills(childId: string) {
 }
 
 // 查詢「完成練習後的下一個推薦練習」（純查詢，不 redirect）
-// 完成頁面用此結果顯示下一個要練的技能，並提供「下一個練習」按鈕
-export async function getRecommendedNext(childId: string): Promise<{
-  type: string
-  skillId: string | null
-  skillName: string | null
-  reason: string
-} | null> {
-  const auth = await getPracticeAuth()
-  if (!auth) return null
-  if (!(await canAccessChild(childId))) return null
-
+// 完成頁面用此結果顯示下一個要練的技能名稱與推薦理由。
+//
+// 權限檢查由 getChildSkills 內部處理（getPracticeAuth + canAccessChild），
+// 此處不重複驗證，避免多餘的 auth/JWT 解析與 DB 查詢。
+export async function getNextPractice(childId: string): Promise<Recommendation | null> {
   const data = await getChildSkills(childId)
   if (!data) return null
-
-  const rec = data.recommendation
-  return {
-    type: rec.type,
-    skillId: rec.skillId ?? null,
-    skillName: rec.skillName ?? null,
-    reason: rec.reason,
-  }
+  return data.recommendation
 }
 
 // 完成練習後直接開始「推薦的下一個練習」
-// 基於剛更新的掌握度即時計算推薦，並開始新的 session（startSession 內部會 redirect 到練習頁）
-// 若沒有推薦技能（ALL_DONE）則回到練習選單
+// 基於剛更新的掌握度即時計算推薦，再由 startSession 開新 session 並 redirect。
+// 若無推薦技能（ALL_DONE）則回到練習選單。
+//
+// 權限檢查交由 getChildSkills / startSession 內部處理，此處不重複。
 export async function startNextPractice(childId: string) {
-  const auth = await getPracticeAuth()
-  if (!auth) throw new Error('未授權')
-  if (!(await canAccessChild(childId))) throw new Error('找不到孩子檔案')
-
   const data = await getChildSkills(childId)
-  if (!data) redirect(`/practice/${childId}`)
-
-  const rec = data.recommendation
-  if (!rec.skillId) {
-    // 沒有推薦（ALL_DONE）→ 回練習選單
-    redirect(`/practice/${childId}`)
-  }
+  const rec = data?.recommendation
+  // 無資料或無推薦技能（ALL_DONE）→ 回練習選單
+  if (!rec?.skillId) redirect(`/practice/${childId}`)
   // 開始推薦技能的新練習（startSession 內部會 redirect 到練習頁）
   await startSession(childId, rec.skillId)
 }
