@@ -85,9 +85,9 @@ export function SkillTree({
 
   return (
     <div className="relative mx-auto max-w-2xl px-4 py-6">
-      {/* ===== SVG 小樹（左側裝飾，timeline 風格）===== */}
-      <div className="pointer-events-none absolute inset-0 flex justify-start overflow-visible sm:justify-center">
-        <svg viewBox="0 0 120 1000" className="h-full w-24 sm:w-28" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      {/* ===== SVG 小樹（固定於最左側，作為年級 timeline 主幹）===== */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 flex justify-start overflow-visible">
+        <svg viewBox="0 0 120 1000" className="h-full w-24 sm:w-28" preserveAspectRatio="xMidYMin meet" aria-hidden="true">
           {/* 樹冠 */}
           <defs>
             <radialGradient id="canopyS" cx="50%" cy="40%" r="50%">
