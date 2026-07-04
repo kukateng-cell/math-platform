@@ -84,10 +84,12 @@ export function SkillTree({
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-2xl px-4 py-6 sm:max-w-3xl lg:max-w-4xl">
-      {/* ===== SVG 小樹（左側裝飾，timeline 風格）===== */}
-      <div className="pointer-events-none absolute inset-0 flex justify-start overflow-visible sm:justify-center">
-        <svg viewBox="0 0 120 1000" className="h-full w-24 sm:w-28" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <div className="mx-auto w-full max-w-3xl px-4 py-6 lg:max-w-4xl">
+      {/* ===== 樹 + 年級卡片：用 flex 兩欄鎖定相對位置，避免錯位 ===== */}
+      <div className="flex items-stretch gap-1 sm:gap-2">
+        {/* SVG 小樹（固定在最左側，作為年級 timeline 主幹）*/}
+        <div className="pointer-events-none relative w-16 shrink-0 sm:w-20">
+          <svg viewBox="0 0 120 1000" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMin meet" aria-hidden="true">
           {/* 樹冠 */}
           <defs>
             <radialGradient id="canopyS" cx="50%" cy="40%" r="50%">
@@ -119,11 +121,11 @@ export function SkillTree({
           <path d="M58,940 Q50,970 40,990" stroke={topCfg.hue} strokeWidth="4" fill="none" opacity="0.20" strokeLinecap="round" />
           <path d="M62,940 Q70,970 80,990" stroke={topCfg.hue} strokeWidth="4" fill="none" opacity="0.20" strokeLinecap="round" />
           <path d="M60,940 Q60,975 60,1000" stroke={topCfg.hue} strokeWidth="3" fill="none" opacity="0.20" strokeLinecap="round" />
-        </svg>
-      </div>
+          </svg>
+        </div>
 
-      {/* ===== 年級節點（卡片在樹的右側）===== */}
-      <div className="relative z-10 ml-16 space-y-3 sm:ml-20 sm:pl-4">
+      {/* ===== 年級節點（卡片：flex 第二欄，緊鄰樹右側）===== */}
+      <div className="relative z-10 flex-1 space-y-3">
         {displayGrades.map((grade) => {
           const gradeSkills = groups.get(grade) ?? []
           const cfg = gradeStyle(grade)
@@ -187,6 +189,7 @@ export function SkillTree({
             </div>
           )
         })}
+      </div>
       </div>
 
       {/* ===== 技能彈窗 ===== */}
