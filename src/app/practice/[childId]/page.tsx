@@ -33,7 +33,7 @@ export default async function PracticeSelectPage({
   const badges = await getChildBadges(childId)
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
+    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 lg:max-w-4xl">
       <div className="mb-6">
         {isParent ? (
           <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-gray-400 dark:hover:text-white">
