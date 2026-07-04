@@ -409,6 +409,20 @@ export async function getChildSkills(childId: string) {
   }
 }
 
+// ============ 取得「下一個建議練習」============
+// 練習完成後呼叫：根據最新掌握度推薦下一個技能，供完成畫面顯示
+// 「繼續下一個練習」並直接開始。type 為 ALL_DONE 時表示已全部掌握。
+export async function getNextPractice(childId: string): Promise<{
+  type: 'PRACTICE_PREREQ' | 'ADVANCE' | 'KEEP' | 'START_FIRST' | 'ALL_DONE'
+  skillId?: string
+  skillName?: string
+  reason: string
+} | null> {
+  const data = await getChildSkills(childId)
+  if (!data) return null
+  return data.recommendation
+}
+
 // ============ 升學測試 ============
 // 檢查孩子是否能參加升學測試（目前年級的所有技能已掌握）
 export async function checkPromotionEligibility(childId: string): Promise<{
