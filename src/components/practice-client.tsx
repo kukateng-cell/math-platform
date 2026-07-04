@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { submitAnswer, type SubmitResult } from '@/actions/practice'
+import { submitAnswer, getNextPractice, startSession, type SubmitResult } from '@/actions/practice'
 import NumberPad from './number-pad'
 import NumberLine from './number-line'
 import { displayAnswer } from '@/lib/answer-i18n'
@@ -76,6 +76,12 @@ export default function PracticeClient({
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showHint, setShowHint] = useState(false)
+  const [nextPractice, setNextPractice] = useState<{
+    type: string
+    skillId?: string
+    skillName?: string
+    reason: string
+  } | null>(null)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
@@ -99,6 +105,16 @@ export default function PracticeClient({
       completionLinkRef.current.focus()
     }
   }, [index, questions.length])
+
+  // 練習完成時：向伺服器取得「下一個建議練習」，供完成畫面顯示「繼續下一個練習」
+  useEffect(() => {
+    if (!lastResult?.finished) return
+    let cancelled = false
+    getNextPractice(childId)
+      .then((rec) => { if (!cancelled) setNextPractice(rec) })
+      .catch(() => { /* 忽略：失敗時就只顯示原本的按鈕 */ })
+    return () => { cancelled = true }
+  }, [lastResult?.finished, childId])
 
   // 練習計時器：每秒更新經過時間
   useEffect(() => {
@@ -378,19 +394,44 @@ export default function PracticeClient({
           </ol>
         </div>
 
-        <div className="flex gap-3">
+        {/* ===== 下一步行動 ===== */}
+        {/* 有建議的下一個練習 → 顯示醒目的「繼續下一個練習」卡片，直接開始 */}
+        {nextPractice?.skillId ? (
+          <div className="w-full max-w-md animate-fade-in-up rounded-2xl border-2 border-blue-300 bg-blue-50 p-5 shadow-sm dark:border-blue-700 dark:bg-blue-950/50">
+            <div className="mb-3 text-center">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">💡 系統建議下一步</p>
+              <p className="mt-1 text-sm text-blue-900 dark:text-blue-200">{nextPractice.reason}</p>
+            </div>
+            <form action={startSession.bind(null, childId, nextPractice.skillId)}>
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-blue-600 px-5 py-3 text-base font-semibold text-white shadow transition hover:bg-blue-700 active:scale-[0.98]"
+              >
+                繼續下一個練習 → {nextPractice.skillName ?? ''}
+              </button>
+            </form>
+          </div>
+        ) : nextPractice?.type === 'ALL_DONE' ? (
+          <div className="w-full max-w-md rounded-2xl border-2 border-green-300 bg-green-50 p-5 text-center dark:border-green-700 dark:bg-green-950/50">
+            <p className="text-base font-semibold text-green-700 dark:text-green-300">🎉 目前所有技能都已掌握！</p>
+            <p className="mt-1 text-sm text-green-800 dark:text-green-200">休息一下，或回到選單挑戰其他年級</p>
+          </div>
+        ) : null}
+
+        {/* 其他選項 */}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <a
+            href={"/practice/" + childId}
+            className="rounded-lg border border-neutral-300 px-5 py-2.5 font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+          >
+            選擇其他技能
+          </a>
           <a
             ref={completionLinkRef}
             href={"/children/" + childId}
-            className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700"
+            className="rounded-lg px-5 py-2.5 font-medium text-neutral-500 transition hover:text-neutral-800 dark:text-gray-400 dark:hover:text-gray-200"
           >
             查看學習概覽
-          </a>
-          <a
-            href={"/practice/" + childId}
-            className="rounded-lg border border-neutral-300 px-5 py-2.5 font-medium hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
-          >
-            再練一次
           </a>
         </div>
 
