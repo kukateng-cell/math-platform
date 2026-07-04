@@ -1,7 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { submitAnswer, type SubmitResult } from '@/actions/practice'
+import {
+  submitAnswer,
+  startSession,
+  startNextPractice,
+  getRecommendedNext,
+  type SubmitResult,
+} from '@/actions/practice'
 import NumberPad from './number-pad'
 import NumberLine from './number-line'
 import { displayAnswer } from '@/lib/answer-i18n'
@@ -50,6 +56,7 @@ type Props = {
   skillName: string
   childNickname: string
   childId: string
+  skillId: string
 }
 
 export default function PracticeClient({
@@ -58,6 +65,7 @@ export default function PracticeClient({
   skillName,
   childNickname,
   childId,
+  skillId,
 }: Props) {
   const [index, setIndex] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -87,6 +95,40 @@ export default function PracticeClient({
   const current = questions[index]
   const progress = Math.round((index / questions.length) * 100)
   const totalQuestions = questions.length
+
+  // ============ 「下一個練習」推薦 ============
+  // 完成練習後查詢系統推薦的下一個技能，讓使用者可直接開始下一個練習
+  type NextRecommendation = {
+    type: string
+    skillId: string | null
+    skillName: string | null
+    reason: string
+  }
+  const [nextRec, setNextRec] = useState<NextRecommendation | null>(null)
+  const [recLoading, setRecLoading] = useState(false)
+
+  const isFinished =
+    index >= questions.length ||
+    (lastResult?.finished && index === questions.length - 1)
+
+  useEffect(() => {
+    if (!isFinished) return
+    let cancelled = false
+    setRecLoading(true)
+    getRecommendedNext(childId)
+      .then((rec) => {
+        if (!cancelled) setNextRec(rec)
+      })
+      .catch(() => {
+        if (!cancelled) setNextRec(null)
+      })
+      .finally(() => {
+        if (!cancelled) setRecLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isFinished, childId])
 
   useEffect(() => {
     if (firstOptionRef.current) {
@@ -124,7 +166,11 @@ export default function PracticeClient({
     return () => clearTimeout(timer)
   }, [lastResult])
 
-  const interaction = current.interaction || (!current.options || current.options.length === 0 ? 'fillin' : 'choice')
+  // 完成練習時 index 可能短暫越界（questions[index] 為 undefined），
+  // 此時 early return 會進入完成頁；為避免存取 undefined 的屬性而崩潰，加 fallback。
+  const interaction = current
+    ? (current.interaction || (!current.options || current.options.length === 0 ? 'fillin' : 'choice'))
+    : 'choice'
 
   const currentAnswer = interaction === 'numberline'
     ? lineValue !== null ? String(lineValue) : null
@@ -372,19 +418,54 @@ export default function PracticeClient({
           </ol>
         </div>
 
-        <div className="flex gap-3">
+        {/* 下一個練習（推薦）— 完成後的主操作，可直接開始新練習不必退回選單 */}
+        <div className="flex w-full max-w-md flex-col items-center gap-2">
+          {recLoading ? (
+            <div className="h-[52px] w-full animate-pulse rounded-lg bg-neutral-200 dark:bg-gray-700" />
+          ) : nextRec?.skillId ? (
+            <>
+              <form action={startNextPractice.bind(null, childId)} className="w-full">
+                <button
+                  type="submit"
+                  className="min-h-[52px] w-full rounded-lg bg-blue-600 px-8 py-3 text-lg font-semibold text-white shadow-md transition hover:bg-blue-700"
+                >
+                  開始下一個練習 → {nextRec.skillName}
+                </button>
+              </form>
+              <p className="text-sm text-neutral-500 dark:text-gray-400">💡 {nextRec.reason}</p>
+            </>
+          ) : nextRec?.type === 'ALL_DONE' ? (
+            <div className="w-full rounded-xl border border-amber-200 bg-amber-50 p-4 text-center dark:border-amber-800 dark:bg-amber-950">
+              <p className="font-semibold text-amber-700 dark:text-amber-300">🎉 目前所有技能都已掌握！</p>
+            </div>
+          ) : (
+            <form action={startNextPractice.bind(null, childId)} className="w-full">
+              <button
+                type="submit"
+                className="min-h-[52px] w-full rounded-lg bg-blue-600 px-8 py-3 font-semibold text-white shadow-md transition hover:bg-blue-700"
+              >
+                開始下一個練習 →
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* 次要操作：再練一次（同技能）/ 查看概覽 */}
+        <div className="flex flex-wrap justify-center gap-3">
+          <form action={startSession.bind(null, childId, skillId)}>
+            <button
+              type="submit"
+              className="rounded-lg border border-neutral-300 px-5 py-2.5 font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+            >
+              🔄 再練一次（{skillName}）
+            </button>
+          </form>
           <a
             ref={completionLinkRef}
             href={"/children/" + childId}
-            className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700"
+            className="rounded-lg border border-neutral-300 px-5 py-2.5 font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
           >
             查看學習概覽
-          </a>
-          <a
-            href={"/practice/" + childId}
-            className="rounded-lg border border-neutral-300 px-5 py-2.5 font-medium hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
-          >
-            再練一次
           </a>
         </div>
 

@@ -8,7 +8,7 @@ export default async function PracticeQuestionPage({
 }: {
   params: Promise<{ childId: string; skillId: string; sessionId: string }>
 }) {
-  const { childId, sessionId } = await params
+  const { childId, skillId, sessionId } = await params
   // 練習路由支援家長 session 或孩子 session
   const hasAccess = await hasPracticeAccess()
   if (!hasAccess) return null
@@ -48,6 +48,7 @@ export default async function PracticeQuestionPage({
         skillName={data.skillName}
         childNickname={data.childNickname}
         childId={childId}
+        skillId={skillId}
       />
     </main>
   )
