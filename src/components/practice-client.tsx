@@ -85,6 +85,12 @@ export default function PracticeClient({
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showHint, setShowHint] = useState(false)
+  const [nextPractice, setNextPractice] = useState<{
+    type: string
+    skillId?: string
+    skillName?: string
+    reason: string
+  } | null>(null)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
@@ -137,6 +143,16 @@ export default function PracticeClient({
       completionLinkRef.current.focus()
     }
   }, [index, questions.length])
+
+  // 練習完成時：向伺服器取得「下一個建議練習」，供完成畫面顯示「繼續下一個練習」
+  useEffect(() => {
+    if (!lastResult?.finished) return
+    let cancelled = false
+    getNextPractice(childId)
+      .then((rec) => { if (!cancelled) setNextPractice(rec) })
+      .catch(() => { /* 忽略：失敗時就只顯示原本的按鈕 */ })
+    return () => { cancelled = true }
+  }, [lastResult?.finished, childId])
 
   // 練習計時器：每秒更新經過時間
   useEffect(() => {
@@ -228,7 +244,13 @@ export default function PracticeClient({
   }
 
   async function handleSubmit() {
+    // 統一同步防重入鎖：Enter 事件冒泡鏈（input onKeyDown → 外層 div handleKeyDown →
+    // window onGlobalKey）可能讓同一答案走進來多次。submitting 是 state（非同步更新），
+    // 第二次呼叫時仍為 false，會導致同一題 submitAnswer 兩次 → 產生重複 Attempt、
+    // correctCount 重複計數、練習提前 finished。改用 ref 同步鎖在入口一律擋住。
+    if (submittingRef.current) return
     if (!currentAnswer || submitting) return
+    submittingRef.current = true
     setSubmitting(true)
     setError(null)
     const durationMs = Date.now() - startTimeRef.current
@@ -460,6 +482,13 @@ export default function PracticeClient({
             ref={completionLinkRef}
             href={"/children/" + childId}
             className="rounded-lg border border-neutral-300 px-5 py-2.5 font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+          >
+            選擇其他技能
+          </a>
+          <a
+            ref={completionLinkRef}
+            href={"/children/" + childId}
+            className="rounded-lg px-5 py-2.5 font-medium text-neutral-500 transition hover:text-neutral-800 dark:text-gray-400 dark:hover:text-gray-200"
           >
             查看學習概覽
           </a>
