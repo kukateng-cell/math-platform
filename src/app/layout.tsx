@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Header from "@/components/header";
 import "./globals.css";
@@ -16,6 +16,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "數學小達人 | K-2 數學練習平台",
   description: "讓家長陪伴孩子建立扎實的數學基礎",
+};
+
+// viewport meta：手機/平板自適應螢幕的關鍵。Next.js App Router 不會自動產生此標籤，
+// 若缺少，行動瀏覽器會以預設 ~980px 視窗渲染，導致 sm/md 響應式斷點不生效、頁面縮成一團、
+// 且 input 聚焦時易發生異常縮放。不限制 maximumScale 以保留使用者縮放的無障礙權益。
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({
