@@ -186,7 +186,13 @@ export default function PracticeClient({
   }
 
   async function handleSubmit() {
+    // 統一同步防重入鎖：Enter 事件冒泡鏈（input onKeyDown → 外層 div handleKeyDown →
+    // window onGlobalKey）可能讓同一答案走進來多次。submitting 是 state（非同步更新），
+    // 第二次呼叫時仍為 false，會導致同一題 submitAnswer 兩次 → 產生重複 Attempt、
+    // correctCount 重複計數、練習提前 finished。改用 ref 同步鎖在入口一律擋住。
+    if (submittingRef.current) return
     if (!currentAnswer || submitting) return
+    submittingRef.current = true
     setSubmitting(true)
     setError(null)
     const durationMs = Date.now() - startTimeRef.current

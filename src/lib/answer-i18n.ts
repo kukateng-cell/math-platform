@@ -57,20 +57,56 @@ function normalizeTimeAnswer(input: string): string {
 }
 
 /**
+ * 全形（全角）轉半形（半角）。
+ * 涵蓋：全形數字 ０-９、全形小數點 ．、全形減號 −（U+2212）、全形空格。
+ * 中文 IME 與部分行動鍵盤會輸出全形字元，導致「１２３」與「123」字串不相等而被誤判。
+ */
+function toHalfWidth(s: string): string {
+  return s
+    .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/\u3000/g, ' ')
+    .replace(/−|\u2010|\u2011|\u2012|\u2013|\u2014/g, '-') // 各種破折號/減號統一為 ASCII -
+    .replace(/．/g, '.') // 全形小數點
+}
+
+/**
+ * 將純數字答案（含小數、前導零）正規化為「最小且無歧義」的字串形式。
+ * 例：「07」→「7」、「3.50」→「3.5」、「3.0」→「3」、「-0」→「0」。
+ * 用 Number() 解析後再依是否整數決定輸出格式，避免浮點精度誤差（如 0.1+0.2）。
+ */
+function normalizeNumeric(s: string): string {
+  const n = Number(s)
+  if (!Number.isFinite(n)) return s
+  // 整數：去除前導零與多餘小數（3.0 → 3）
+  if (Number.isInteger(n)) return String(n)
+  // 小數：去除尾零（3.50 → 3.5），用 String(n) 已足夠；但避免極端精度，統一用 String(n)
+  return String(n)
+}
+
+/**
  * 將答案正規化為可比較的標準鍵。
- * 時間單位答案 → 正規化為規範形（如「1h45m」）
- * 純數字或其他答案 → 原樣回傳（已去空白）
+ * - 先全形轉半形（IME / 行動鍵盤常見）
+ * - 純數字答案（含小數、前導零）→ 數值正規化（07→7、3.50→3.5），避免「答案對卻判錯」
+ * - 時間單位答案 → 正規化為規範形（如「1h45m」）
+ * - 其他答案 → 原樣（已去空白、轉半形）
  */
 export function normalizeAnswer(input: string): string {
-  const trimmed = input.trim()
+  const half = toHalfWidth(input).trim()
+  if (half === '') return ''
+
+  // 純數字（含選用負號、小數點，允許尾隨小數點如「3.」）→ 數值正規化
+  if (/^-?\d+\.?\d*$/.test(half) || /^-?\.\d+$/.test(half)) {
+    return normalizeNumeric(half)
+  }
+
   // 嘗試時間正規化
-  const normalized = normalizeTimeAnswer(trimmed)
+  const normalized = normalizeTimeAnswer(half)
   // 如果正規化後與原小寫不同，表示有時間單位被轉換 → 用正規化結果
-  if (normalized !== trimmed.toLowerCase().replace(/\s+/g, '')) {
+  if (normalized !== half.toLowerCase().replace(/\s+/g, '')) {
     return normalized
   }
-  // 否則原樣回傳（如純數字）
-  return trimmed
+  // 否則原樣回傳（如文字答案）
+  return half
 }
 
 /**
