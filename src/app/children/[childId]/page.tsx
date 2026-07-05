@@ -224,6 +224,30 @@ export default async function ChildOverviewPage({
         </div>
       </div>
 
+      {/* ============ 功能導覽頁籤（僅家長可見） ============ */}
+      {isParent && (
+        <nav className="mb-8 flex flex-wrap gap-2">
+          <Link
+            href={`/children/${childId}/report`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-blue-800 dark:hover:text-blue-400"
+          >
+            📊 成長報告
+          </Link>
+          <Link
+            href={`/children/${childId}/review`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:border-red-200 hover:text-red-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-red-800 dark:hover:text-red-400"
+          >
+            📝 錯題本
+          </Link>
+          <Link
+            href={`/children/${childId}/history`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-indigo-800 dark:hover:text-indigo-400"
+          >
+            📋 練習歷史
+          </Link>
+        </nav>
+      )}
+
       {/* ============ 系統推薦 ============ */}
       {skillsData?.recommendation && (
         <RecommendationBanner rec={skillsData.recommendation} childId={childId} />

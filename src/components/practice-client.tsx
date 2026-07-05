@@ -468,7 +468,7 @@ export default function PracticeClient({
           )}
         </div>
 
-        {/* 次要操作：再練一次（同技能）/ 查看概覽 */}
+        {/* 次要操作：再練一次（同技能）/ 查看概覽 / 錯題本 */}
         <div className="flex flex-wrap justify-center gap-3">
           <form action={startSession.bind(null, childId, skillId)}>
             <button
@@ -479,14 +479,21 @@ export default function PracticeClient({
             </button>
           </form>
           <a
-            ref={completionLinkRef}
             href={"/children/" + childId}
             className="rounded-lg border border-neutral-300 px-5 py-2.5 font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
           >
             選擇其他技能
           </a>
+          {/* 錯題本連結：只有有錯題時才顯示 */}
+          {questionResults.some((r) => r && !r.correct && !r.assisted) && (
+            <a
+              href={"/children/" + childId + "/review"}
+              className="rounded-lg border border-red-200 px-5 py-2.5 font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+            >
+              📝 查看錯題本
+            </a>
+          )}
           <a
-            ref={completionLinkRef}
             href={"/children/" + childId}
             className="rounded-lg px-5 py-2.5 font-medium text-neutral-500 transition hover:text-neutral-800 dark:text-gray-400 dark:hover:text-gray-200"
           >
