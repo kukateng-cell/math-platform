@@ -83,6 +83,46 @@ input, textarea, select {
 .animate-flash-red { animation: flashRed 0.3s ease-out; }
 .animate-pulse-dot { animation: pulseDot 1.2s ease-in-out infinite; }
 
+/* ===== 背景裝飾動畫 ===== */
+@keyframes floatY {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-24px) rotate(8deg); }
+}
+
+@keyframes floatYReverse {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(20px) rotate(-10deg); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(16px, -18px) rotate(6deg); }
+  66% { transform: translate(-12px, 12px) rotate(-4deg); }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.85); }
+  50% { opacity: 0.9; transform: scale(1.15); }
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes blobMorph {
+  0%, 100% { border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; transform: translate(0, 0) scale(1); }
+  33% { border-radius: 67% 33% 41% 59% / 63% 37% 63% 37%; transform: translate(24px, -16px) scale(1.06); }
+  66% { border-radius: 38% 62% 56% 44% / 49% 67% 33% 51%; transform: translate(-18px, 20px) scale(0.96); }
+}
+
+.animate-float-y { animation: floatY 6s ease-in-out infinite; }
+.animate-float-y-reverse { animation: floatYReverse 7s ease-in-out infinite; }
+.animate-drift { animation: drift 12s ease-in-out infinite; }
+.animate-twinkle { animation: twinkle 3s ease-in-out infinite; }
+.animate-spin-slow { animation: spinSlow 18s linear infinite; }
+.animate-blob { animation: blobMorph 16s ease-in-out infinite; }
+
 /* ===== 減少動畫模式 ===== */
 .reduce-motion *,
 .reduce-motion *::before,
