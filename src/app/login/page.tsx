@@ -1,16 +1,19 @@
 import Link from 'next/link'
 import { createCaptcha } from '@/lib/captcha'
 import LoginForm from '@/components/login-form'
+import AnimatedBackground from '@/components/animated-background'
 
 export default async function LoginPage() {
   const captcha = await createCaptcha()
 
   return (
-    <main className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm">
+    <main className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
+      <AnimatedBackground />
+      <div className="relative w-full max-w-sm rounded-3xl bg-white/95 p-8 shadow-2xl ring-1 ring-black/5 backdrop-blur-sm dark:bg-gray-900/95 sm:p-10">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold">家長登入</h1>
-          <p className="mt-1 text-sm text-neutral-600 dark:text-gray-300">登入繼續孩子的學習</p>
+          <div className="mb-3 text-5xl">🔢</div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">歡迎回來</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">家長登入 · 繼續孩子的學習</p>
         </div>
         <LoginForm initialCaptcha={captcha} />
         <p className="mt-4 text-right text-sm">

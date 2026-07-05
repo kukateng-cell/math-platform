@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { getChildSession } from '@/lib/child-session'
 import { generateQuestion, shuffle } from '@/lib/question'
-import { updateMastery, getRecommendation, isGradeAllMastered } from '@/lib/mastery'
+import { updateMastery, getRecommendation, isGradeAllMastered, type Recommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
 import { getNextGrade, gradeRank } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
@@ -409,18 +409,29 @@ export async function getChildSkills(childId: string) {
   }
 }
 
-// ============ 取得「下一個建議練習」============
-// 練習完成後呼叫：根據最新掌握度推薦下一個技能，供完成畫面顯示
-// 「繼續下一個練習」並直接開始。type 為 ALL_DONE 時表示已全部掌握。
-export async function getNextPractice(childId: string): Promise<{
-  type: 'PRACTICE_PREREQ' | 'ADVANCE' | 'KEEP' | 'START_FIRST' | 'ALL_DONE'
-  skillId?: string
-  skillName?: string
-  reason: string
-} | null> {
+// 查詢「完成練習後的下一個推薦練習」（純查詢，不 redirect）
+// 完成頁面用此結果顯示下一個要練的技能名稱與推薦理由。
+//
+// 權限檢查由 getChildSkills 內部處理（getPracticeAuth + canAccessChild），
+// 此處不重複驗證，避免多餘的 auth/JWT 解析與 DB 查詢。
+export async function getNextPractice(childId: string): Promise<Recommendation | null> {
   const data = await getChildSkills(childId)
   if (!data) return null
   return data.recommendation
+}
+
+// 完成練習後直接開始「推薦的下一個練習」
+// 基於剛更新的掌握度即時計算推薦，再由 startSession 開新 session 並 redirect。
+// 若無推薦技能（ALL_DONE）則回到練習選單。
+//
+// 權限檢查交由 getChildSkills / startSession 內部處理，此處不重複。
+export async function startNextPractice(childId: string) {
+  const data = await getChildSkills(childId)
+  const rec = data?.recommendation
+  // 無資料或無推薦技能（ALL_DONE）→ 回練習選單
+  if (!rec?.skillId) redirect(`/practice/${childId}`)
+  // 開始推薦技能的新練習（startSession 內部會 redirect 到練習頁）
+  await startSession(childId, rec.skillId)
 }
 
 // ============ 升學測試 ============
