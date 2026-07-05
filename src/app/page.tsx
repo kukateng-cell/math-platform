@@ -1,20 +1,13 @@
 import Link from 'next/link'
 import { getCurrentUser } from '@/actions/auth'
+import AnimatedBackground from '@/components/animated-background'
 
 export default async function Home() {
   const user = await getCurrentUser()
 
   return (
-    <main className="relative flex flex-1 flex-col items-center overflow-hidden bg-gradient-to-br from-indigo-500 via-blue-600 to-purple-700 px-4 py-10 text-center text-white sm:py-16">
-      {/* 漂浮數學符號裝飾 */}
-      <div className="pointer-events-none absolute inset-0 select-none opacity-20" aria-hidden="true">
-        <div className="absolute left-[6%] top-[10%] text-8xl">➕</div>
-        <div className="absolute right-[8%] top-[16%] text-7xl">✖️</div>
-        <div className="absolute bottom-[12%] left-[14%] text-6xl">➗</div>
-        <div className="absolute right-[14%] bottom-[8%] text-8xl">🔢</div>
-        <div className="absolute left-[46%] top-[5%] text-5xl">⭐</div>
-        <div className="absolute left-[20%] bottom-[40%] text-6xl">➖</div>
-      </div>
+    <main className="relative flex flex-1 flex-col items-center overflow-hidden px-4 py-10 text-center text-white sm:py-16">
+      <AnimatedBackground />
 
       <div className="relative z-10 max-w-2xl">
         <div className="mb-4 text-7xl drop-shadow-lg">🔢</div>
