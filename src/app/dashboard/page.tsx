@@ -40,11 +40,19 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">👋 歡迎回來，{user.name}</h1>
-        <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">
-          建立孩子檔案後，點「開始練習」即可陪孩子一起做題
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">👋 歡迎回來，{user.name}</h1>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">
+            建立孩子檔案後，點「開始練習」即可陪孩子一起做題
+          </p>
+        </div>
+        <Link
+          href="/dashboard/settings"
+          className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+        >
+          ⚙️ 帳號設定
+        </Link>
       </div>
 
       {children.length === 0 ? (

@@ -364,3 +364,59 @@ export async function updateChildGrade(formData: FormData) {
   revalidatePath(`/children/${childId}`)
   revalidatePath('/dashboard')
 }
+
+// ====================================================================
+// 帳號刪除（GDPR 被遺忘權 / Right to Erasure）
+// --------------------------------------------------------------------
+// 家長可永久刪除自己的帳號。刪除範圍：
+// - 帳號本身（User）
+// - 自己建立的孩子檔案（ChildProfile, parentId 關聯）→ 連帶 sessions/
+//   attempts/mastery/badges（schema 已設 onDelete: Cascade）
+// - 自主學習孩子的綁定關係（ParentChild，但「不刪」孩子本人——他們有獨立帳號）
+//
+// 安全：必須重新輸入密碼確認（避免誤刪 / 被盜用後惡意刪除）。
+// 刪除後立即登出並回首頁。此操作不可復原。
+// ====================================================================
+
+export type DeleteAccountState =
+  | { errors?: Record<string, string[]>; message?: string; ok?: boolean }
+  | undefined
+
+export async function deleteAccount(state: DeleteAccountState, formData: FormData): Promise<DeleteAccountState> {
+  const session = await getSession()
+  if (!session) throw new Error('請先登入')
+
+  const password = String(formData.get('password') || '')
+  const confirmText = String(formData.get('confirm') || '').trim()
+
+  if (!password) {
+    return { errors: { password: ['請輸入密碼以確認身份'] } }
+  }
+
+  // 二次確認：必須輸入「刪除我的帳號」
+  if (confirmText !== '刪除我的帳號') {
+    return { errors: { confirm: ['請輸入「刪除我的帳號」以確認'] } }
+  }
+
+  // 驗證密碼（重新確認身份）
+  const user = await prisma.user.findUnique({ where: { id: session.userId } })
+  if (!user) {
+    return { message: '找不到帳號' }
+  }
+  const valid = await bcrypt.compare(password, user.passwordHash)
+  if (!valid) {
+    return { errors: { password: ['密碼不正確'] } }
+  }
+
+  // 執行刪除：
+  // 1. 先解除與「自主學習孩子」的綁定（只斷 ParentChild，不刪孩子本人）
+  // 2. 再刪 User → cascade 自動清掉 parentId 關聯的孩子及其全部學習資料
+  await prisma.$transaction([
+    prisma.parentChild.deleteMany({ where: { parentId: session.userId } }),
+    prisma.user.delete({ where: { id: session.userId } }),
+  ])
+
+  await deleteSession()
+  revalidatePath('/dashboard')
+  redirect('/')
+}
