@@ -155,6 +155,30 @@ export default async function DashboardPage() {
                   >
                     學習概覽
                   </Link>
+                  {/* 學習報表快捷入口 */}
+                  <div className="grid grid-cols-3 gap-1">
+                    <Link
+                      href={`/children/${child.id}/report`}
+                      className="rounded-md border border-neutral-200 px-2 py-1.5 text-center text-xs text-neutral-500 transition hover:bg-blue-50 hover:text-blue-600 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-blue-950 dark:hover:text-blue-400"
+                      title="成長報告"
+                    >
+                      📊 報告
+                    </Link>
+                    <Link
+                      href={`/children/${child.id}/review`}
+                      className="rounded-md border border-neutral-200 px-2 py-1.5 text-center text-xs text-neutral-500 transition hover:bg-red-50 hover:text-red-600 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-red-950 dark:hover:text-red-400"
+                      title="錯題本"
+                    >
+                      📝 錯題
+                    </Link>
+                    <Link
+                      href={`/children/${child.id}/history`}
+                      className="rounded-md border border-neutral-200 px-2 py-1.5 text-center text-xs text-neutral-500 transition hover:bg-indigo-50 hover:text-indigo-600 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-indigo-950 dark:hover:text-indigo-400"
+                      title="練習歷史"
+                    >
+                      📋 歷史
+                    </Link>
+                  </div>
                   <DeleteChildButton childId={child.id} nickname={child.nickname} />
                 </div>
               </div>
