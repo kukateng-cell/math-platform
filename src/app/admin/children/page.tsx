@@ -46,7 +46,17 @@ export default async function AdminChildrenPage() {
       >
         ← 返回後台
       </Link>
-      <h1 className="mt-2 mb-6 text-2xl font-bold">所有孩子總覽</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="mt-2 text-2xl font-bold">所有孩子總覽</h1>
+        {/* 匯出全部孩子的練習紀錄（CSV） */}
+        <a
+          href="/api/export/admin/all-children"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+          title="下載全部孩子的練習紀錄（CSV，可用 Excel 開啟）"
+        >
+          📥 匯出全部資料
+        </a>
+      </div>
 
       {/* ============ 平台彙總卡片 ============ */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

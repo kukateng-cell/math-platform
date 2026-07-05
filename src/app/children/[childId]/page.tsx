@@ -214,13 +214,21 @@ export default async function ChildOverviewPage({
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             href={`/practice/${childId}`}
             className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
           >
             開始新練習
           </Link>
+          {/* 匯出資料（CSV）：家長可下載孩子的完整練習紀錄（GDPR 資料可攜權） */}
+          <a
+            href={`/api/export/child/${childId}`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+            title="下載完整練習紀錄（CSV，可用 Excel 開啟）"
+          >
+            📥 匯出資料
+          </a>
         </div>
       </div>
 
