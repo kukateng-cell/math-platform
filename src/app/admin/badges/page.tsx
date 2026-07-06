@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { createBadge, updateBadge, deleteBadge } from '@/actions/admin'
+import { createBadge, updateBadge } from '@/actions/admin'
 import BadgeForm from './badge-form'
+import DeleteBadgeButton from './delete-badge-button'
 
 export default async function AdminBadgesPage() {
   const session = await getSession()
@@ -50,16 +51,7 @@ export default async function AdminBadgesPage() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <BadgeForm mode="edit" badge={{ id: badge.id, name: badge.name, icon: badge.icon, condition: badge.condition }} />
-              <form action={deleteBadge}>
-                <input type="hidden" name="id" value={badge.id} />
-                <button
-                  type="submit"
-                  className="rounded px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50"
-                  onClick={(e) => { if (!confirm('確定刪除此徽章？所有孩子獲得的此徽章紀錄也將一併刪除。')) e.preventDefault() }}
-                >
-                  🗑️ 刪除
-                </button>
-              </form>
+              <DeleteBadgeButton id={badge.id} />
             </div>
           </div>
         ))}
