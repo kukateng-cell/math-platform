@@ -6,7 +6,7 @@ import CaptchaChallenge from './captcha-challenge'
 import OtpResendButton from './otp-resend-button'
 
 // OTP 重發的初始 state
-const initResend = undefined as { message?: string; devOtp?: string; otpRequired?: boolean; error?: string; tempToken?: string } | undefined
+const initResend = undefined as { message?: string; otpRequired?: boolean; error?: string; tempToken?: string } | undefined
 
 type Props = {
   initialCaptcha: { question: string; token: string }
@@ -20,7 +20,6 @@ export default function StudentLoginForm({ initialCaptcha }: Props) {
   const captcha = loginState?.captcha || initialCaptcha
   const isOtpMode = loginState?.otpRequired
   const tempToken = loginState?.tempToken || ''
-  const devOtp = loginState?.devOtp
 
   if (!isOtpMode) {
     return (
@@ -61,8 +60,8 @@ export default function StudentLoginForm({ initialCaptcha }: Props) {
         </button>
       </form>
 
-      {/* 換一組驗證碼（含倒數、開發模式顯示 OTP） */}
-      <OtpResendButton tempToken={tempToken} resendState={resendState} resendAction={resendAction} resendPending={resendPending} initialDevOtp={devOtp} />
+      {/* 換一組驗證碼（含倒數） */}
+      <OtpResendButton tempToken={tempToken} resendState={resendState} resendAction={resendAction} resendPending={resendPending} />
     </div>
   )
 }
