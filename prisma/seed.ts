@@ -679,10 +679,12 @@ async function main() {
 
   // ───────── 2. 圖形辨認（shape-recognition）: 15+ 題 ─────────
   const shapeDefinitions = [
-    { symbol: '□', name: '正方形', feature: '四條邊一樣長，四個角都是直角' },
-    { symbol: '○', name: '圓形', feature: '圓圓的，沒有角也沒有邊' },
-    { symbol: '△', name: '三角形', feature: '有三條邊和三個角' },
-    { symbol: '▭', name: '長方形', feature: '有四條邊，對邊一樣長，四個角都是直角' },
+    // symbol 改用 [shape:xxx] 標記，前端 renderTextWithShapes 會渲染成彩色 SVG
+    // （紅正方/藍圓/綠三角/橙長方），比 Unicode 符號清晰且跨裝置一致
+    { symbol: '[shape:square]', name: '正方形', feature: '四條邊一樣長，四個角都是直角' },
+    { symbol: '[shape:circle]', name: '圓形', feature: '圓圓的，沒有角也沒有邊' },
+    { symbol: '[shape:triangle]', name: '三角形', feature: '有三條邊和三個角' },
+    { symbol: '[shape:rectangle]', name: '長方形', feature: '有四條邊，對邊一樣長，四個角都是直角' },
   ]
   const allShapeNames = ['正方形', '圓形', '三角形', '長方形']
 

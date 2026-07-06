@@ -10,6 +10,7 @@ import {
 } from '@/actions/practice'
 import NumberPad from './number-pad'
 import NumberLine from './number-line'
+import { renderTextWithShapes } from './shape-icon'
 import { displayAnswer } from '@/lib/answer-i18n'
 import type { Recommendation } from '@/lib/mastery'
 
@@ -587,7 +588,10 @@ export default function PracticeClient({
         role="region"
         aria-label={"題目 " + (index + 1)}
       >
-        <p className="text-3xl font-bold tracking-wide">{current.prompt}</p>
+        {/* 題幹：解析 [shape:xxx] 標記或舊符號，渲染成彩色 SVG 圖形 */}
+        <p className="text-3xl font-bold tracking-wide">
+          {renderTextWithShapes(current.prompt, 'lg')}
+        </p>
       </div>
 
       {/* 💡 提示按鈕 — 作答前可預先查看解題提示 */}
@@ -603,7 +607,7 @@ export default function PracticeClient({
           </button>
           {showHint && (
             <div className="mx-auto mt-2 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-800 animate-fade-in-up dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              💡 {current.explanation}
+              💡 {renderTextWithShapes(current.explanation ?? '', 'sm')}
             </div>
           )}
         </div>
@@ -698,7 +702,7 @@ export default function PracticeClient({
               {lastResult.correct ? '✓ 答對了！' : '✗ 正確答案是 ' + displayAnswer(lastResult.correctAnswer)}
             </p>
             {lastResult.explanation && (
-              <p className="mt-2 text-sm opacity-80">💡 {lastResult.explanation}</p>
+              <p className="mt-2 text-sm opacity-80">💡 {renderTextWithShapes(lastResult.explanation, 'sm')}</p>
             )}
           </div>
         )}
