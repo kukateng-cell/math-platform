@@ -15,7 +15,7 @@ export default async function Home() {
           數學小達人
         </h1>
         <p className="mb-8 text-lg text-white/90 sm:text-xl">
-          陪伴 K-2 孩子建立扎實的數感與計算基礎。
+          陪伴 K-G6 孩子建立扎實的數感與計算基礎，從數數到乘除法，循序漸進。
           家長建立孩子檔案，孩子輕鬆做題，系統記錄表現並給出下一步建議。
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
@@ -61,9 +61,9 @@ export default async function Home() {
 
       <div className="relative z-10 mt-12 grid w-full max-w-3xl gap-4 sm:grid-cols-3">
         {[
-          { icon: '👤', title: '建立孩子檔案', desc: '一個家長帳號可管理多個孩子' },
-          { icon: '✏️', title: '趣味做題', desc: '每次 8-12 題，即時回饋' },
-          { icon: '📊', title: '掌握度追蹤', desc: '規則式推薦，家長看得懂' },
+          { icon: '✏️', title: '循序做題', desc: '每次 10 題，涵蓋數數到乘除法，即時回饋' },
+          { icon: '🏅', title: '成就徽章', desc: '完成練習解鎖徽章，連擊、速度、掌握度都能挑戰' },
+          { icon: '🎓', title: '升學測驗', desc: '掌握度達標即可挑戰升學，逐步晉級更高年級' },
         ].map((f) => (
           <div
             key={f.title}

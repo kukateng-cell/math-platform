@@ -155,7 +155,9 @@ export default function PracticeClient({
   }, [lastResult?.finished, childId])
 
   // 練習計時器：每秒更新經過時間
+  // 注意：練習完成後（finalTotalMs 已固定）就停止計時，避免完成頁每秒重渲染浪費 CPU/電力
   useEffect(() => {
+    if (finalTotalMs !== null) return // 練習已結束，不再啟動計時器
     const interval = setInterval(() => {
       const sec = Math.floor((Date.now() - practiceStartRef.current) / 1000)
       const m = String(Math.floor(sec / 60)).padStart(2, '0')
@@ -163,7 +165,7 @@ export default function PracticeClient({
       setElapsed(`${m}:${s}`)
     }, 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [finalTotalMs])
 
   // 答題後自動捲動到「回饋 + 下一題」區塊
   // 等回饋動畫展開後再滾動（留一點時間讓 DOM 更新），尊重「減少動畫模式」
