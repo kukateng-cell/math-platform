@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { accessibleGrades } from '@/lib/grade'
 
 // ============ 星星獎勵 ============
 // 每次練習完成後將此輪獲得的星星加入總數
@@ -58,6 +59,39 @@ type BadgeCheckContext = {
   allCorrect: boolean // 本次練習是否全對（不計 assisted）
   isPromotion?: boolean // 是否為升學測試
   passedPromotion?: boolean // 升學測試是否通過
+}
+
+// 從最新一筆 attempt 往回數「連續答對且非家長協助」的題數
+// 一遇到錯誤或 assisted 即中斷（協助代表非孩子獨立答對，視為中斷連擊）
+async function currentCombo(childId: string): Promise<number> {
+  const attempts = await prisma.attempt.findMany({
+    where: { session: { childId } },
+    orderBy: { createdAt: 'desc' },
+    select: { isCorrect: true, assisted: true },
+    take: 60, // 連擊上限 25，取 60 綽綽有餘
+  })
+  let combo = 0
+  for (const a of attempts) {
+    if (a.isCorrect && !a.assisted) combo++
+    else break
+  }
+  return combo
+}
+
+// 從最新一筆往回數「連續在指定毫秒內答對且非協助」的題數
+async function currentSpeedRun(childId: string, maxMs: number): Promise<number> {
+  const attempts = await prisma.attempt.findMany({
+    where: { session: { childId } },
+    orderBy: { createdAt: 'desc' },
+    select: { isCorrect: true, assisted: true, durationMs: true },
+    take: 30,
+  })
+  let run = 0
+  for (const a of attempts) {
+    if (a.isCorrect && !a.assisted && a.durationMs > 0 && a.durationMs <= maxMs) run++
+    else break
+  }
+  return run
 }
 
 export async function checkBadges(ctx: BadgeCheckContext) {
@@ -130,24 +164,37 @@ export async function checkBadges(ctx: BadgeCheckContext) {
       }
 
       case 'all-skills': {
-        // 所有技能都練過至少一次
-        const skillCount = await prisma.skill.count({ where: { isActive: true } })
-        const practicedSkills = await prisma.attempt.groupBy({
-          by: ['questionId'],
-          where: {
-            session: { childId },
-            question: { skill: { isActive: true } },
-          },
+        // 「該孩子目前可接觸年級範圍內」的全部技能都練過至少一次
+        // 注意：孩子只能練自己年級及以下的技能（見 lib/grade.ts accessibleGrades），
+        // 若門檻用「全年級」技能數，除非升到 G6 否則永遠拿不到（死徽章）。
+        // 故改為只計算孩子可存取年級（K..當前年級）內的技能。
+        const reachableGrades = accessibleGrades(child.gradeLevel)
+        const reachableSkillCount = await prisma.skill.count({
+          where: { isActive: true, gradeLevel: { in: reachableGrades } },
         })
-        // 取得不重複的 skillId
-        const questionsWithSkills = await prisma.questionTemplate.findMany({
-          where: {
-            id: { in: practicedSkills.map((a) => a.questionId) },
-          },
-          select: { skillId: true },
-          distinct: ['skillId'],
-        })
-        earned = questionsWithSkills.length >= skillCount
+        if (reachableSkillCount > 0) {
+          const practicedSkills = await prisma.attempt.groupBy({
+            by: ['questionId'],
+            where: {
+              session: { childId },
+              question: {
+                skill: {
+                  isActive: true,
+                  gradeLevel: { in: reachableGrades },
+                },
+              },
+            },
+          })
+          // 取得不重複的 skillId
+          const questionsWithSkills = await prisma.questionTemplate.findMany({
+            where: {
+              id: { in: practicedSkills.map((a) => a.questionId) },
+            },
+            select: { skillId: true },
+            distinct: ['skillId'],
+          })
+          earned = questionsWithSkills.length >= reachableSkillCount
+        }
         break
       }
 
@@ -200,6 +247,66 @@ export async function checkBadges(ctx: BadgeCheckContext) {
           const rank = gradeRank(child.gradeLevel) ?? 0
           earned = rank >= 3
         }
+        break
+      }
+
+      // ============ 新增難度梯度成就 ============
+      case 'persistent-5': {
+        // 累計完成 5 次練習（比連續天數更親民，斷一天也不會歸零）
+        const sessionCount = await prisma.practiceSession.count({
+          where: { childId, completedAt: { not: null } },
+        })
+        earned = sessionCount >= 5
+        break
+      }
+
+      case 'combo-10':
+      case 'combo-25': {
+        // 跨練習「連續答對」：從最新一筆 attempt 往回數，遇到錯或協助即中斷
+        const target = badge.code === 'combo-10' ? 10 : 25
+        earned = (await currentCombo(childId)) >= target
+        break
+      }
+
+      case 'speed-demon': {
+        // 連續 5 題在 5 秒內答對（且非協助）
+        earned = (await currentSpeedRun(childId, 5000)) >= 5
+        break
+      }
+
+      case 'subtraction-master': {
+        // 減法技能正確率 ≥ 90%（最近 20 題，仿加法達人）
+        const subSkillIds = (
+          await prisma.skill.findMany({
+            where: { code: { in: ['sub-within-10'] } },
+            select: { id: true },
+          })
+        ).map((s) => s.id)
+
+        if (subSkillIds.length > 0) {
+          const recentSubAttempts = await prisma.attempt.findMany({
+            where: {
+              session: { childId },
+              question: { skillId: { in: subSkillIds } },
+              assisted: false,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+          })
+          if (recentSubAttempts.length >= 10) {
+            const correct = recentSubAttempts.filter((a) => a.isCorrect).length
+            earned = correct / recentSubAttempts.length >= 0.9
+          }
+        }
+        break
+      }
+
+      case 'mastery-3': {
+        // 3 個技能達到掌握（masteryLevel ≥ 95%，且有作答紀錄）
+        const masteredCount = await prisma.masterySnapshot.count({
+          where: { childId, masteryLevel: { gte: 0.95 }, recentTotal: { gt: 0 } },
+        })
+        earned = masteredCount >= 3
         break
       }
     }

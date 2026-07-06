@@ -1550,6 +1550,17 @@ async function main() {
     { code: 'addition-master', name: '加法達人', icon: '🧮', condition: '加法技能正確率 ≥ 90%（最近 20 題）' },
     { code: 'promotion-pass', name: '升學挑戰成功', icon: '🎓', condition: '第一次升學測試通過' },
     { code: 'promotion-star', name: '學業明星', icon: '⭐', condition: '通過 3 次升學測試' },
+
+    // ============ 新增難度梯度成就（橫跨累計 / 連擊 / 速度 / 達人 / 精進）============
+    // 🟢 簡單
+    { code: 'persistent-5', name: '練習小將', icon: '📅', condition: '累計完成 5 次練習' },
+    { code: 'combo-10', name: '十連擊', icon: '✨', condition: '連續答對 10 題（不計家長協助）' },
+    // 🟡 中等
+    { code: 'speed-demon', name: '閃電小能手', icon: '⚡', condition: '連續 5 題在 5 秒內答對' },
+    { code: 'subtraction-master', name: '減法達人', icon: '➖', condition: '減法技能正確率 ≥ 90%（最近 20 題）' },
+    // 🔴 困難
+    { code: 'mastery-3', name: '精通三藝', icon: '🧠', condition: '3 個技能達到掌握（95%）' },
+    { code: 'combo-25', name: '答題高手', icon: '💎', condition: '連續答對 25 題（不計家長協助）' },
   ]
 
   for (const badge of badges) {
