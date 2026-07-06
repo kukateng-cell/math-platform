@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getCurrentUser } from '@/actions/auth'
 import { prisma } from '@/lib/prisma'
+import { accessibleGrades } from '@/lib/grade'
 import AddChildForm from '@/components/add-child-form'
 import DeleteChildButton from '@/components/delete-child-button'
 
@@ -35,8 +36,23 @@ export default async function DashboardPage() {
     },
   })
 
-  // 技能總數（用於計算掌握進度百分比）
-  const totalSkills = await prisma.skill.count({ where: { isActive: true } })
+  // 每個年級的啟用技能數（一次查出，供每個孩子依其年級計算可接觸範圍內的技能數）
+  // 掌握進度的分母必須是「孩子可接觸年級範圍（K..當前年級）」的技能數，
+  // 而非全年級（K~G6）。否則低年級孩子即使練完自己年級的全部技能，
+  // 進度也會顯示很低（例如 K 的 3 個技能 / 47 個全年級 = 6%）。
+  const skillCountByGrade = await prisma.skill.groupBy({
+    by: ['gradeLevel'],
+    where: { isActive: true },
+    _count: true,
+  })
+  const skillCountMap = new Map(skillCountByGrade.map((g) => [g.gradeLevel, g._count]))
+  // reachableSkills(gradeLevel)：給定孩子年級，回傳其可接觸年級（含自身及以下）的技能總數
+  function reachableSkills(gradeLevel: string): number {
+    return accessibleGrades(gradeLevel).reduce(
+      (sum, g) => sum + (skillCountMap.get(g) ?? 0),
+      0
+    )
+  }
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
@@ -70,6 +86,8 @@ export default async function DashboardPage() {
             const masteredSkills = child.masterySnapshots.filter(
               (m) => m.recentTotal > 0 && m.masteryLevel >= 0.95
             ).length
+            // 掌握進度的分母：僅計孩子可接觸年級範圍內的技能數（與授予邏輯一致）
+            const totalSkills = reachableSkills(child.gradeLevel)
             const skillPct = totalSkills > 0 ? Math.round((masteredSkills / totalSkills) * 100) : 0
 
             // 最近 5 次練習的平均正確率
