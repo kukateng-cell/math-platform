@@ -1,17 +1,17 @@
 import nodemailer from 'nodemailer'
 
-// SMTP 設定從環境變數讀取，未設定時降級為開發模式（只印 log）
-const smtpHost = process.env.SMTP_HOST
+// Gmail SMTP 設定從環境變數讀取，未設定時降級為開發模式（只印 log）
+const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com'
 const smtpPort = Number(process.env.SMTP_PORT) || 587
 const smtpUser = process.env.SMTP_USER
 const smtpPass = process.env.SMTP_PASS
-const fromEmail = process.env.SMTP_FROM || 'noreply@math-platform.local'
+const fromEmail = process.env.SMTP_FROM || smtpUser || 'noreply@math-platform.local'
 
 let transporter: nodemailer.Transporter | null = null
 
 function getTransporter(): nodemailer.Transporter | null {
   if (transporter) return transporter
-  if (!smtpHost || !smtpUser || !smtpPass) return null
+  if (!smtpUser || !smtpPass) return null
 
   transporter = nodemailer.createTransport({
     host: smtpHost,
