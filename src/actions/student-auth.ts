@@ -25,7 +25,6 @@ type SelfStudyState = {
   otpRequired?: boolean
   tempToken?: string
   captcha?: { question: string; token: string }
-  devOtp?: string
   message?: string
 } | undefined
 
@@ -64,17 +63,17 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
     data: { email, nickname, gradeLevel, mode: 'SELF_STUDY' },
   })
 
-  // 發送 OTP
+  // 發送 OTP（透過 Gmail SMTP）— 學生端一律不顯示開發模式 OTP
   const otpCode = generateOtp(child.id)
-  sendOtpEmail(email, otpCode)
-  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
-  const devOtp = showOtp ? otpCode : undefined
+  const emailResult = await sendOtpEmail(email, otpCode)
+  if (!emailResult.success) {
+    console.error('[EMAIL FAILED]', emailResult.error)
+  }
   const tempToken = await createTempToken(child.id)
 
   return {
     otpRequired: true,
     tempToken,
-    devOtp,
     message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }
@@ -129,15 +128,15 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
   }
 
   const otpCode = generateOtp(child.id)
-  sendOtpEmail(child.email, otpCode)
-  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
-  const devOtp = showOtp ? otpCode : undefined
+  const emailResult = await sendOtpEmail(child.email, otpCode)
+  if (!emailResult.success) {
+    console.error('[EMAIL FAILED]', emailResult.error)
+  }
   const tempToken = await createTempToken(child.id)
 
   return {
     otpRequired: true,
     tempToken,
-    devOtp,
     message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }
@@ -166,16 +165,16 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
   const child = await prisma.childProfile.findUnique({ where: { id: childId } })
   if (!child || !child.email) return { error: '帳號不存在', tempToken }
 
-  // 產生新 OTP 並寄出
+  // 產生新 OTP 並透過 Gmail SMTP 寄出 — 學生端一律不顯示開發模式 OTP
   const otpCode = generateOtp(childId)
-  sendOtpEmail(child.email, otpCode)
-  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
-  const devOtp = showOtp ? otpCode : undefined
+  const emailResult = await sendOtpEmail(child.email, otpCode)
+  if (!emailResult.success) {
+    console.error('[EMAIL FAILED]', emailResult.error)
+  }
 
   return {
     otpRequired: true,
     tempToken,
-    devOtp,
     message: `新驗證碼已發送至 ${child.email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }

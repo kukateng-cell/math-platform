@@ -96,10 +96,14 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   // 產生 OTP 驗證碼
   const otpCode = generateOtp(user.id)
 
-  // 發送郵件（非同步，不阻斷流程）
-  sendOtpEmail(user.email, otpCode)
-  // 開發階段或 SHOW_OTP_IN_UI=true 時直接顯示在前端
-  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
+  // 透過 Gmail SMTP 寄送驗證碼
+  const emailResult = await sendOtpEmail(user.email, otpCode)
+  if (!emailResult.success) {
+    console.error('[EMAIL FAILED]', emailResult.error)
+  }
+
+  // 只有管理員在開發模式時才直接顯示 OTP（家長一律不顯示）
+  const showOtp = (process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true') && user.role === 'ADMIN'
   const devOtp = showOtp ? otpCode : undefined
 
   const tempToken = await createTempToken(user.id)
@@ -160,14 +164,20 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
   const otpCode = generateOtp(userId)
 
   const user = await prisma.user.findUnique({ where: { id: userId } })
-  if (user) sendOtpEmail(user.email, otpCode)
+  if (user) {
+    const emailResult = await sendOtpEmail(user.email, otpCode)
+    if (!emailResult.success) {
+      console.error('[EMAIL FAILED]', emailResult.error)
+    }
+  }
 
   const emailMasked = user
     ? user.email.replace(/(.{3}).+@/, '$1***@')
     : '您的信箱'
 
-  // 開發階段或 SHOW_OTP_IN_UI=true 時直接顯示驗證碼
-  const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
+  // 只有管理員在開發模式時才直接顯示 OTP
+  const isAdmin = user?.role === 'ADMIN'
+  const showOtp = (process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true') && isAdmin
   const devOtp = showOtp ? otpCode : undefined
 
   return {
@@ -258,20 +268,20 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
 
   // 基於安全：不論 email 是否存在，回應都一樣（避免列舉帳號）
   // 但只有 email 真的存在時才會發送 OTP
-  let devOtp: string | undefined
+  // 忘記密碼為家長功能，一律不顯示開發模式 OTP
   let tempToken = ''
   if (user) {
     const otpCode = generateOtp(user.id)
-    sendOtpEmail(user.email, otpCode)
+    const emailResult = await sendOtpEmail(user.email, otpCode)
+    if (!emailResult.success) {
+      console.error('[EMAIL FAILED]', emailResult.error)
+    }
     tempToken = await createTempToken(user.id)
-    const showOtp = process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true'
-    devOtp = showOtp ? otpCode : undefined
   }
 
   return {
     otpRequired: true,
     tempToken,
-    devOtp,
     message: `若此 Email 已註冊，驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }

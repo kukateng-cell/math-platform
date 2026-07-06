@@ -39,7 +39,6 @@ export default function ForgotPasswordForm({ initialCaptcha }: Props) {
   const requestToken = resetState?.tempToken || ''
   // OTP 驗證通過後會拿到一個新的「可重設密碼」token
   const resetToken = otpState?.tempToken || requestToken
-  const devOtp = resetState?.devOtp
   const isOtpMode = !!resetState?.otpRequired && !otpState?.ok
   const isPwdMode = !!otpState?.ok
   const isDone = !!pwdState?.ok
@@ -157,19 +156,7 @@ export default function ForgotPasswordForm({ initialCaptcha }: Props) {
               {resetState?.message}
             </p>
 
-            {/* 開發模式：直接顯示驗證碼 */}
-            {devOtp && (
-              <div className="mt-3 rounded-xl bg-white/80 px-4 py-3 dark:bg-gray-900/60">
-                <p className="mb-1 text-xs text-blue-500">🔧 開發模式 — 驗證碼</p>
-                <p className="mb-2 select-all text-3xl font-bold tracking-[0.3em] text-blue-900 dark:text-blue-100">
-                  {devOtp}
-                </p>
-              </div>
-            )}
-
-            {!devOtp && (
-              <p className="mt-1 text-xs text-blue-600">請查看您信箱中的驗證碼</p>
-            )}
+            <p className="mt-1 text-xs text-blue-600">請查看您信箱中的驗證碼</p>
           </div>
 
           <div className="flex flex-col gap-1">
