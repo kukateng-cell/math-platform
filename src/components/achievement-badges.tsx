@@ -19,6 +19,13 @@ const GRADE_COLORS: Record<string, string> = {
   'perfect-score': 'from-green-400 to-emerald-500',
   'all-skills': 'from-purple-400 to-indigo-500',
   'addition-master': 'from-sky-400 to-blue-600',
+  // 新增難度梯度成就
+  'persistent-5': 'from-teal-400 to-emerald-500',
+  'combo-10': 'from-lime-400 to-green-500',
+  'speed-demon': 'from-fuchsia-400 to-pink-500',
+  'subtraction-master': 'from-indigo-400 to-blue-600',
+  'mastery-3': 'from-violet-400 to-purple-600',
+  'combo-25': 'from-rose-400 to-red-600',
 }
 
 function badgeGradient(code: string): string {
