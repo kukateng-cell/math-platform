@@ -197,11 +197,12 @@ export default function PracticeClient({
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (submittingRef.current || submitting) return
       if (lastResult) {
         nextQuestion()
       } else if (currentAnswer) {
-        submittingRef.current = true
+        // 鎖由 handleSubmit 內部統一管理（入口同步設 ref、finally 釋放）。
+        // 不可在此提前設 submittingRef.current=true，否則 handleSubmit 第一行
+        // if(submittingRef.current) return 會立即拒絕，鎖永遠不釋放 → 卡死。
         handleSubmit()
       }
       return
@@ -231,7 +232,7 @@ export default function PracticeClient({
         nextQuestion()
       } else if (currentAnswer) {
         e.preventDefault()
-        submittingRef.current = true
+        // 鎖由 handleSubmit 內部統一管理（見 handleKeyDown 的說明）
         handleSubmit()
       }
     }
