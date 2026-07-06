@@ -1,6 +1,30 @@
 import { prisma } from '@/lib/prisma'
 import { accessibleGrades } from '@/lib/grade'
 
+// ============ 時區工具（Streak 用）============
+// 平台目標用戶為台灣（zh-TW，UTC+8）。伺服器可能在其他時區（如 Supabase ap-south-1 孟買），
+// 若用伺服器本地時區算「日曆日」，跨時區用戶的 streak 會計算偏差（例：台灣 23:30 練習、
+// 隔天 06:00 再練，按孟買時區仍是同一天，streak 不增加）。
+// 解法：固定用 Asia/Taipei 時區把 timestamp 折算成「日曆日 key」（YYYY-MM-DD），
+// 再比較兩個日曆日。將來若要支援每個用戶自訂時區，只要把 APP_TIMEZONE 改成 per-user 即可。
+const APP_TIMEZONE = 'Asia/Taipei'
+
+/** 取某個 timestamp 在目標時區的日曆日 key（YYYY-MM-DD），用於 streak 計算 */
+function calendarDayKey(date: Date, timeZone = APP_TIMEZONE): string {
+  // toLocaleDateString('en-CA') 會輸出 YYYY-MM-DD 格式（en-CA 的預設格式）
+  return date.toLocaleDateString('en-CA', { timeZone })
+}
+
+/** 計算兩個日曆日相差幾天（負值代表 from 在 to 之後）。以目標時區為準。 */
+function diffCalendarDays(from: Date, to: Date, timeZone = APP_TIMEZONE): number {
+  const fromKey = calendarDayKey(from, timeZone)
+  const toKey = calendarDayKey(to, timeZone)
+  // 把 YYYY-MM-DD 解析成 UTC 午夜（避免本地時區干擾），再算天數差
+  const fromUtc = Date.UTC(+fromKey.slice(0, 4), +fromKey.slice(5, 7) - 1, +fromKey.slice(8, 10))
+  const toUtc = Date.UTC(+toKey.slice(0, 4), +toKey.slice(5, 7) - 1, +toKey.slice(8, 10))
+  return Math.round((toUtc - fromUtc) / (1000 * 60 * 60 * 24))
+}
+
 // ============ 星星獎勵 ============
 // 每次練習完成後將此輪獲得的星星加入總數
 export async function updateStars(childId: string, earnedStars: number) {
@@ -12,41 +36,38 @@ export async function updateStars(childId: string, earnedStars: number) {
 }
 
 // ============ 連續練習天數（Streak）============
+// 時區安全：用 Asia/Taipei 時區計算「日曆日」，不依賴伺服器本地時區。
 export async function updateStreak(childId: string) {
   const child = await prisma.childProfile.findUnique({ where: { id: childId } })
   if (!child) return
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const now = new Date()
   const last = child.lastPracticeAt
 
   if (!last) {
     // 第一次練習
     await prisma.childProfile.update({
       where: { id: childId },
-      data: { streak: 1, lastPracticeAt: today },
+      data: { streak: 1, lastPracticeAt: now },
     })
     return
   }
 
-  const lastDay = new Date(last)
-  lastDay.setHours(0, 0, 0, 0)
-  const diffDays = Math.floor(
-    (today.getTime() - lastDay.getTime()) / (1000 * 60 * 60 * 24)
-  )
+  // 以目標時區計算上次練習與現在的「日曆日」差
+  const diffDays = diffCalendarDays(last, now)
 
-  if (diffDays === 0) return // 當天已算過
+  if (diffDays <= 0) return // 同一天（含未來時間誤差），當天已算過
   if (diffDays === 1) {
     // 連續
     await prisma.childProfile.update({
       where: { id: childId },
-      data: { streak: { increment: 1 }, lastPracticeAt: today },
+      data: { streak: { increment: 1 }, lastPracticeAt: now },
     })
   } else {
-    // 中斷
+    // 中斷（diffDays >= 2）
     await prisma.childProfile.update({
       where: { id: childId },
-      data: { streak: 1, lastPracticeAt: today },
+      data: { streak: 1, lastPracticeAt: now },
     })
   }
 }
