@@ -186,8 +186,9 @@ export async function getSessionQuestions(
     return null
   }
 
-  // 驗證身分可存取此練習
-  if (!(await canAccessChild(practiceSession.childId))) return null
+  // 記憶體內權限驗證（避免額外 DB 查詢）
+  if (auth.type === 'child' && auth.childId !== practiceSession.childId) return null
+  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) return null
 
   // 相容舊 session：若無 questionsJson，回傳空陣列讓前端顯示提示
   let questions: StoredQuestion[] = []
@@ -235,10 +236,13 @@ export async function submitAnswer(payload: {
     where: { id: payload.sessionId },
     include: { child: true },
   })
-  // 越權防護：session 必須存在且身分可存取此孩子
-  if (!practiceSession || !(await canAccessChild(practiceSession.childId))) {
+  // 越權防護：session 必須存在
+  if (!practiceSession) throw new Error('無權存取此練習')
+  // 記憶體內權限驗證（避免額外 DB 查詢）
+  if (auth.type === 'child' && auth.childId !== practiceSession.childId)
     throw new Error('無權存取此練習')
-  }
+  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId)
+    throw new Error('無權存取此練習')
   // 已完成的練習不再接受作答（防重複提交）
   if (practiceSession.completedAt) {
     return {
@@ -273,18 +277,8 @@ export async function submitAnswer(payload: {
     },
   })
 
-  // 更新練習的正確數（不計 assisted 題）
-  if (correct && !payload.assisted) {
-    await prisma.practiceSession.update({
-      where: { id: payload.sessionId },
-      data: { correctCount: { increment: 1 } },
-    })
-  }
-
-  // 檢查是否完成
-  const count = await prisma.attempt.count({ where: { sessionId: payload.sessionId } })
-  const total = practiceSession.totalQuestions
-  const finished = count >= total
+  // 用 questionIndex 判斷完成（避免 attempt.count DB 查詢）
+  const finished = payload.questionIndex + 1 >= practiceSession.totalQuestions
   if (finished) {
     await prisma.practiceSession.update({
       where: { id: payload.sessionId },
@@ -304,6 +298,12 @@ export async function submitAnswer(payload: {
     const allCorrect = sessionAttempts.every(
       (a) => a.isCorrect
     )
+
+    // 從實際作答計算 correctCount 並寫入（延遲批量寫入，取代每次遞增）
+    await prisma.practiceSession.update({
+      where: { id: payload.sessionId },
+      data: { correctCount: starsEarned },
+    })
 
     await updateStars(childId, starsEarned)
     await updateStreak(childId)
@@ -339,15 +339,18 @@ export async function submitAnswer(payload: {
     await checkBadges({
       childId,
       sessionCorrectCount: starsEarned,
-      sessionTotalQuestions: total,
+      sessionTotalQuestions: practiceSession.totalQuestions,
       allCorrect,
       isPromotion: isPromotionTest,
       passedPromotion,
     })
   }
 
-  revalidatePath('/dashboard')
-  revalidatePath('/children')
+  // 僅在練習完成時重新驗證快取
+  if (finished) {
+    revalidatePath('/dashboard')
+    revalidatePath('/children')
+  }
 
   // 回傳時檢查是否為升學測試且剛完成，附加升學結果
   let promotionResult: SubmitResult['promotion'] = null

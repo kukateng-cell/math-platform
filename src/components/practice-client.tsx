@@ -86,12 +86,6 @@ export default function PracticeClient({
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showHint, setShowHint] = useState(false)
-  const [nextPractice, setNextPractice] = useState<{
-    type: string
-    skillId?: string
-    skillName?: string
-    reason: string
-  } | null>(null)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
@@ -144,16 +138,6 @@ export default function PracticeClient({
       completionLinkRef.current.focus()
     }
   }, [index, questions.length])
-
-  // 練習完成時：向伺服器取得「下一個建議練習」，供完成畫面顯示「繼續下一個練習」
-  useEffect(() => {
-    if (!lastResult?.finished) return
-    let cancelled = false
-    getNextPractice(childId)
-      .then((rec) => { if (!cancelled) setNextPractice(rec) })
-      .catch(() => { /* 忽略：失敗時就只顯示原本的按鈕 */ })
-    return () => { cancelled = true }
-  }, [lastResult?.finished, childId])
 
   // 練習計時器：每秒更新經過時間
   // 注意：練習完成後（finalTotalMs 已固定）就停止計時，避免完成頁每秒重渲染浪費 CPU/電力
