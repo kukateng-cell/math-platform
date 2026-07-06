@@ -1,6 +1,16 @@
 import nodemailer from 'nodemailer'
 
-// Gmail SMTP 設定從環境變數讀取，未設定時降級為開發模式（只印 log）
+// ====================================================================
+// Gmail SMTP 寄信（支援 Vercel serverless 環境）
+// --------------------------------------------------------------------
+// 用 Gmail App Password 免費發送驗證碼郵件，可寄給任何人。
+// 未設定 SMTP 時自動降級為開發模式（console.log）。
+//
+// Vercel 部署：在 Vercel Dashboard → Settings → Environment Variables
+// 新增 SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM，
+// 重新部署即可。
+// ====================================================================
+
 const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com'
 const smtpPort = Number(process.env.SMTP_PORT) || 587
 const smtpUser = process.env.SMTP_USER
@@ -18,6 +28,10 @@ function getTransporter(): nodemailer.Transporter | null {
     port: smtpPort,
     secure: smtpPort === 465,
     auth: { user: smtpUser, pass: smtpPass },
+    // Vercel serverless 環境連線較慢，加長逾時避免被中斷
+    connectionTimeout: 15000,  // 15 秒
+    greetingTimeout: 15000,
+    socketTimeout: 30000,
   })
   return transporter
 }
@@ -32,7 +46,7 @@ export async function sendOtpEmail(
   if (!t) {
     // 無 SMTP 設定 → 開發模式：只輸出到 console
     console.log(`[DEV EMAIL] To: ${to} | OTP: ${otpCode}`)
-    return { success: false, error: 'SMTP 未設定，請檢查 .env 中的 SMTP_* 變數' }
+    return { success: false, error: 'SMTP 未設定（缺少 SMTP_USER / SMTP_PASS）' }
   }
 
   try {
