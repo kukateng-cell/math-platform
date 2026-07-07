@@ -484,6 +484,7 @@ export async function submitAnswer(payload: {
   if (finished) {
     revalidatePath('/dashboard')
     revalidatePath('/children')
+    revalidatePath('/practice', 'layout')
   }
 
   // 回傳時檢查是否為升學測試且剛完成，附加升學結果
