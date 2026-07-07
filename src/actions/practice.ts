@@ -295,6 +295,14 @@ export async function getResumeableSessions(childId: string): Promise<Resumeable
 
   return sessions
     .filter((s) => s._count.attempts < s.totalQuestions) // 只保留「還沒做完」的
+    .filter((s) => {
+      // 過濾升學測試（__isPromotion）和提升練習（__isChallenge）
+      try {
+        const q = JSON.parse(s.questionsJson!)
+        const firstQ = Array.isArray(q) ? q[0] : null
+        return !firstQ?.__isPromotion && !firstQ?.__isChallenge
+      } catch { return true }
+    })
     .map((s) => ({
       sessionId: s.id,
       skillId: s.skill.id,
@@ -483,6 +491,7 @@ export async function submitAnswer(payload: {
   if (finished) {
     revalidatePath('/dashboard')
     revalidatePath('/children')
+    revalidatePath('/practice', 'layout')
   }
 
   // 回傳時檢查是否為升學測試且剛完成，附加升學結果
@@ -801,4 +810,27 @@ export async function startChallengePractice(childId: string) {
   })
 
   redirect(`/practice/${childId}/${firstSkill.id}/${practiceSession.id}`)
+}
+
+// ============ 取消未完成的練習（斷點續做中移除）============
+// 讓使用者關閉不想繼續的練習，將其標記為已取消（completedAt 設為當前時間）
+export async function cancelSession(sessionId: string) {
+  const auth = await getPracticeAuth()
+  if (!auth) throw new Error('未授權')
+
+  const practiceSession = await prisma.practiceSession.findUnique({
+    where: { id: sessionId },
+    select: { childId: true, parentId: true },
+  })
+  if (!practiceSession) throw new Error('練習不存在')
+
+  // 驗證權限
+  if (auth.type === 'child' && auth.childId !== practiceSession.childId) throw new Error('無權存取')
+  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) throw new Error('無權存取')
+
+  // 只取消未完成的練習
+  await prisma.practiceSession.updateMany({
+    where: { id: sessionId, completedAt: null },
+    data: { completedAt: new Date() },
+  })
 }
