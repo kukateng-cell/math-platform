@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { Icon } from './icon'
 
 type Mode = 'numeric' | 'text'
 
@@ -140,7 +141,7 @@ export default function NumberPad({
           disabled={!value.trim() || disabled}
           className="mt-3 w-full rounded-xl bg-blue-600 py-4 text-lg font-bold text-white transition hover:bg-blue-700 active:scale-95 disabled:opacity-40 min-h-[52px]"
         >
-          ✓ 確認答案
+          <span className="inline-flex items-center gap-1.5"><Icon name="check" className="h-5 w-5" />確認答案</span>
         </button>
       </div>
     )
@@ -194,7 +195,7 @@ export default function NumberPad({
                       : 'bg-white text-neutral-800 shadow-sm border border-neutral-200 hover:border-blue-400 hover:bg-blue-50 dark:bg-gray-900 dark:text-white dark:border-gray-600 dark:hover:border-blue-400 dark:hover:bg-blue-950'
                   } disabled:opacity-40`}
                 >
-                  {k === '⌫' ? '⌫' : k}
+                  {k === '⌫' ? <Icon name="backspace" className="mx-auto h-6 w-6" /> : k}
                 </button>
               )
             })}
@@ -217,7 +218,7 @@ export default function NumberPad({
             disabled={!value || disabled}
             className="flex-[2] min-h-[52px] rounded-xl bg-blue-600 py-3 text-lg font-bold text-white transition hover:bg-blue-700 active:scale-95 disabled:opacity-40 sm:py-4"
           >
-            ✓ 確認答案
+            <span className="inline-flex items-center gap-1.5"><Icon name="check" className="h-5 w-5" />確認答案</span>
           </button>
         </div>
       </div>

@@ -26,8 +26,9 @@ async function canAccessChild(childId: string): Promise<boolean> {
     where: { id: childId, parentId: auth.userId },
   })
   if (child) return true
+  // 綁定關聯須為 ACTIVE（學生主動綁定需家長確認後才生效）
   const link = await prisma.parentChild.findFirst({
-    where: { parentId: auth.userId, childId },
+    where: { parentId: auth.userId, childId, status: 'ACTIVE' },
   })
   return !!link
 }

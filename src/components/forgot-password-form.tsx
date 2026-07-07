@@ -8,6 +8,7 @@ import {
   resetPassword,
 } from '@/actions/auth'
 import CaptchaChallenge from './captcha-challenge'
+import { Icon } from './icon'
 
 type Props = {
   initialCaptcha: { question: string; token: string }
@@ -66,7 +67,7 @@ export default function ForgotPasswordForm({ initialCaptcha }: Props) {
     return (
       <div className="flex w-full max-w-sm flex-col gap-4">
         <div className="rounded-lg border border-green-200 bg-green-50 p-6 text-center dark:border-green-800 dark:bg-green-950">
-          <div className="mb-2 text-4xl">✅</div>
+          <div className="mb-2 flex justify-center text-green-500 dark:text-green-400"><Icon name="check-circle" className="h-10 w-10" /></div>
           <p className="text-sm font-medium text-green-800 dark:text-green-200">
             {pwdState?.message}
           </p>
@@ -87,8 +88,8 @@ export default function ForgotPasswordForm({ initialCaptcha }: Props) {
       <form action={pwdAction} className="flex w-full max-w-sm flex-col gap-4">
         <input type="hidden" name="tempToken" value={resetToken} />
 
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-center text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
-          🔒 請設定您的新密碼
+        <div className="flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 p-3 text-center text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
+          <Icon name="lock" className="h-4 w-4" />請設定您的新密碼
         </div>
 
         <div className="flex flex-col gap-1">
@@ -151,7 +152,7 @@ export default function ForgotPasswordForm({ initialCaptcha }: Props) {
           <input type="hidden" name="tempToken" value={requestToken} />
 
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-800 dark:bg-blue-950">
-            <div className="mb-2 text-3xl">📧</div>
+            <div className="mb-2 flex justify-center text-blue-500 dark:text-blue-400"><Icon name="mail" className="h-8 w-8" /></div>
             <p className="text-sm text-blue-800 dark:text-blue-200">
               {resetState?.message}
             </p>

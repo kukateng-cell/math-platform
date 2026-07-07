@@ -37,11 +37,15 @@ enum Role {
 }
 
 // ============ 親子關聯（學生可主動綁定家長，家長也可綁定學生）============
+// 安全：學生主動綁定家長時，先建立 PENDING 記錄並通知家長，
+//       家長須在後台「確認」後才會變成 ACTIVE（家長才看得到該孩子資料）。
+//       家長自己建立的孩子其 parentId 直接寫在 ChildProfile 上（不走此表）。
 model ParentChild {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   parentId  String
   childId   String
-  createdAt DateTime @default(now())
+  status    LinkStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
 
   parent User          @relation("ParentLinks", fields: [parentId], references: [id], onDelete: Cascade)
   child  ChildProfile  @relation("ChildLinks", fields: [childId], references: [id], onDelete: Cascade)
@@ -49,6 +53,12 @@ model ParentChild {
   @@unique([parentId, childId])
   @@index([parentId])
   @@index([childId])
+  @@index([status])
+}
+
+enum LinkStatus {
+  PENDING // 學生已送出綁定請求，等待家長確認
+  ACTIVE  // 家長已確認（或系統建立的既有資料），關聯生效
 }
 
 // ============ 孩子檔案 / 學生帳號 ============

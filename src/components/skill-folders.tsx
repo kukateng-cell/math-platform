@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { startSession } from '@/actions/practice'
 import { gradeRank } from '@/lib/grade'
+import { Icon, type IconName } from './icon'
 
 // ============ 型別（與 getChildSkills 回傳一致）============
 export type SkillFolderItem = {
@@ -19,23 +20,23 @@ export type SkillFolderItem = {
 // ============ 年級視覺設定 ============
 // 中文標籤、資料夾圖示、配色（順序與等級比較統一放 lib/grade.ts）
 
-type GradeConfig = { label: string; icon: string; accent: string }
+type GradeConfig = { label: string; icon: IconName; accent: string }
 
 const GRADE_CONFIG: Record<string, GradeConfig> = {
-  K: { label: '幼兒園', icon: '🧸', accent: 'from-pink-400 to-rose-400' },
-  G1: { label: '一年級', icon: '📘', accent: 'from-sky-400 to-blue-500' },
-  G2: { label: '二年級', icon: '📗', accent: 'from-emerald-400 to-green-500' },
-  G3: { label: '三年級', icon: '📙', accent: 'from-amber-400 to-orange-500' },
-  G4: { label: '四年級', icon: '📕', accent: 'from-violet-400 to-purple-500' },
-  G5: { label: '五年級', icon: '📓', accent: 'from-teal-400 to-cyan-500' },
-  G6: { label: '六年級', icon: '📔', accent: 'from-fuchsia-400 to-pink-500' },
+  K: { label: '幼兒園', icon: 'book', accent: 'from-pink-400 to-rose-400' },
+  G1: { label: '一年級', icon: 'book', accent: 'from-sky-400 to-blue-500' },
+  G2: { label: '二年級', icon: 'book', accent: 'from-emerald-400 to-green-500' },
+  G3: { label: '三年級', icon: 'book', accent: 'from-amber-400 to-orange-500' },
+  G4: { label: '四年級', icon: 'book', accent: 'from-violet-400 to-purple-500' },
+  G5: { label: '五年級', icon: 'book', accent: 'from-teal-400 to-cyan-500' },
+  G6: { label: '六年級', icon: 'book', accent: 'from-fuchsia-400 to-pink-500' },
 }
 
 function gradeConfig(level: string): GradeConfig {
   return (
     GRADE_CONFIG[level] ?? {
       label: level,
-      icon: '📁',
+      icon: 'folder',
       accent: 'from-slate-400 to-slate-500',
     }
   )
@@ -76,7 +77,7 @@ export function SkillFolders({
   if (sortedGrades.length === 0) {
     return (
       <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-900">
-        <div className="mb-3 text-5xl">📂</div>
+        <div className="mb-3 flex justify-center text-neutral-400 dark:text-gray-500"><Icon name="folder-open" className="h-12 w-12" /></div>
         <p className="text-sm text-neutral-400 dark:text-gray-500">
           目前沒有可練習的技能
         </p>
@@ -111,9 +112,9 @@ export function SkillFolders({
             >
               {/* 資料夾圖示 */}
               <span
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${cfg.accent} text-2xl shadow-sm`}
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${cfg.accent} shadow-sm`}
               >
-                {cfg.icon}
+                <Icon name={cfg.icon} className="h-6 w-6 text-white" />
               </span>
 
               {/* 年級名稱 + 份數 */}
@@ -139,7 +140,7 @@ export function SkillFolders({
                   isOpen ? 'rotate-90' : ''
                 }`}
               >
-                ▶
+                <Icon name="chevron-down" className="h-4 w-4" />
               </span>
             </button>
 

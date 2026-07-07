@@ -11,6 +11,7 @@ import {
 import NumberPad from './number-pad'
 import NumberLine from './number-line'
 import { renderTextWithShapes } from './shape-icon'
+import { Icon, type IconName } from './icon'
 import { displayAnswer } from '@/lib/answer-i18n'
 import type { Recommendation } from '@/lib/mastery'
 
@@ -45,11 +46,12 @@ function formatDuration(ms: number) {
   return `${m}:${s}`
 }
 
-function getEncouragement(rate: number) {
-  if (rate >= 100) return { emoji: '🏆', msg: '完美！全部答對！' }
-  if (rate >= 80) return { emoji: '🌟', msg: '好厲害！繼續保持！' }
-  if (rate >= 60) return { emoji: '💪', msg: '不錯喔！再加油！' }
-  return { emoji: '🌱', msg: '沒關係，多練習就會了！' }
+// 依正確率回傳鼓勵語 + 對應 SVG 圖示（取代原本 emoji）
+function getEncouragement(rate: number): { icon: IconName; msg: string } {
+  if (rate >= 100) return { icon: 'trophy', msg: '完美！全部答對！' }
+  if (rate >= 80) return { icon: 'sparkle', msg: '好厲害！繼續保持！' }
+  if (rate >= 60) return { icon: 'thumbs-up', msg: '不錯喔！再加油！' }
+  return { icon: 'sprout', msg: '沒關係，多練習就會了！' }
 }
 
 type Props = {
@@ -335,9 +337,11 @@ export default function PracticeClient({
     const totalTime = finalTotalMs != null ? finalTotalMs : Date.now() - practiceStartRef.current
     return (
       <div className="flex flex-col items-center gap-6 text-center" role="region" aria-label="練習完成">
-        <div className="text-6xl">{encouragement.emoji}</div>
+        <div className="flex justify-center text-indigo-500 dark:text-indigo-400"><Icon name={encouragement.icon} className="h-20 w-20" /></div>
         <h2 className="text-2xl font-bold">{childNickname} 完成了！</h2>
-        <p className="text-lg font-medium text-indigo-600 dark:text-indigo-400">{encouragement.emoji} {encouragement.msg}</p>
+        <p className="flex items-center justify-center gap-1.5 text-lg font-medium text-indigo-600 dark:text-indigo-400">
+          <Icon name={encouragement.icon} className="h-5 w-5" /> {encouragement.msg}
+        </p>
 
         {/* 答對題數 + 總花費時間 */}
         <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
@@ -345,7 +349,7 @@ export default function PracticeClient({
             答對 <span className="font-bold text-green-600 dark:text-green-400">{correctCount}</span> / {questions.length} 題
           </p>
           <p className="text-lg text-neutral-600 dark:text-gray-300">
-            共花費 <span className="font-mono font-bold text-blue-600 dark:text-blue-400">⏱️ {formatDuration(totalTime)}</span>
+            共花費 <span className="inline-flex items-center gap-1 font-mono font-bold text-blue-600 dark:text-blue-400"><Icon name="stopwatch" className="h-5 w-5" /> {formatDuration(totalTime)}</span>
           </p>
         </div>
 
@@ -370,18 +374,18 @@ export default function PracticeClient({
               {Array.from({ length: starsEarned }).map((_, i) => (
                 <span
                   key={i}
-                  className="star-fall inline-block text-2xl"
+                  className="star-fall inline-block text-amber-400"
                   style={{
                     animation: `starDrop 0.5s ease-out ${i * 0.15}s both`,
                     fontSize: `${1.5 + Math.random() * 1}rem`,
                   }}
                 >
-                  ⭐
+                  <Icon name="star" style={{ width: '1em', height: '1em' }} />
                 </span>
               ))}
             </div>
-            <p className="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">
-              +{starsEarned} 顆星星 ⭐
+            <p className="mt-2 flex items-center justify-center gap-1 text-sm font-medium text-amber-600 dark:text-amber-400">
+              +{starsEarned} 顆星星 <Icon name="star" className="h-4 w-4" />
             </p>
           </div>
         )}
@@ -395,15 +399,15 @@ export default function PracticeClient({
           }`}>
             {lastResult.promotion.passed ? (
               <>
-                <div className="mb-1 text-4xl">🎉</div>
+                <div className="mb-1 flex justify-center"><Icon name="party" className="h-10 w-10" /></div>
                 <h3 className="text-lg font-bold">升學成功！</h3>
-                <p className="mt-1 text-sm opacity-90">
-                  已晉升至 {lastResult.promotion.newGrade}！繼續挑戰新內容吧 🚀
+                <p className="mt-1 flex items-center justify-center gap-1 text-sm opacity-90">
+                  已晉升至 {lastResult.promotion.newGrade}！繼續挑戰新內容吧 <Icon name="rocket" className="h-4 w-4" />
                 </p>
               </>
             ) : (
               <>
-                <div className="mb-1 text-4xl">💪</div>
+                <div className="mb-1 flex justify-center text-neutral-400 dark:text-gray-400"><Icon name="target" className="h-10 w-10" /></div>
                 <h3 className="text-lg font-bold text-neutral-800 dark:text-white">升學測試未通過</h3>
                 <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">
                   正確率需達 80% 才能升學至 {lastResult.promotion.targetGrade}，再練熟一些後重新挑戰！
@@ -419,22 +423,22 @@ export default function PracticeClient({
           <ol className="flex flex-col gap-1.5">
             {questions.map((q, i) => {
               const r = questionResults[i]
-              let icon = '○'
+              let icon: IconName = 'circle'
               let label = '未作答'
               let cls = 'border-neutral-200 bg-neutral-50 text-neutral-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
               let detail: string | null = null
               if (r) {
                 if (r.assisted) {
-                  icon = '🤝'
+                  icon = 'help-circle'
                   label = '家長協助'
                   cls = 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300'
                   detail = '答案：' + displayAnswer(r.correctAnswer)
                 } else if (r.correct) {
-                  icon = '✅'
+                  icon = 'check-circle'
                   label = '答對'
                   cls = 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300'
                 } else {
-                  icon = '❌'
+                  icon = 'x'
                   label = '答錯'
                   cls = 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'
                   detail = '正確答案：' + displayAnswer(r.correctAnswer)
@@ -443,7 +447,7 @@ export default function PracticeClient({
               return (
                 <li key={i} className={"flex items-center justify-between rounded-lg border px-3 py-2 text-sm " + cls}>
                   <span className="flex items-center gap-2">
-                    <span className="text-base">{icon}</span>
+                    <Icon name={icon} className="h-4 w-4 shrink-0" />
                     <span className="text-neutral-500 dark:text-gray-400">第 {i + 1} 題</span>
                   </span>
                   <span className="flex items-center gap-2">
@@ -470,11 +474,11 @@ export default function PracticeClient({
                   開始下一個練習 → {nextRec.skillName}
                 </button>
               </form>
-              <p className="text-sm text-neutral-500 dark:text-gray-400">💡 {nextRec.reason}</p>
+              <p className="flex items-start gap-1.5 text-sm text-neutral-500 dark:text-gray-400"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{nextRec.reason}</p>
             </>
           ) : nextRec?.type === 'ALL_DONE' ? (
             <div className="w-full rounded-xl border border-amber-200 bg-amber-50 p-4 text-center dark:border-amber-800 dark:bg-amber-950">
-              <p className="font-semibold text-amber-700 dark:text-amber-300">🎉 目前所有技能都已掌握！</p>
+              <p className="font-semibold text-amber-700 dark:text-amber-300"><Icon name="party" className="mr-1 inline-block h-4 w-4 align-text-bottom" /> 目前所有技能都已掌握！</p>
             </div>
           ) : (
             <form action={startNextPractice.bind(null, childId)} className="w-full">
@@ -495,7 +499,7 @@ export default function PracticeClient({
               type="submit"
               className="rounded-lg border border-neutral-300 px-5 py-2.5 font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
             >
-              🔄 再練一次（{skillName}）
+              <Icon name="refresh" className="mr-1 inline-block h-4 w-4 align-text-bottom" />再練一次（{skillName}）
             </button>
           </form>
           <a
@@ -510,7 +514,7 @@ export default function PracticeClient({
               href={"/children/" + childId + "/review"}
               className="rounded-lg border border-red-200 px-5 py-2.5 font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
             >
-              📝 查看錯題本
+              <Icon name="note" className="mr-1 inline-block h-4 w-4 align-text-bottom" />查看錯題本
             </a>
           )}
           <a
@@ -543,7 +547,7 @@ export default function PracticeClient({
         <div className="mb-1 flex items-center justify-between text-xs text-neutral-500 dark:text-gray-400 sm:text-sm">
           <span className="truncate pr-2">{skillName}</span>
           <span className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <span className="font-mono">⏱️ {elapsed}</span>
+            <span className="inline-flex items-center gap-1 font-mono"><Icon name="stopwatch" className="h-3.5 w-3.5" /> {elapsed}</span>
             <span>{index + 1} / {totalQuestions}</span>
             <button
               type="button"
@@ -551,7 +555,9 @@ export default function PracticeClient({
               className="rounded-md px-2 py-0.5 text-xs font-medium text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               aria-label="結束練習"
             >
-              ✕ 結束
+              <span className="inline-flex items-center gap-0.5">
+                <Icon name="x" className="h-3 w-3" /> 結束
+              </span>
             </button>
           </span>
         </div>
@@ -577,23 +583,23 @@ export default function PracticeClient({
         <div className="mt-3 flex justify-center gap-1.5" aria-hidden="true">
           {questions.map((_, i) => {
             let dotCls = 'h-3 w-3 rounded-full border-2 border-neutral-300 bg-transparent dark:border-gray-600'
-            let icon: string | null = null
+            let icon: IconName | null = null
             if (i < questionResults.length) {
               const r = questionResults[i]
               if (r.assisted) {
-                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-400 text-[8px] text-white'
+                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-400 text-white'
               } else if (r.correct) {
-                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-green-500 bg-green-500 text-[8px] text-white'
-                icon = '✓'
+                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-green-500 bg-green-500 text-white'
+                icon = 'check'
               } else {
-                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-400 bg-red-400 text-[8px] text-white'
-                icon = '✗'
+                dotCls = 'flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-400 bg-red-400 text-white'
+                icon = 'x'
               }
             } else if (i === index) {
               dotCls = 'h-3 w-3 rounded-full border-2 border-blue-500 bg-blue-500 animate-pulse-dot'
             }
             return (
-              <span key={i} className={dotCls}>{icon}</span>
+              <span key={i} className={dotCls}>{icon && <Icon name={icon} className="h-2 w-2" />}</span>
             )
           })}
         </div>
@@ -618,12 +624,13 @@ export default function PracticeClient({
             onClick={() => setShowHint(!showHint)}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
           >
-            <span className="text-base">{showHint ? '🔽' : '💡'}</span>
+            <span className="text-base">{showHint ? '隱藏提示' : '顯示提示'}</span>
+            <Icon name={showHint ? 'chevron-down' : 'lightbulb'} className="h-4 w-4" />
             {showHint ? '隱藏提示' : '顯示提示'}
           </button>
           {showHint && (
             <div className="mx-auto mt-2 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-800 animate-fade-in-up dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              💡 {renderTextWithShapes(current.explanation ?? '', 'sm')}
+              <span className="inline-flex items-start gap-1.5 align-top"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{renderTextWithShapes(current.explanation ?? '', 'sm')}</span>
             </div>
           )}
         </div>
@@ -670,8 +677,8 @@ export default function PracticeClient({
                   {!lastResult && (
                     <span className="text-xs text-neutral-400 dark:text-gray-500">({optIdx + 1})</span>
                   )}
-                  {showCheck && <span aria-hidden="true">✓</span>}
-                  {showCross && <span aria-hidden="true">✗</span>}
+                  {showCheck && <Icon name="check" aria-hidden="true" className="h-5 w-5" />}
+                  {showCross && <Icon name="x" aria-hidden="true" className="h-5 w-5" />}
                 </span>
               </button>
             )
@@ -714,11 +721,13 @@ export default function PracticeClient({
             className={"animate-fade-in-up rounded-xl p-4 text-center " + (lastResult.correct ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300')}
             role="alert"
           >
-            <p className="text-lg font-bold">
-              {lastResult.correct ? '✓ 答對了！' : '✗ 正確答案是 ' + displayAnswer(lastResult.correctAnswer)}
+            <p className="flex items-center justify-center gap-1.5 text-lg font-bold">
+              {lastResult.correct
+                ? <><Icon name="check" className="h-5 w-5" /> 答對了！</>
+                : <><Icon name="x" className="h-5 w-5" /> 正確答案是 {displayAnswer(lastResult.correctAnswer)}</>}
             </p>
             {lastResult.explanation && (
-              <p className="mt-2 text-sm opacity-80">💡 {renderTextWithShapes(lastResult.explanation, 'sm')}</p>
+              <p className="mt-2 flex items-start gap-1.5 text-sm opacity-80"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{renderTextWithShapes(lastResult.explanation, 'sm')}</p>
             )}
           </div>
         )}
@@ -768,7 +777,7 @@ export default function PracticeClient({
           }}
         >
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl dark:bg-gray-900">
-            <div className="mb-2 text-center text-4xl">🤔</div>
+            <div className="mb-2 flex justify-center text-neutral-400 dark:text-gray-400"><Icon name="help-circle" className="h-10 w-10" /></div>
             <h3 className="mb-1 text-center text-lg font-semibold dark:text-white">要結束練習嗎？</h3>
             <p className="mb-4 text-center text-sm text-neutral-500 dark:text-gray-400">
               目前做到第 {index + 1} / {totalQuestions} 題，<br />已完成 {questionResults.length} 題的紀錄會保留。

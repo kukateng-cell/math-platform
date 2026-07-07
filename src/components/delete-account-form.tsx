@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { deleteAccount, type DeleteAccountState } from '@/actions/auth'
+import { Icon } from './icon'
 
 const initialState: DeleteAccountState = undefined
 
@@ -14,9 +15,9 @@ export default function DeleteAccountForm() {
       <button
         type="button"
         onClick={() => setArmed(true)}
-        className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40"
       >
-        🗑 刪除我的帳號
+        <Icon name="trash" className="h-4 w-4" />刪除我的帳號
       </button>
     )
   }
@@ -24,7 +25,7 @@ export default function DeleteAccountForm() {
   return (
     <form action={formAction} className="space-y-4 rounded-xl border-2 border-red-300 bg-red-50/50 p-5 dark:border-red-800 dark:bg-red-950/20">
       <div className="flex items-center gap-2">
-        <span className="text-xl">⚠️</span>
+        <Icon name="alert" className="h-5 w-5 text-red-500" />
         <h3 className="text-base font-bold text-red-700 dark:text-red-400">永久刪除帳號</h3>
       </div>
 
@@ -36,7 +37,7 @@ export default function DeleteAccountForm() {
           <li>所有練習紀錄、作答明細、掌握度與徽章</li>
         </ul>
         <p className="mt-2">
-          <strong>建議先匯出資料備份</strong>：到每個孩子的「學習概覽」點「📥 匯出資料」。
+          <strong>建議先匯出資料備份</strong>：到每個孩子的「學習概覽」點「<Icon name="inbox" className="inline-block h-3.5 w-3.5 align-text-bottom" /> 匯出資料」。
         </p>
         <p className="mt-2">若孩子有獨立的自主學習帳號，該帳號不會被刪除（僅解除與你的綁定）。</p>
       </div>

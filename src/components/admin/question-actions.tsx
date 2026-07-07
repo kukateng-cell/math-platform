@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { deleteQuestion } from '@/actions/admin'
+import { Icon } from '@/components/icon'
 import Modal from './modal'
 import QuestionForm from './question-form'
 import QuestionPreview from './question-preview'
@@ -51,14 +52,14 @@ export default function QuestionActions({ question, skills }: Props) {
         onClick={() => setEditOpen(true)}
         className="rounded px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-950"
       >
-        ✏️ 編輯
+        <Icon name="pencil" className="h-3.5 w-3.5" />編輯
       </button>
 
       <button
         onClick={() => setDeleteOpen(true)}
         className="rounded px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950"
       >
-        🗑️ 刪除
+        <Icon name="x" className="h-3.5 w-3.5" />刪除
       </button>
 
       {/* 編輯 Modal */}

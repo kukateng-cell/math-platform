@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getAllChildrenStats } from '@/actions/admin'
+import { Icon } from '@/components/icon'
 
 // 年級中文
 function gradeLabel(level: string): string {
@@ -54,7 +55,7 @@ export default async function AdminChildrenPage() {
           className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
           title="下載全部孩子的練習紀錄（CSV，可用 Excel 開啟）"
         >
-          📥 匯出全部資料
+          <Icon name="download" className="h-4 w-4" />匯出全部資料
         </a>
       </div>
 
@@ -107,7 +108,7 @@ export default async function AdminChildrenPage() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span>🧒</span>
+                        <Icon name="student" className="h-8 w-8 shrink-0 rounded-full bg-blue-50 p-1.5 dark:bg-blue-950" />
                         <div>
                           <div className="font-medium">{c.nickname}</div>
                           {c.email && (
@@ -186,9 +187,9 @@ export default async function AdminChildrenPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-2">
-                        <span className="text-amber-600" title="星星">⭐ {c.stars}</span>
+                        <span className="inline-flex items-center gap-1 text-amber-600" title="星星"><Icon name="star" className="h-3.5 w-3.5" />{c.stars}</span>
                         {c.streak > 0 && (
-                          <span className="text-orange-600" title="連續天數">🔥 {c.streak}</span>
+                          <span className="inline-flex items-center gap-1 text-orange-600" title="連續天數"><Icon name="fire" className="h-3.5 w-3.5" />{c.streak}</span>
                         )}
                       </span>
                     </td>
