@@ -10,6 +10,7 @@ import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp,
 import { sendOtpEmail } from '@/lib/email'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
 import { revalidatePath } from 'next/cache'
+import { SignJWT, jwtVerify } from 'jose'
 
 // ============ 重新產生 CAPTCHA（供前端「換一題」按鈕呼叫）============
 // 回傳新的 { question, token }，token 為新簽名的 JWT（5 分鐘有效）
@@ -21,7 +22,11 @@ export async function refreshCaptchaAction(
   return createCaptcha()
 }
 
-// ============ 註冊（含 CAPTCHA）============
+// 暫存註冊資料（記憶體，僅在 OTP 驗證前有效）
+// key: tempToken（JWT）, value: { name, email, passwordHash }
+const pendingSignups = new Map<string, { name: string; email: string; passwordHash: string }>()
+
+// ============ 註冊 Step 1：驗證資料 + CAPTCHA → 發送 OTP ============
 export async function signup(state: FormState, formData: FormData): Promise<FormState> {
   const validated = SignupFormSchema.safeParse({
     name: formData.get('name'),
@@ -45,13 +50,114 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
     return { errors: { email: ['這個 Email 已經註冊過了'] }, captcha: await createCaptcha() }
   }
 
+  // 產生 OTP（用 email 作為 identifier）
+  const otpCode = await generateOtp(email)
+
+  // 寄送 OTP
+  const emailResult = await sendOtpEmail(email, otpCode)
+  if (!emailResult.success) {
+    console.error('[EMAIL FAILED]', emailResult.error)
+  }
+
+  // 哈希密碼，暫存
   const passwordHash = await bcrypt.hash(password, 10)
+  // 用 email 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 token 取出暫存資料建立用戶
+  const tempToken = await new SignJWT({ email, name, passwordHash } as unknown as Record<string, unknown>)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('10m')
+    .sign(new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret'))
+
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+
+  return {
+    otpRequired: true,
+    tempToken,
+    devOtp,
+    message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
+  }
+}
+
+// ============ 註冊 Step 2：驗證 OTP → 建立帳號 ============
+export async function verifySignupOtp(state: FormState, formData: FormData): Promise<FormState> {
+  const tempToken = String(formData.get('tempToken') || '')
+  const otpCode = String(formData.get('otpCode') || '')
+
+  if (!tempToken || !otpCode) {
+    return { message: '缺少必要參數' }
+  }
+
+  // 解碼 tempToken 取出 email
+  let payload: { email: string; name: string; passwordHash: string }
+  try {
+    const { payload: decoded } = await jwtVerify(
+      tempToken,
+      new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret'),
+      { algorithms: ['HS256'] }
+    )
+    payload = decoded as unknown as { email: string; name: string; passwordHash: string }
+  } catch {
+    return { message: '驗證已過期，請重新註冊' }
+  }
+
+  const { email, name, passwordHash } = payload
+
+  // 驗證 OTP（用 email 作 identifier）
+  if (!(await verifyOtp(email, otpCode))) {
+    return { message: '驗證碼錯誤或已過期' }
+  }
+
+  // 再次確認 email 未被註冊（可能在 OTP 等待期間被別人註冊）
+  const existing = await prisma.user.findUnique({ where: { email } })
+  if (existing) {
+    return { message: '此 Email 已在 OTP 驗證期間被註冊' }
+  }
+
   const user = await prisma.user.create({
     data: { name, email, passwordHash, role: 'PARENT' },
   })
 
   await createSession({ userId: user.id, email: user.email, role: 'PARENT' })
   redirect('/dashboard')
+}
+
+// ============ 註冊重新發送 OTP ============
+export async function resendSignupOtp(state: FormState, formData: FormData): Promise<FormState> {
+  const tempToken = String(formData.get('tempToken') || '')
+  if (!tempToken) return { message: '階段已過期，請重新註冊' }
+
+  // 解碼取得 email
+  let email: string
+  try {
+    const { payload } = await jwtVerify(
+      tempToken,
+      new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret'),
+      { algorithms: ['HS256'] }
+    )
+    email = (payload as unknown as { email: string }).email
+  } catch {
+    return { message: '階段已過期，請重新註冊' }
+  }
+
+  if (!(await canResendOtp(email))) {
+    const cooldown = await getResendCooldownSeconds(email)
+    return { message: `請 ${cooldown} 秒後再重新發送` }
+  }
+
+  const otpCode = await generateOtp(email)
+  const emailResult = await sendOtpEmail(email, otpCode)
+  if (!emailResult.success) {
+    console.error('[EMAIL FAILED]', emailResult.error)
+  }
+
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+
+  return {
+    otpRequired: true,
+    tempToken,
+    devOtp,
+    message: `驗證碼已重新發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
+  }
 }
 
 // ============ 登入 Step 1：驗證帳密 + CAPTCHA → 發送 OTP ============
