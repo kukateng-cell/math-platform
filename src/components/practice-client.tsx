@@ -5,6 +5,7 @@ import {
   submitAnswer,
   startSession,
   startNextPractice,
+  confirmPromotion,
   getNextPractice,
   type SubmitResult,
 } from '@/actions/practice'
@@ -513,17 +514,43 @@ export default function PracticeClient({
         {/* 升學測試結果 */}
         {lastResult?.promotion && (
           <div className={`w-full max-w-md rounded-2xl p-5 text-center shadow-lg ${
-            lastResult.promotion.passed
+            lastResult.promotion.qualify
               ? 'bg-gradient-to-r from-yellow-300 to-orange-400 text-white'
               : 'border border-neutral-200 bg-white dark:border-gray-700 dark:bg-gray-900'
           }`}>
-            {lastResult.promotion.passed ? (
+            {lastResult.promotion.qualify ? (
               <>
                 <div className="mb-1 flex justify-center"><Icon name="party" className="h-10 w-10" /></div>
-                <h3 className="text-lg font-bold">升學成功！</h3>
-                <p className="mt-1 flex items-center justify-center gap-1 text-sm opacity-90">
-                  已晉升至 {lastResult.promotion.newGrade}！繼續挑戰新內容吧 <Icon name="rocket" className="h-4 w-4" />
+                <h3 className="text-lg font-bold">升學測試通過！</h3>
+                <p className="mt-1 text-sm opacity-90">
+                  已達到 {lastResult.promotion.targetGrade} 的升學門檻，點擊下方按鈕升級！
                 </p>
+
+                {/* 手動確認升級按鈕 */}
+                {!lastResult.promotion.confirmed && (
+                  <form
+                    action={async () => {
+                      if (!lastResult.promotion?.targetGrade) return
+                      await confirmPromotion(childId, lastResult.promotion.targetGrade)
+                    }}
+                    className="mt-4"
+                  >
+                    <button
+                      type="submit"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-white/25 px-6 py-3 text-base font-bold backdrop-blur transition hover:bg-white/40 active:scale-95"
+                    >
+                      <Icon name="rocket" className="h-5 w-5" />
+                      確認升級至 {lastResult.promotion.targetGrade} 🚀
+                    </button>
+                  </form>
+                )}
+
+                {lastResult.promotion.confirmed && (
+                  <p className="mt-2 flex items-center justify-center gap-1 text-sm opacity-90">
+                    <Icon name="check-circle" className="h-4 w-4" />
+                    已晉升至 {lastResult.promotion.newGrade}！
+                  </p>
+                )}
               </>
             ) : (
               <>
