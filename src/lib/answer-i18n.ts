@@ -50,6 +50,10 @@ function normalizeTimeAnswer(input: string): string {
   s = s.replace(/(\d+)\s*週/g, '$1w')
   s = s.replace(/(\d+)\s*(?:week|weeks)/g, '$1w')
 
+  // ── HH:MM 格式（如「4:45」→「4h45m」）──
+  // 必須在簡單模式之後，避免誤傷「3:」這類不完整輸入
+  s = s.replace(/(\d{1,2}):(\d{2})(?:\s*:\s*\d{2})?/g, (match, h, m) => `${parseInt(h)}h${parseInt(m)}m`)
+
   // 去掉多餘空白
   s = s.replace(/\s+/g, '')
 
