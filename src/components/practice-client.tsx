@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   submitAnswer,
   startSession,
@@ -95,14 +95,20 @@ export default function PracticeClient({
   const [correctCount, setCorrectCount] = useState(initialCorrectCount)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [questionResults, setQuestionResults] = useState<QuestionResult[]>(
-    initialQuestionResults.map((r) => ({
-      correct: r.correct,
-      assisted: r.assisted,
-      correctAnswer: r.correctAnswer,
-      userAnswer: r.userAnswer,
-    }))
-  )
+  // questionResults 以 questionIndex 為索引的稀疏陣列
+  // 斷點續做時，從 initialQuestionResults 填入對應位置
+  const [questionResults, setQuestionResults] = useState<QuestionResult[]>(() => {
+    const arr: QuestionResult[] = []
+    for (const r of initialQuestionResults) {
+      arr[r.questionIndex] = {
+        correct: r.correct,
+        assisted: r.assisted,
+        correctAnswer: r.correctAnswer,
+        userAnswer: r.userAnswer,
+      }
+    }
+    return arr
+  })
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
   const [revealCorrect, setRevealCorrect] = useState(false)
   const [bgFlash, setBgFlash] = useState<'green' | 'red' | null>(null)
@@ -175,7 +181,7 @@ export default function PracticeClient({
     }
   }, [index, questions.length])
 
-  // 練習計時器：每秒更新經過時間
+  // 練習計時器：每 2 秒更新一次（原 1 秒），減少 re-render 頻率
   // 注意：練習完成後（finalTotalMs 已固定）就停止計時，避免完成頁每秒重渲染浪費 CPU/電力
   useEffect(() => {
     if (finalTotalMs !== null) return // 練習已結束，不再啟動計時器
@@ -184,21 +190,24 @@ export default function PracticeClient({
       const m = String(Math.floor(sec / 60)).padStart(2, '0')
       const s = String(sec % 60).padStart(2, '0')
       setElapsed(`${m}:${s}`)
-    }, 1000)
+    }, 2000) // 改為 2 秒更新一次，減少一半 re-render
     return () => clearInterval(interval)
   }, [finalTotalMs])
 
   // 答題後自動捲動到「回饋 + 下一題」區塊
-  // 等回饋動畫展開後再滾動（留一點時間讓 DOM 更新），尊重「減少動畫模式」
+  // 使用 requestAnimationFrame 替代 setTimeout，跟瀏覽器繪製同步
   useEffect(() => {
     if (!lastResult) return
     const el = feedbackRef.current
     if (!el) return
     const smooth = !document.documentElement.classList.contains('reduce-motion')
-    const timer = setTimeout(() => {
-      el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' })
-    }, 400)
-    return () => clearTimeout(timer)
+    const raf = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' })
+      })
+      return () => cancelAnimationFrame(raf2)
+    })
+    return () => cancelAnimationFrame(raf)
   }, [lastResult])
 
   // 完成練習時 index 可能短暫越界（questions[index] 為 undefined），
@@ -213,23 +222,35 @@ export default function PracticeClient({
     ? fillValue || null
     : selected
 
+  // 使用 useRef 保存最新值，避免全局 keydown 監聽器因依賴變更而反覆註冊/卸載
+  const lastResultRef = useRef(lastResult)
+  const currentAnswerRef = useRef(currentAnswer)
+  const submittingRef_forListener = useRef(submitting)
+  const nextQuestionRef = useRef<() => void>(() => {})
+  const handleSubmitRef = useRef<() => Promise<void>>(async () => {})
+
+  // 在 render 期間同步 ref（不能在 effect 中做，否則 effect 執行前事件監聽可能讀到舊值）
+  lastResultRef.current = lastResult
+  currentAnswerRef.current = currentAnswer
+  submittingRef_forListener.current = submitting
+
   function handleKeyDown(e: React.KeyboardEvent) {
     // 中文輸入法（IME）組字中不攔截按鍵（Enter 是確認候選字）
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (lastResult) {
-        nextQuestion()
-      } else if (currentAnswer) {
+      if (lastResultRef.current) {
+        nextQuestionRef.current()
+      } else if (currentAnswerRef.current) {
         // 鎖由 handleSubmit 內部統一管理（入口同步設 ref、finally 釋放）。
         // 不可在此提前設 submittingRef.current=true，否則 handleSubmit 第一行
         // if(submittingRef.current) return 會立即拒絕，鎖永遠不釋放 → 卡死。
-        handleSubmit()
+        handleSubmitRef.current()
       }
       return
     }
     // 已答題時不處理數字鍵選擇
-    if (lastResult) return
+    if (lastResultRef.current) return
     if (interaction === 'choice' && current.options && e.key >= '1' && e.key <= '4') {
       const optIndex = Number(e.key) - 1
       if (optIndex < current.options.length) {
@@ -238,7 +259,7 @@ export default function PracticeClient({
     }
   }
 
-  // 全局 Enter 監聽：無論焦點在哪，Enter 都可提交答案或進下一題
+  // 全局 Enter 監聽：使用 ref 讀取最新狀態，只在 mount/unmount 時註冊一次
   useEffect(() => {
     function onGlobalKey(e: KeyboardEvent) {
       if (e.key !== 'Enter') return
@@ -247,20 +268,19 @@ export default function PracticeClient({
       if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return
       // IME 組字中不攔截
       if (e.isComposing || e.keyCode === 229) return
-      if (submittingRef.current || submitting) return
-      if (lastResult) {
+      if (submittingRef.current || submittingRef_forListener.current) return
+      if (lastResultRef.current) {
         e.preventDefault()
-        nextQuestion()
-      } else if (currentAnswer) {
+        nextQuestionRef.current()
+      } else if (currentAnswerRef.current) {
         e.preventDefault()
         // 鎖由 handleSubmit 內部統一管理（見 handleKeyDown 的說明）
-        handleSubmit()
+        handleSubmitRef.current()
       }
     }
     window.addEventListener('keydown', onGlobalKey)
     return () => window.removeEventListener('keydown', onGlobalKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastResult, currentAnswer, submitting])
+  }, []) // 空依賴：只在 mount/unmount 時註冊一次，透過 ref 讀取最新狀態
 
   function choose(val: string) {
     if (submitting || lastResult) return
@@ -300,15 +320,16 @@ export default function PracticeClient({
       }
 
       // 動畫回饋
-      setQuestionResults((prev) => [
-        ...prev,
-        {
+      setQuestionResults((prev) => {
+        const next = [...prev]
+        next[index] = {
           correct: result.correct,
           assisted,
           correctAnswer: result.correctAnswer,
           userAnswer: currentAnswer,
-        },
-      ])
+        }
+        return next
+      })
       setFeedback(result.correct ? 'correct' : 'incorrect')
       setBgFlash(result.correct ? 'green' : 'red')
       if (!result.correct) {
@@ -325,6 +346,8 @@ export default function PracticeClient({
       submittingRef.current = false
     }
   }
+  // 同步 ref 供全局 keydown 監聽器使用（ref 不會觸發 re-render）
+  handleSubmitRef.current = handleSubmit as () => Promise<void>
 
   function nextQuestion() {
     setSelected(null)
@@ -339,6 +362,7 @@ export default function PracticeClient({
     startTimeRef.current = Date.now()
     setIndex((i) => i + 1)
   }
+  nextQuestionRef.current = nextQuestion
 
   if (index >= questions.length || (lastResult?.finished && index === questions.length - 1)) {
     // 多設備情境：另一裝置已完成了此練習，顯示專用提示
