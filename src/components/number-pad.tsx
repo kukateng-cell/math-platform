@@ -35,7 +35,7 @@ export default function NumberPad({
     [1, 2, 3],
     [4, 5, 6],
     [7, 8, 9],
-    ['-', 0, '⌫'],
+    ['.', 0, '⌫'],
   ]
 
   // 數字鍵盤：點擊按鍵
@@ -52,10 +52,12 @@ export default function NumberPad({
       if (value.length >= maxLength) return
       onChange(value === '' ? '0.' : value + '.')
     } else if (k === '-') {
-      // 負號：只能出現在開頭，且不能重複
-      if (value.startsWith('-')) return // 已有負號 → 移除（切換正負）
-      if (value.length >= maxLength) return
-      onChange('-' + value)
+      // 正負切換：已有負號則移除，否則加上
+      if (value.startsWith('-')) {
+        onChange(value.slice(1))
+      } else {
+        onChange('-' + value)
+      }
     }
   }
 
@@ -65,20 +67,10 @@ export default function NumberPad({
     onChange('')
   }
 
-  // 數字模式 input 過濾：只允許數字、小數點、負號（讓手機/平板系統鍵盤也能輸入）
+  // 數字模式 input：不過濾任何字元，支援中文、符號等所有輸入
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (disabled) return
-    let raw = e.target.value
-    // 保留負號（僅開頭）、數字、小數點
-    const hasNeg = raw.startsWith('-')
-    raw = raw.replace(/^-/, '').replace(/[^0-9.]/g, '')
-    // 小數點只能一個
-    const firstDot = raw.indexOf('.')
-    if (firstDot !== -1) {
-      raw = raw.slice(0, firstDot + 1) + raw.slice(firstDot + 1).replace(/\./g, '')
-    }
-    if (raw.length > maxLength) raw = raw.slice(0, maxLength)
-    onChange((hasNeg ? '-' : '') + raw)
+    onChange(e.target.value)
   }
 
   // 數字模式：每題自動聚焦 input，讓手機/平板鍵盤保持彈出
@@ -92,39 +84,23 @@ export default function NumberPad({
     }
   }, [mode, disabled, value, index])
 
-  // 數字模式：支援實體鍵盤直接輸入（數字、負號、小數點、退格、Enter 送出）
+  // 數字模式實體鍵盤：僅攔截 Backspace 和 Enter，其餘放行給 input 處理
   useEffect(() => {
     if (mode !== 'numeric') return
     function onKey(e: KeyboardEvent) {
       if (disabled) return
-
-      if (/^[0-9]$/.test(e.key)) {
-        e.preventDefault()
-        if (value.length >= maxLength) return
-        onChange(value + e.key)
-      } else if (e.key === '.') {
-        e.preventDefault()
-        if (value.includes('.') || value.length >= maxLength) return
-        onChange(value === '' ? '0.' : value + '.')
-      } else if (e.key === '-') {
-        e.preventDefault()
-        if (value.startsWith('-')) {
-          onChange(value.slice(1)) // 切換正負
-        } else {
-          if (value.length >= maxLength) return
-          onChange('-' + value)
-        }
-      } else if (e.key === 'Backspace') {
-        e.preventDefault()
-        onChange(value.slice(0, -1))
-      } else if (e.key === 'Enter') {
+      // 只攔截 Backspace（退格）和 Enter（送出）
+      if (e.key === 'Enter') {
+        // 輸入法組字中不攔截，避免誤送出
+        if (e.isComposing || e.keyCode === 229) return
         e.preventDefault()
         if (value) onSubmit()
       }
+      // 其餘按鍵（數字、字母、符號、中文等）全部放行給 input 原生的 onChange
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [mode, disabled, value, maxLength, onChange, onSubmit])
+  }, [mode, disabled, value, onSubmit])
 
   // ============ 文字模式：直接用輸入框（支援中文輸入法 IME）============
   if (mode === 'text') {
@@ -218,8 +194,17 @@ export default function NumberPad({
           </div>
         ))}
 
-        {/* 清空 + 確認 */}
+        {/* 正負切換 + 清空 + 確認 */}
         <div className="mt-2 flex gap-1.5 sm:gap-2">
+          <button
+            onClick={() => handleKey('-')}
+            onMouseDown={(e) => e.preventDefault()}
+            disabled={disabled}
+            aria-label="正負切換"
+            className="flex-1 rounded-xl border border-neutral-200 bg-white py-3 text-lg font-bold shadow-sm transition hover:border-blue-400 hover:bg-blue-50 active:scale-95 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:hover:border-blue-400 dark:hover:bg-blue-950"
+          >
+            {value.startsWith('-') ? '+/-' : '-/-'}
+          </button>
           <button
             onClick={handleClear}
             onMouseDown={(e) => e.preventDefault()}
