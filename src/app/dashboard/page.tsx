@@ -25,29 +25,31 @@ export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) return null
 
-  // 列出家長自己建立的孩子，以及「已確認綁定」的學生（學生主動綁定須家長確認）
-  // PENDING 綁定尚未生效，不會出現在這裡（另列於下方「綁定請求」區塊）
-  const children = await prisma.childProfile.findMany({
-    where: {
-      OR: [
-        { parentId: user.id },
-        { parentLinks: { some: { parentId: user.id, status: 'ACTIVE' } } },
-      ],
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      sessions: {
-        orderBy: { startedAt: 'desc' },
-        take: 5,
-        where: { completedAt: { not: null } },
+  // 平行載入孩子列表與綁定請求（彼此獨立）
+  const [children, pendingRequests] = await Promise.all([
+    // 列出家長自己建立的孩子，以及「已確認綁定」的學生（學生主動綁定須家長確認）
+    // PENDING 綁定尚未生效，不會出現在這裡（另列於下方「綁定請求」區塊）
+    prisma.childProfile.findMany({
+      where: {
+        OR: [
+          { parentId: user.id },
+          { parentLinks: { some: { parentId: user.id, status: 'ACTIVE' } } },
+        ],
       },
-      masterySnapshots: true,
-      _count: { select: { sessions: { where: { completedAt: { not: null } } } } },
-    },
-  })
-
-  // 待家長確認的綁定請求（學生主動綁定）
-  const pendingRequests = await getPendingLinkRequests()
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sessions: {
+          orderBy: { startedAt: 'desc' },
+          take: 5,
+          where: { completedAt: { not: null } },
+        },
+        masterySnapshots: true,
+        _count: { select: { sessions: { where: { completedAt: { not: null } } } } },
+      },
+    }),
+    // 待家長確認的綁定請求（學生主動綁定）
+    getPendingLinkRequests(),
+  ])
 
   // 每個年級的啟用技能數（一次查出，供每個孩子依其年級計算可接觸範圍內的技能數）
   // 掌握進度的分母必須是「孩子可接觸年級範圍（K..當前年級）」的技能數，
