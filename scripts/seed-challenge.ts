@@ -6,6 +6,10 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
+  // 清除既有挑戰題，支援重新執行
+  const deleted = await prisma.questionTemplate.deleteMany({ where: { isChallenge: true } })
+  console.log(`  ✓ Removed ${deleted.count} existing challenge questions`)
+
   const allSkills = await prisma.skill.findMany({ where: { isActive: true } })
   const skillByName = new Map(allSkills.map((s) => [s.code, s]))
 
@@ -24,7 +28,8 @@ async function main() {
     { skillCode: 'add-sub-100', prompt: '小美有 156 元，買文具花了 78 元，還剩下多少元？', answer: '78', expl: '156 - 78 = 78' },
     { skillCode: 'mixed-operations', prompt: '36 ÷ 4 + 5 × 3 = ?', answer: '24', expl: '先算 36÷4=9，再算 5×3=15，最後 9+15=24' },
     { skillCode: 'time-calc', prompt: '上午 9:30 到下午 2:15，經過了幾小時幾分？', answer: '4h45m', expl: '9:30→14:15 共 4 小時 45 分鐘' },
-    { skillCode: 'area-perimeter', prompt: '長方形長 12cm、寬 8cm，周長和面積各是多少？', answer: '40,96', expl: '周長=2×(12+8)=40cm，面積=12×8=96cm²', options: '40,96,20,48,96,40' },
+    { skillCode: 'area-perimeter', prompt: '長方形長 12cm、寬 8cm，周長是多少？', answer: '40', expl: '周長=2×(12+8)=40cm', options: '40,20,96,48' },
+    { skillCode: 'area-perimeter', prompt: '長方形長 12cm、寬 8cm，面積是多少？', answer: '96', expl: '面積=12×8=96cm²', options: '96,40,20,48' },
     { skillCode: 'decimal-intro', prompt: '12.5 + 3.7 = ?', answer: '16.2', expl: '對齊小數點：12.5 + 3.7 = 16.2' },
     { skillCode: 'large-multiply', prompt: '23 × 45 = ?', answer: '1035', expl: '23 × 45 = 23 × (40+5) = 920 + 115 = 1035' },
     { skillCode: 'triangle', prompt: '三角形的三個角分別是 45°、60°、75°，這是一個什麼三角形？', answer: '銳角三角形', expl: '三個角都小於 90°，所以是銳角三角形', options: '銳角三角形,直角三角形,鈍角三角形,等腰三角形' },
