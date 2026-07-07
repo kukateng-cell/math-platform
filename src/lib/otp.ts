@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose'
+import { getSessionKey } from '@/lib/secret'
 
-const SECRET = process.env.SESSION_SECRET || 'fallback-secret'
-const KEY = new TextEncoder().encode(SECRET)
+const KEY = getSessionKey()
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000  // 5 分鐘
 const RESEND_COOLDOWN_MS = 60 * 1000  // 60 秒冷卻

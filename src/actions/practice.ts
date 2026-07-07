@@ -297,12 +297,24 @@ export async function submitAnswer(payload: {
 
   // 用 questionIndex 判斷完成（避免 attempt.count DB 查詢）
   const finished = payload.questionIndex + 1 >= practiceSession.totalQuestions
+
+  // 判斷是否為提升練習（從 questionsJson 的第一題標記判斷）
+  let isChallengeSession = false
+  try {
+    const storedQ = practiceSession.questionsJson ? JSON.parse(practiceSession.questionsJson) : []
+    if (Array.isArray(storedQ) && storedQ[0]?.__isChallenge) isChallengeSession = true
+  } catch { /* ignore */ }
+
   if (finished) {
     await prisma.practiceSession.update({
       where: { id: payload.sessionId },
       data: { completedAt: new Date() },
     })
-    await updateMastery(payload.sessionId)
+
+    // 提升練習不影響掌握度（跨技能綜合題，不綁定單一技能）
+    if (!isChallengeSession) {
+      await updateMastery(payload.sessionId)
+    }
 
     // ============ 遊戲化 ============
     const childId = practiceSession.childId
@@ -361,6 +373,7 @@ export async function submitAnswer(payload: {
       allCorrect,
       isPromotion: isPromotionTest,
       passedPromotion,
+      isChallenge: isChallengeSession,
     })
   }
 
@@ -585,4 +598,89 @@ export async function startPromotionTest(childId: string) {
   })
 
   redirect(`/practice/${childId}/${skills[0].id}/${practiceSession.id}`)
+}
+
+// ============ 提升練習（挑戰練習）============
+// 從孩子目前年級可觸及的所有題庫中隨機挑選挑戰題（isChallenge=true），
+// 每次 10 題。不影響掌握度、不計入升學判斷，純粹挑戰自我。
+const CHALLENGE_QUESTIONS_PER_SESSION = 10
+
+export async function startChallengePractice(childId: string) {
+  const auth = await getPracticeAuth()
+  if (!auth) throw new Error('未授權')
+  if (!(await canAccessChild(childId))) throw new Error('找不到孩子檔案')
+
+  const child = await prisma.childProfile.findUnique({ where: { id: childId } })
+  if (!child) throw new Error('找不到孩子檔案')
+
+  // 取得孩子可接觸年級下的所有挑戰題
+  const grades = accessibleGrades(child.gradeLevel)
+  const challengeQuestions = await prisma.questionTemplate.findMany({
+    where: { isActive: true, isChallenge: true, skill: { gradeLevel: { in: grades } } },
+    include: { skill: { select: { name: true } } },
+  })
+  if (challengeQuestions.length === 0) {
+    throw new Error('目前沒有可用的提升練習題，請聯繫管理員')
+  }
+
+  // 從所有技能中隨機選取一個作為 session 的 skillId（僅供關聯）
+  const firstSkill = await prisma.skill.findFirst({ where: { gradeLevel: child.gradeLevel, isActive: true } })
+  if (!firstSkill) throw new Error('找不到技能')
+
+  // 隨機挑選 CHALLENGE_QUESTIONS_PER_SESSION 題
+  const selected = shuffle(challengeQuestions).slice(0, CHALLENGE_QUESTIONS_PER_SESSION)
+  const generated: StoredQuestion[] = selected.map((t) => {
+    const q = generateQuestion({
+      id: t.id,
+      type: t.type,
+      prompt: t.prompt,
+      paramsJson: t.paramsJson,
+      answer: t.answer,
+      options: t.options,
+    })
+    // 解析互動模式
+    let interaction: string | undefined
+    let rangeMin: number | undefined
+    let rangeMax: number | undefined
+    let inputMode: string | undefined
+    let maxLength: number | undefined
+    let placeholder: string | undefined
+    if (t.paramsJson) {
+      try {
+        const parsed = JSON.parse(t.paramsJson)
+        interaction = parsed.interaction
+        rangeMin = parsed.rangeMin
+        rangeMax = parsed.rangeMax
+        inputMode = parsed.inputMode
+        maxLength = parsed.maxLength
+        placeholder = parsed.placeholder
+      } catch { /* ignore */ }
+    }
+    return {
+      templateId: q.templateId!,
+      prompt: q.prompt,
+      answer: q.answer,
+      options: q.options,
+      explanation: t.explanation ?? undefined,
+      interaction,
+      rangeMin,
+      rangeMax,
+      inputMode,
+      maxLength,
+      placeholder,
+      __isChallenge: true, // 標記為提升練習
+    }
+  })
+
+  const practiceSession = await prisma.practiceSession.create({
+    data: {
+      childId,
+      skillId: firstSkill.id,
+      parentId: auth.type === 'parent' ? auth.userId : child.parentId,
+      totalQuestions: CHALLENGE_QUESTIONS_PER_SESSION,
+      questionsJson: JSON.stringify(generated),
+    },
+  })
+
+  redirect(`/practice/${childId}/${firstSkill.id}/${practiceSession.id}`)
 }
