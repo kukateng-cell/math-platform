@@ -126,8 +126,9 @@ export default async function ChildOverviewPage({
         },
         include: {
           sessions: {
-            orderBy: { startedAt: 'desc' },
+            orderBy: { completedAt: 'desc' },
             take: 10,
+            where: { completedAt: { not: null } },
             include: { skill: true },
           },
           badges: {
@@ -141,8 +142,9 @@ export default async function ChildOverviewPage({
           where: { id: childId },
           include: {
             sessions: {
-              orderBy: { startedAt: 'desc' },
+              orderBy: { completedAt: 'desc' },
               take: 10,
+              where: { completedAt: { not: null } },
               include: { skill: true },
             },
             badges: {
@@ -195,7 +197,7 @@ export default async function ChildOverviewPage({
                 <GradeSelector childId={child.id} currentGrade={child.gradeLevel} />
               )}
               {lastSession ? (
-                <span>上次練習 {relativeTime(lastSession.startedAt)}</span>
+                <span>上次練習 {relativeTime(lastSession.completedAt ?? lastSession.startedAt)}</span>
               ) : (
                 <span>尚未開始練習</span>
               )}

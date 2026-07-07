@@ -399,19 +399,10 @@ export async function submitAnswer(payload: {
   } catch { /* ignore */ }
 
   if (finished) {
-    await prisma.practiceSession.update({
-      where: { id: payload.sessionId },
-      data: { completedAt: new Date() },
-    })
-
-    // 提升練習不影響掌握度（跨技能綜合題，不綁定單一技能）
-    if (!isChallengeSession) {
-      await updateMastery(payload.sessionId)
-    }
-
-    // ============ 遊戲化 ============
+    // ============ 遊戲化：先計算星星數並寫入 correctCount ============
+    // 注意：correctCount 必須在 updateMastery 之前寫入，以防 mastery 更新
+    // 拋出異常時 correctCount 仍為 0 造成儀表板顯示異常。
     const childId = practiceSession.childId
-    // 查詢本次練習的正確數（不計 assisted）= 星星數
     const sessionAttempts = await prisma.attempt.findMany({
       where: { sessionId: payload.sessionId },
     })
@@ -422,11 +413,16 @@ export async function submitAnswer(payload: {
       (a) => a.isCorrect
     )
 
-    // 從實際作答計算 correctCount 並寫入（延遲批量寫入，取代每次遞增）
+    // 寫入正確數與完成時間（合併成一次 update，確保原子性）
     await prisma.practiceSession.update({
       where: { id: payload.sessionId },
-      data: { correctCount: starsEarned },
+      data: { completedAt: new Date(), correctCount: starsEarned },
     })
+
+    // 提升練習不影響掌握度（跨技能綜合題，不綁定單一技能）
+    if (!isChallengeSession) {
+      await updateMastery(payload.sessionId)
+    }
 
     await updateStars(childId, starsEarned)
     await updateStreak(childId)
@@ -470,10 +466,11 @@ export async function submitAnswer(payload: {
     })
   }
 
-  // 僅在練習完成時重新驗證快取
+  // 僅在練習完成時重新驗證快取（包含練習選單，確保升學後年級變更能即時反映）
   if (finished) {
     revalidatePath('/dashboard')
     revalidatePath('/children')
+    revalidatePath('/practice/' + practiceSession.childId)
   }
 
   // 回傳時檢查是否為升學測試且剛完成，附加升學結果

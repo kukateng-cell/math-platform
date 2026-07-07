@@ -37,7 +37,7 @@ export default async function DashboardPage() {
     orderBy: { createdAt: 'desc' },
     include: {
       sessions: {
-        orderBy: { startedAt: 'desc' },
+        orderBy: { completedAt: 'desc' },
         take: 5,
         where: { completedAt: { not: null } },
       },
@@ -45,6 +45,27 @@ export default async function DashboardPage() {
       _count: { select: { sessions: { where: { completedAt: { not: null } } } } },
     },
   })
+
+  // 修復 correctCount 為 0 的已完成 session：從 attempts 計算實際正確數
+  // （舊 session 的 correctCount 可能因遷移時序或異常而保留預設值 0）
+  const sessionsWithZeroCorrect = children.flatMap((c) =>
+    c.sessions.filter((s) => s.correctCount === 0)
+  )
+  const correctCountMap = new Map<string, number>()
+  if (sessionsWithZeroCorrect.length > 0) {
+    const attemptCounts = await prisma.attempt.groupBy({
+      by: ['sessionId'],
+      where: {
+        sessionId: { in: sessionsWithZeroCorrect.map((s) => s.id) },
+        isCorrect: true,
+        assisted: false,
+      },
+      _count: { id: true },
+    })
+    for (const row of attemptCounts) {
+      correctCountMap.set(row.sessionId, row._count.id)
+    }
+  }
 
   // 待家長確認的綁定請求（學生主動綁定）
   const pendingRequests = await getPendingLinkRequests()
@@ -108,12 +129,15 @@ export default async function DashboardPage() {
             const totalSkills = reachableSkills(child.gradeLevel)
             const skillPct = totalSkills > 0 ? Math.round((masteredSkills / totalSkills) * 100) : 0
 
-            // 最近 5 次練習的平均正確率
+            // 最近 5 次練習的平均正確率（修正 correctCount 為 0 的舊 session）
             const recentSessions = child.sessions.slice(0, 5)
             const avgAccuracy = recentSessions.length > 0
               ? Math.round(
                   (recentSessions.reduce(
-                    (sum, s) => sum + (s.totalQuestions > 0 ? s.correctCount / s.totalQuestions : 0),
+                    (sum, s) => {
+                      const c = s.correctCount > 0 ? s.correctCount : (correctCountMap.get(s.id) ?? 0)
+                      return sum + (s.totalQuestions > 0 ? c / s.totalQuestions : 0)
+                    },
                     0
                   ) / recentSessions.length) * 100
                 )
@@ -170,11 +194,16 @@ export default async function DashboardPage() {
                 )}
 
                 {/* 最近練習資訊 */}
-                {lastSession ? (
+                {lastSession ? (() => {
+                  // 修正 correctCount：若為 0 但有實際答對紀錄，從 attempts 計算
+                  const displayCorrect = lastSession.correctCount > 0
+                    ? lastSession.correctCount
+                    : (correctCountMap.get(lastSession.id) ?? 0)
+                  return (
                   <div className="mb-3 space-y-0.5 text-xs text-neutral-500 dark:text-gray-400 sm:text-sm">
                     <p>
-                      上次練習：<span className="font-medium text-neutral-700 dark:text-gray-200">{lastSession.correctCount}/{lastSession.totalQuestions} 題正確</span>
-                      <span className="ml-1 text-neutral-400 dark:text-gray-500">（{relativeTime(lastSession.startedAt)}）</span>
+                      上次練習：<span className="font-medium text-neutral-700 dark:text-gray-200">{displayCorrect}/{lastSession.totalQuestions} 題正確</span>
+                      <span className="ml-1 text-neutral-400 dark:text-gray-500">（{relativeTime(lastSession.completedAt ?? lastSession.startedAt)}）</span>
                     </p>
                     {avgAccuracy !== null && (
                       <p>
@@ -182,7 +211,8 @@ export default async function DashboardPage() {
                       </p>
                     )}
                   </div>
-                ) : (
+                  )
+                })() : (
                   <p className="mb-3 text-sm text-neutral-400 dark:text-gray-500">尚未練習</p>
                 )}
 
