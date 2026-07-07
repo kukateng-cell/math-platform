@@ -10,7 +10,7 @@ import {
 } from '@/actions/practice'
 import NumberPad from './number-pad'
 import NumberLine from './number-line'
-import { renderTextWithShapes } from './shape-icon'
+import { renderTextWithShapes, renderOption, isShapeName } from './shape-icon'
 import { Icon, type IconName } from './icon'
 import { displayAnswer } from '@/lib/answer-i18n'
 import type { Recommendation } from '@/lib/mastery'
@@ -116,6 +116,7 @@ export default function PracticeClient({
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showHint, setShowHint] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(true)
   /** 多設備情境：此練習已在其他裝置被完成，非本地答錯 */
   const [remoteFinished, setRemoteFinished] = useState(false)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
@@ -392,8 +393,83 @@ export default function PracticeClient({
     const accuracy = Math.round((correctCount / questions.length) * 100)
     const encouragement = getEncouragement(accuracy)
     const totalTime = finalTotalMs != null ? finalTotalMs : Date.now() - practiceStartRef.current
+
+    // 紙屑粒子配置（僅在客戶端渲染，Math.random 安全）
+    const confettiColors = ['#facc15', '#f97316', '#ef4444', '#a855f7', '#3b82f6', '#22c55e', '#ec4899', '#06b6d4']
+    const confettiShapes: IconName[] = ['star', 'sparkle', 'circle', 'gem']
+    const confettiParticles = Array.from({ length: 40 }).map(() => ({
+      x: Math.random() * 100,
+      delay: Math.random() * 2.5,
+      color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+      shape: confettiShapes[Math.floor(Math.random() * confettiShapes.length)],
+      size: 0.5 + Math.random() * 1,
+      duration: 1.5 + Math.random() * 2,
+    }))
+
     return (
-      <div className="flex flex-col items-center gap-6 text-center" role="region" aria-label="練習完成">
+      <div className="relative">
+        {/* 星星慶祝全螢幕覆蓋層 */}
+        {starsEarned > 0 && showCelebration && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center animate-overlay-fade-in" style={{ background: 'rgba(0,0,0,0.65)' }}>
+            {/* 紙屑粒子 */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {confettiParticles.map((p, i) => (
+                <div
+                  key={i}
+                  className="absolute animate-confetti-fall"
+                  style={{
+                    left: `${p.x}%`,
+                    top: '-5%',
+                    animationDelay: `${p.delay}s`,
+                    animationDuration: `${p.duration}s`,
+                    color: p.color,
+                    fontSize: `${p.size * 1.8}rem`,
+                  }}
+                >
+                  <Icon name={p.shape as IconName} style={{ width: '1em', height: '1em' }} />
+                </div>
+              ))}
+            </div>
+
+            {/* 中央慶祝內容 */}
+            <div className="relative z-10 mx-4 flex flex-col items-center gap-4">
+              {/* 大星星彈出 */}
+              <div className="flex justify-center gap-3">
+                {Array.from({ length: Math.min(starsEarned, 5) }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="animate-star-drop text-amber-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)]"
+                    style={{ animationDelay: `${i * 0.2}s`, fontSize: `${4 - i * 0.3}rem` }}
+                  >
+                    <Icon name="star" style={{ width: '1em', height: '1em' }} />
+                  </span>
+                ))}
+              </div>
+
+              {/* 星星數量文字 */}
+              <p className="animate-bounce-in text-4xl font-extrabold text-white drop-shadow-lg" style={{ animationDelay: '0.6s' }}>
+                獲得 <span className="text-amber-400">{starsEarned}</span> 顆星星！
+              </p>
+
+              {/* 鼓勵語 */}
+              <p className="animate-float-up flex items-center gap-2 text-xl font-medium text-white/90" style={{ animationDelay: '0.8s' }}>
+                <Icon name={encouragement.icon} className="h-6 w-6" /> {encouragement.msg}
+              </p>
+
+              {/* 關閉按鈕 */}
+              <button
+                type="button"
+                onClick={() => setShowCelebration(false)}
+                className="animate-float-up mt-2 rounded-xl bg-white/20 px-8 py-3 text-lg font-semibold text-white backdrop-blur transition hover:bg-white/30 active:scale-95"
+                style={{ animationDelay: '1s' }}
+              >
+                查看結果 ✨
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col items-center gap-6 text-center" role="region" aria-label="練習完成">
         <div className="flex justify-center text-indigo-500 dark:text-indigo-400"><Icon name={encouragement.icon} className="h-20 w-20" /></div>
         <h2 className="text-2xl font-bold">{childNickname} 完成了！</h2>
         <p className="flex items-center justify-center gap-1.5 text-lg font-medium text-indigo-600 dark:text-indigo-400">
@@ -402,50 +478,27 @@ export default function PracticeClient({
 
         {/* 答對題數 + 總花費時間 */}
         <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
-          <p className="text-lg text-neutral-600 dark:text-gray-300">
+          <p className="text-lg text-neutral-700 dark:text-gray-200">
             答對 <span className="font-bold text-green-600 dark:text-green-400">{correctCount}</span> / {questions.length} 題
           </p>
-          <p className="text-lg text-neutral-600 dark:text-gray-300">
+          <p className="text-lg text-neutral-700 dark:text-gray-200">
             共花費 <span className="inline-flex items-center gap-1 font-mono font-bold text-blue-600 dark:text-blue-400"><Icon name="stopwatch" className="h-5 w-5" /> {formatDuration(totalTime)}</span>
           </p>
         </div>
 
         {/* 正確率進度條 */}
         <div className="w-full max-w-md">
-          <div className="mb-1 flex justify-between text-sm text-neutral-500 dark:text-gray-400">
+          <div className="mb-1 flex justify-between text-sm font-semibold text-neutral-700 dark:text-gray-200">
             <span>正確率</span>
             <span className="font-bold text-green-600 dark:text-green-400">{accuracy}%</span>
           </div>
-          <div className="h-3 w-full rounded-full bg-neutral-200 dark:bg-gray-700" role="progressbar" aria-valuenow={accuracy} aria-valuemin={0} aria-valuemax={100} aria-label={"正確率 " + accuracy + "%"}>
+          <div className="h-3 w-full rounded-full bg-neutral-300 dark:bg-gray-600" role="progressbar" aria-valuenow={accuracy} aria-valuemin={0} aria-valuemax={100} aria-label={"正確率 " + accuracy + "%"}>
             <div
               className="h-3 rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-300"
-              style={{ width: accuracy + "%" }}
+              style={{ width: accuracy + '%' }}
             />
           </div>
         </div>
-
-        {/* 星星獎勵顯示 + 動畫灑落 */}
-        {starsEarned > 0 && (
-          <div className="stars-container my-2">
-            <div className="flex flex-wrap justify-center gap-1" aria-label={`獲得 ${starsEarned} 顆星星`}>
-              {Array.from({ length: starsEarned }).map((_, i) => (
-                <span
-                  key={i}
-                  className="star-fall inline-block text-amber-400"
-                  style={{
-                    animation: `starDrop 0.5s ease-out ${i * 0.15}s both`,
-                    fontSize: `${1.5 + Math.random() * 1}rem`,
-                  }}
-                >
-                  <Icon name="star" style={{ width: '1em', height: '1em' }} />
-                </span>
-              ))}
-            </div>
-            <p className="mt-2 flex items-center justify-center gap-1 text-sm font-medium text-amber-600 dark:text-amber-400">
-              +{starsEarned} 顆星星 <Icon name="star" className="h-4 w-4" />
-            </p>
-          </div>
-        )}
 
         {/* 升學測試結果 */}
         {lastResult?.promotion && (
@@ -476,13 +529,13 @@ export default function PracticeClient({
 
         {/* 每題結果一覽 */}
         <div className="w-full max-w-md">
-          <h3 className="mb-2 text-sm font-semibold text-neutral-500 dark:text-gray-400">每題結果一覽</h3>
+          <h3 className="mb-2 text-sm font-semibold text-neutral-700 dark:text-gray-200">每題結果一覽</h3>
           <ol className="flex flex-col gap-1.5">
             {questions.map((q, i) => {
               const r = questionResults[i]
               let icon: IconName = 'circle'
               let label = '未作答'
-              let cls = 'border-neutral-200 bg-neutral-50 text-neutral-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
+              let cls = 'border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
               let detail: string | null = null
               if (r) {
                 if (r.assisted) {
@@ -505,7 +558,7 @@ export default function PracticeClient({
                 <li key={i} className={"flex items-center justify-between rounded-lg border px-3 py-2 text-sm " + cls}>
                   <span className="flex items-center gap-2">
                     <Icon name={icon} className="h-4 w-4 shrink-0" />
-                    <span className="text-neutral-500 dark:text-gray-400">第 {i + 1} 題</span>
+                    <span className="text-neutral-700 dark:text-gray-200">第 {i + 1} 題</span>
                   </span>
                   <span className="flex items-center gap-2">
                     {detail && <span className="text-xs opacity-70">{detail}</span>}
@@ -590,6 +643,7 @@ export default function PracticeClient({
           }
         `}</style>
       </div>
+    </div>
     )
   }
 
@@ -601,7 +655,7 @@ export default function PracticeClient({
   return (
     <div className={"flex w-full flex-col gap-6 outline-none " + bgFlashClass} onKeyDown={handleKeyDown} tabIndex={0}>
       <div>
-        <div className="mb-1 flex items-center justify-between text-xs text-neutral-500 dark:text-gray-400 sm:text-sm">
+        <div className="mb-1 flex items-center justify-between text-xs font-medium text-neutral-700 dark:text-gray-200 sm:text-sm">
           <span className="truncate pr-2">{skillName}</span>
           <span className="flex shrink-0 items-center gap-2 sm:gap-3">
             <span className="inline-flex items-center gap-1 font-mono"><Icon name="stopwatch" className="h-3.5 w-3.5" /> {elapsed}</span>
@@ -609,7 +663,7 @@ export default function PracticeClient({
             <button
               type="button"
               onClick={() => setShowExitConfirm(true)}
-              className="rounded-md px-2 py-0.5 text-xs font-medium text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              className="rounded-md px-2 py-0.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
               aria-label="結束練習"
             >
               <span className="inline-flex items-center gap-0.5">
@@ -618,11 +672,11 @@ export default function PracticeClient({
             </button>
           </span>
         </div>
-        <div className="mb-1 flex justify-end text-xs font-medium text-indigo-500">
+        <div className="mb-1 flex justify-end text-xs font-bold text-indigo-600 dark:text-indigo-400">
           {progress}%
         </div>
         <div
-          className="h-2 w-full rounded-full bg-neutral-200 dark:bg-gray-700"
+          className="h-2.5 w-full rounded-full bg-neutral-300 dark:bg-gray-600"
           role="progressbar"
           aria-valuenow={index + 1}
           aria-valuemin={1}
@@ -631,7 +685,7 @@ export default function PracticeClient({
           aria-label={"練習進度：第 " + (index + 1) + " 題，共 " + totalQuestions + " 題"}
         >
           <div
-            className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-200"
+            className="h-2.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-200"
             style={{ width: progress + "%" }}
           />
         </div>
@@ -639,7 +693,7 @@ export default function PracticeClient({
         {/* 進度圓點狀態指示器 */}
         <div className="mt-3 flex justify-center gap-1.5" aria-hidden="true">
           {questions.map((_, i) => {
-            let dotCls = 'h-3 w-3 rounded-full border-2 border-neutral-300 bg-transparent dark:border-gray-600'
+            let dotCls = 'h-3 w-3 rounded-full border-2 border-neutral-400 bg-transparent dark:border-gray-500'
             let icon: IconName | null = null
             if (i < questionResults.length) {
               const r = questionResults[i]
@@ -719,6 +773,8 @@ export default function PracticeClient({
             }
             const showCheck = lastResult && feedback === 'correct' && selected === opt
             const showCross = lastResult && feedback === 'incorrect' && selected === opt
+            // 選項是否為單一圖形（正方形/圓形…）→ 用大圖形顯示而非文字
+            const isShapeOpt = isShapeName(opt)
             return (
               <button
                 key={"opt-" + optIdx}
@@ -727,12 +783,16 @@ export default function PracticeClient({
                 disabled={!!lastResult || submitting}
                 aria-pressed={selected === opt}
                 aria-keyshortcuts={"" + (optIdx + 1)}
-                className={"rounded-xl border-2 px-4 py-5 text-2xl font-bold transition min-h-[60px] " + cls}
+                className={"relative rounded-xl border-2 px-4 py-5 text-2xl font-bold transition min-h-[72px] " + cls}
               >
+                {/* 數字鍵提示：圖形選項時固定在左上角，文字選項時跟在後面 */}
+                {!lastResult && isShapeOpt && (
+                  <span className="absolute left-2 top-2 rounded-full bg-neutral-200/80 px-1.5 text-xs font-medium text-neutral-600 dark:bg-gray-700 dark:text-gray-300">{optIdx + 1}</span>
+                )}
                 <span className="inline-flex items-center gap-2">
-                  {displayAnswer(opt)}
-                  {!lastResult && (
-                    <span className="text-xs text-neutral-400 dark:text-gray-500">({optIdx + 1})</span>
+                  {isShapeOpt ? renderOption(opt, 'lg') : displayAnswer(opt)}
+                  {!lastResult && !isShapeOpt && (
+                    <span className="text-xs font-medium text-neutral-500 dark:text-gray-400">({optIdx + 1})</span>
                   )}
                   {showCheck && <Icon name="check" aria-hidden="true" className="h-5 w-5" />}
                   {showCross && <Icon name="x" aria-hidden="true" className="h-5 w-5" />}
@@ -791,7 +851,7 @@ export default function PracticeClient({
         )}
 
         {interaction !== 'fillin' && (
-          <label className="flex items-center justify-center gap-2 text-sm text-neutral-500 dark:text-gray-400">
+          <label className="flex items-center justify-center gap-2 text-sm font-medium text-neutral-700 dark:text-gray-300">
             <input
               type="checkbox"
               checked={assisted}

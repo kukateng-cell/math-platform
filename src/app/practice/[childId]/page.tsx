@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest, startChallengePractice, getResumeableSessions } from '@/actions/practice'
 import { getSession } from '@/lib/session'
 import { childLogout } from '@/actions/child-auth'
@@ -16,9 +16,9 @@ export default async function PracticeSelectPage({
 }) {
   const { childId } = await params
   const { error, info } = (await searchParams) ?? {}
-  // 練習路由支援家長 session 或孩子 session
+  // 練習路由支援家長 session 或孩子 session（proxy.ts middleware 已先攔檢，此處為雙重確認）
   const hasAccess = await hasPracticeAccess()
-  if (!hasAccess) return null
+  if (!hasAccess) redirect('/student/login')
 
   // 判斷目前身分：家長可返回孩子列表，孩子則顯示登出
   const parentSession = await getSession()
