@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Icon } from './icon'
 
 type Props = {
   // 綁定到 OTP 步驟的臨時 token（驗證碼階段識別用）
@@ -64,7 +65,7 @@ export default function OtpResendButton({ tempToken, resendState, resendAction, 
               disabled={resendPending}
               className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition hover:text-blue-800 disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              <span className={resendPending ? 'inline-block animate-spin' : ''}>🔄</span>
+              <Icon name="refresh" className={resendPending ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
               {resendPending ? '發送中…' : '換一組驗證碼'}
             </button>
           </form>

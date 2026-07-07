@@ -4,6 +4,7 @@ import { useActionState } from 'react'
 import { selfStudySignup, selfStudyVerifyOtp, selfStudyResendOtp } from '@/actions/student-auth'
 import CaptchaChallenge from './captcha-challenge'
 import OtpResendButton from './otp-resend-button'
+import { Icon } from './icon'
 
 // OTP 重發的初始 state
 const initResend = undefined as { message?: string; otpRequired?: boolean; error?: string; tempToken?: string } | undefined
@@ -24,8 +25,8 @@ export default function StudentSignupForm({ initialCaptcha }: Props) {
   if (!isOtpMode) {
     return (
       <form action={signupAction} className="flex w-full flex-col gap-4">
-        <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-950 dark:text-green-300">
-          🌱 使用 Email + 驗證碼登入，完全自主學習
+        <p className="flex items-center gap-1 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-950 dark:text-green-300">
+          <Icon name="sprout" className="h-4 w-4 shrink-0" />使用 Email + 驗證碼登入，完全自主學習
         </p>
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium">暱稱</label>
@@ -66,7 +67,7 @@ export default function StudentSignupForm({ initialCaptcha }: Props) {
       <form action={otpAction} className="flex w-full flex-col gap-4">
         <input type="hidden" name="tempToken" value={tempToken} />
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-800 dark:bg-blue-950">
-          <div className="mb-2 text-3xl">📧</div>
+          <div className="mb-2 flex justify-center text-blue-500 dark:text-blue-400"><Icon name="mail" className="h-8 w-8" /></div>
           <p className="text-sm text-blue-800 dark:text-blue-200">{signupState?.message}</p>
         </div>
         <div className="flex flex-col gap-1">

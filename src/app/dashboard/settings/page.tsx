@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getCurrentUser } from '@/actions/auth'
 import DeleteAccountForm from '@/components/delete-account-form'
+import { Icon } from '@/components/icon'
 
 export default async function SettingsPage() {
   const user = await getCurrentUser()
@@ -44,9 +45,9 @@ export default async function SettingsPage() {
         </p>
 
         <div className="mb-4">
-          <h3 className="mb-1 text-sm font-medium">📥 下載你的資料</h3>
+          <h3 className="mb-1 flex items-center gap-1.5 text-sm font-medium"><Icon name="download" className="h-4 w-4" />下載你的資料</h3>
           <p className="mb-2 text-xs text-neutral-500 dark:text-gray-400">
-            到每個孩子的「學習概覽」頁面，點「📥 匯出資料」即可下載該孩子的完整練習紀錄（CSV）。
+            到每個孩子的「學習概覽」頁面，點「匯出資料」即可下載該孩子的完整練習紀錄（CSV）。
           </p>
           <Link
             href="/dashboard"

@@ -356,7 +356,7 @@ export async function createBadge(state: BadgeFormState, formData: FormData): Pr
   await requireAdmin()
   const code = String(formData.get('code') || '').trim()
   const name = String(formData.get('name') || '').trim()
-  const icon = String(formData.get('icon') || '🏅').trim()
+  const icon = String(formData.get('icon') || 'medal').trim()
   const condition = String(formData.get('condition') || '').trim()
 
   if (!code || !name || !condition) {
@@ -377,7 +377,7 @@ export async function updateBadge(state: BadgeFormState, formData: FormData): Pr
   await requireAdmin()
   const id = String(formData.get('id') || '')
   const name = String(formData.get('name') || '').trim()
-  const icon = String(formData.get('icon') || '🏅').trim()
+  const icon = String(formData.get('icon') || 'medal').trim()
   const condition = String(formData.get('condition') || '').trim()
 
   if (!name || !condition) {

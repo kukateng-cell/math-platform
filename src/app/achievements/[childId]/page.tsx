@@ -5,6 +5,7 @@ import { getChildSession } from '@/lib/child-session'
 import { prisma } from '@/lib/prisma'
 import { getChildBadges } from '@/actions/achievement'
 import AchievementBadges from '@/components/achievement-badges'
+import { Icon } from '@/components/icon'
 
 // ============ 授權輔助（與孩子頁一致）============
 type AchAuth =
@@ -72,7 +73,7 @@ export default async function AchievementsPage({
 
       {/* 頁首 */}
       <div className="mt-4 mb-8 flex flex-col items-center gap-3 border-b border-neutral-200 pb-6 text-center dark:border-gray-700">
-        <span className="text-5xl">🏅</span>
+        <span className="text-amber-500"><Icon name="medal" className="h-12 w-12" /></span>
         <h1 className="text-2xl font-bold">{child.nickname} 的成就徽章</h1>
         <p className="text-sm text-neutral-500 dark:text-gray-400">
           已獲得 {earnedCount} / {badges.length} 個徽章
@@ -91,11 +92,11 @@ export default async function AchievementsPage({
       {/* 星星 + 連續天數 */}
       <div className="mb-8 flex justify-center gap-6 text-sm">
         <span className="inline-flex items-center gap-1 text-amber-600" title="累計星星數">
-          ⭐ {child.stars}
+          <Icon name="star" className="h-4 w-4" /> {child.stars}
         </span>
         {child.streak > 0 && (
           <span className="inline-flex items-center gap-1 text-orange-600" title="連續練習天數">
-            🔥 連續 {child.streak} 天
+            <Icon name="fire" className="h-4 w-4" />連續 {child.streak} 天
           </span>
         )}
       </div>

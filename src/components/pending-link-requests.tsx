@@ -1,6 +1,7 @@
 'use client'
 
 import { confirmLink, rejectLink } from '@/actions/student-auth'
+import { Icon } from './icon'
 
 type PendingRequest = {
   linkId: string
@@ -17,7 +18,7 @@ export default function PendingLinkRequests({ requests }: { requests: PendingReq
   return (
     <section className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
       <div className="mb-3 flex items-center gap-2">
-        <span className="text-lg">🔗</span>
+        <Icon name="link" className="h-5 w-5 text-amber-600 dark:text-amber-400" />
         <h2 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
           待確認的綁定請求（{requests.length}）
         </h2>
@@ -43,7 +44,7 @@ function RequestRow({ req }: { req: PendingRequest }) {
     <form className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-white p-3 dark:border-amber-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
       <input type="hidden" name="linkId" value={req.linkId} />
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-base">🧒</span>
+        <Icon name="student" className="h-4 w-4 text-amber-500 dark:text-amber-400" />
         <span className="font-medium text-neutral-800 dark:text-gray-100">{req.nickname}</span>
         <span className="text-neutral-400 dark:text-gray-500">·</span>
         <span className="text-neutral-500 dark:text-gray-400">

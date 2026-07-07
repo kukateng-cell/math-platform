@@ -6,6 +6,7 @@ import { toggleQuestion } from '@/actions/admin'
 import QuestionForm from '@/components/admin/question-form'
 import QuestionActions from '@/components/admin/question-actions'
 import SkillFilter from '@/components/admin/skill-filter'
+import { Icon } from '@/components/icon'
 
 const TYPE_LABEL: Record<string, string> = {
   DIRECT: '直接',
@@ -94,16 +95,16 @@ export default async function AdminQuestionsPage({
             <input type="hidden" name="page" value="1" />
             <button
               type="submit"
-              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50"
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50 dark:border-gray-600"
             >
-              🔍
+              <Icon name="search" className="h-4 w-4" />
             </button>
             {query && (
               <a
                 href={pageUrl(1).replace(/\bq=[^&]*&?/g, '').replace(/[?&]$/, '') || '/admin/questions'}
                 className="rounded-lg px-3 py-2 text-sm text-neutral-400 hover:text-neutral-700 dark:text-gray-500 dark:hover:text-gray-300"
               >
-                ✕ 清除
+                <Icon name="x" className="h-3.5 w-3.5" />清除
               </a>
             )}
           </form>
@@ -160,7 +161,7 @@ export default async function AdminQuestionsPage({
                 </div>
                 <p className="mt-0.5 text-xs text-neutral-400 dark:text-gray-500">
                   {q.skill.name} · 答案 {q.answer}
-                  {q.explanation ? ` · 💡 ${q.explanation.slice(0, 30)}${q.explanation.length > 30 ? '…' : ''}` : ''}
+                  {q.explanation ? <span className="flex items-center gap-1"><Icon name="lightbulb" className="h-3 w-3" />{q.explanation.slice(0, 30)}{q.explanation.length > 30 ? '…' : ''}</span> : ''}
                 </p>
               </div>
 

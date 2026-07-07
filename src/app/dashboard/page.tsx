@@ -6,6 +6,7 @@ import { accessibleGrades } from '@/lib/grade'
 import AddChildForm from '@/components/add-child-form'
 import DeleteChildButton from '@/components/delete-child-button'
 import PendingLinkRequests from '@/components/pending-link-requests'
+import { Icon } from '@/components/icon'
 
 // 相對時間
 function relativeTime(date: Date): string {
@@ -70,7 +71,7 @@ export default async function DashboardPage() {
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">👋 歡迎回來，{user.name}</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-bold"><Icon name="thumbs-up" className="h-8 w-8 text-blue-500" />歡迎回來，{user.name}</h1>
           <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">
             建立孩子檔案後，點「開始練習」即可陪孩子一起做題
           </p>
@@ -79,7 +80,7 @@ export default async function DashboardPage() {
           href="/dashboard/settings"
           className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
         >
-          ⚙️ 帳號設定
+          <Icon name="wrench" className="h-4 w-4" />帳號設定
         </Link>
       </div>
 
@@ -125,7 +126,7 @@ export default async function DashboardPage() {
               >
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl sm:text-2xl">🧒</span>
+                    <Icon name="student" className="h-8 w-8 shrink-0 rounded-xl bg-blue-100 p-1.5 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />
                     <span className="text-base font-semibold sm:text-lg">{child.nickname}</span>
                   </div>
                   <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950 dark:text-blue-400">
@@ -136,15 +137,15 @@ export default async function DashboardPage() {
                 {/* 遊戲化資訊 */}
                 <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="inline-flex items-center gap-1 text-amber-600" title="累計星星數">
-                    ⭐ {child.stars}
+                    <Icon name="star" className="h-4 w-4" />{child.stars}
                   </span>
                   {child.streak > 0 && (
                     <span className="inline-flex items-center gap-1 text-orange-600" title="連續練習天數">
-                      🔥 連續 {child.streak} 天
+                      <Icon name="fire" className="h-4 w-4" />連續 {child.streak} 天
                     </span>
                   )}
                   <span className="inline-flex items-center gap-1 text-neutral-500 dark:text-gray-400" title="累計練習次數">
-                    📚 {child._count.sessions} 次
+                    <Icon name="books" className="h-4 w-4" />{child._count.sessions} 次
                   </span>
                 </div>
 
@@ -205,21 +206,21 @@ export default async function DashboardPage() {
                       className="rounded-md border border-neutral-200 px-2 py-1.5 text-center text-xs text-neutral-500 transition hover:bg-blue-50 hover:text-blue-600 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-blue-950 dark:hover:text-blue-400"
                       title="成長報告"
                     >
-                      📊 報告
+                      <Icon name="note" className="h-4 w-4" />報告
                     </Link>
                     <Link
                       href={`/children/${child.id}/review`}
                       className="rounded-md border border-neutral-200 px-2 py-1.5 text-center text-xs text-neutral-500 transition hover:bg-red-50 hover:text-red-600 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-red-950 dark:hover:text-red-400"
                       title="錯題本"
                     >
-                      📝 錯題
+                      <Icon name="pencil" className="h-4 w-4" />錯題
                     </Link>
                     <Link
                       href={`/children/${child.id}/history`}
                       className="rounded-md border border-neutral-200 px-2 py-1.5 text-center text-xs text-neutral-500 transition hover:bg-indigo-50 hover:text-indigo-600 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-indigo-950 dark:hover:text-indigo-400"
                       title="練習歷史"
                     >
-                      📋 歷史
+                      <Icon name="clock" className="h-4 w-4" />歷史
                     </Link>
                   </div>
                   <DeleteChildButton childId={child.id} nickname={child.nickname} />
