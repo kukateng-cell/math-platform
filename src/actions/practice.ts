@@ -165,12 +165,25 @@ export async function startSession(childId: string, skillId: string) {
 }
 
 // 取得一次練習要做的題目（從 session 的伺服器快照讀取，確保與驗證一致）
+// 同時回傳「已作答進度」供斷點續做：已答題數、正確數、每題結果。
 export async function getSessionQuestions(
   sessionId: string
 ): Promise<{
   questions: (StoredQuestion & { interaction?: string; rangeMin?: number; rangeMax?: number })[]
   skillName: string
   childNickname: string
+  /** 已作答的題數（從 Attempt 推算，用來決定從第幾題開始） */
+  answeredCount: number
+  /** 已答題中答對的數量（不計 assisted） */
+  correctCount: number
+  /** 已答題的逐題結果（依 questionIndex 排序），用於完成頁的回顧 */
+  answeredResults: {
+    questionIndex: number
+    correct: boolean
+    assisted: boolean
+    correctAnswer: string
+    userAnswer: string
+  }[]
 } | null> {
   const auth = await getPracticeAuth()
   if (!auth) {
@@ -201,11 +214,86 @@ export async function getSessionQuestions(
     }
   }
 
+  // 查詢已作答紀錄，用於斷點續做（從 Attempt 推算當前進度）
+  const attempts = await prisma.attempt.findMany({
+    where: { sessionId },
+    orderBy: { questionIndex: 'asc' },
+    select: {
+      questionIndex: true,
+      isCorrect: true,
+      assisted: true,
+      correctAnswer: true,
+      userAnswer: true,
+    },
+  })
+  const correctCount = attempts.filter((a) => a.isCorrect && !a.assisted).length
+
   return {
     questions,
     skillName: practiceSession.skill.name,
     childNickname: practiceSession.child.nickname,
+    answeredCount: attempts.length,
+    correctCount,
+    answeredResults: attempts.map((a) => ({
+      questionIndex: a.questionIndex,
+      correct: a.isCorrect,
+      assisted: a.assisted,
+      correctAnswer: a.correctAnswer,
+      userAnswer: a.userAnswer,
+    })),
   }
+}
+
+// ============ 斷點續做：查詢「今天」未完成的練習 ============
+// 學生做到一半退出後，下次回到練習選單時，可從這裡看到所有未完成、可繼續的練習。
+// 規則：
+//   - completedAt IS NULL（未完成）
+//   - startedAt 在「今天」（當天 00:00 之後）— 超過今天的不再顯示
+//   - 有題目快照（questionsJson 非空）且至少有 1 題未答（避免 0 題的空 session 顯示）
+export type ResumeableSession = {
+  sessionId: string
+  skillId: string
+  skillName: string
+  totalQuestions: number
+  answeredCount: number
+  remainingCount: number
+  startedAt: Date
+}
+
+export async function getResumeableSessions(childId: string): Promise<ResumeableSession[]> {
+  const auth = await getPracticeAuth()
+  if (!auth) return []
+  if (!(await canAccessChild(childId))) return []
+
+  // 今天的 00:00（本地時區）：用來過濾「僅當天」的未完成練習
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  const sessions = await prisma.practiceSession.findMany({
+    where: {
+      childId,
+      completedAt: null,
+      startedAt: { gte: startOfToday },
+      questionsJson: { not: null },
+    },
+    include: {
+      skill: { select: { id: true, name: true } },
+      _count: { select: { attempts: true } },
+    },
+    orderBy: { startedAt: 'desc' },
+  })
+
+  return sessions
+    .filter((s) => s._count.attempts < s.totalQuestions) // 只保留「還沒做完」的
+    .map((s) => ({
+      sessionId: s.id,
+      skillId: s.skill.id,
+      skillName: s.skill.name,
+      totalQuestions: s.totalQuestions,
+      answeredCount: s._count.attempts,
+      remainingCount: s.totalQuestions - s._count.attempts,
+      startedAt: s.startedAt,
+    }))
 }
 
 export type SubmitResult = {
@@ -265,27 +353,58 @@ export async function submitAnswer(payload: {
   // 中英文等價驗證：例如「left」「左邊」都視為正確
   const correct = isAnswerCorrect(payload.userAnswer, correctAnswer)
 
-  await prisma.attempt.create({
-    data: {
-      sessionId: payload.sessionId,
-      questionId: q.templateId,
-      questionPrompt: q.prompt,
-      userAnswer: payload.userAnswer,
-      correctAnswer,
-      isCorrect: correct,
-      assisted: payload.assisted,
-      durationMs: payload.durationMs,
-    },
-  })
+  // durationMs 伺服器驗證：確保為合理範圍（0ms ~ 5 分鐘），防止前端偽造速度類徽章
+  const validatedDurationMs = Math.max(0, Math.min(payload.durationMs, 300_000))
+
+  // 防止重複提交同一題（attempt 表有 @@unique([sessionId, questionIndex])，
+  // 捕捉 Prisma P2002 錯誤並優雅回退，避免刷高星星與掌握度）
+  try {
+    await prisma.attempt.create({
+      data: {
+        sessionId: payload.sessionId,
+        questionId: q.templateId,
+        questionIndex: payload.questionIndex,
+        questionPrompt: q.prompt,
+        userAnswer: payload.userAnswer,
+        correctAnswer,
+        isCorrect: correct,
+        assisted: payload.assisted,
+        durationMs: validatedDurationMs,
+      },
+    })
+  } catch (e: unknown) {
+    // P2002 = unique constraint violation → 代表此題已提交過
+    if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'P2002') {
+      return {
+        correct: false,
+        correctAnswer: '',
+        finished: false,
+        sessionId: payload.sessionId,
+      }
+    }
+    throw e
+  }
 
   // 用 questionIndex 判斷完成（避免 attempt.count DB 查詢）
   const finished = payload.questionIndex + 1 >= practiceSession.totalQuestions
+
+  // 判斷是否為提升練習（從 questionsJson 的第一題標記判斷）
+  let isChallengeSession = false
+  try {
+    const storedQ = practiceSession.questionsJson ? JSON.parse(practiceSession.questionsJson) : []
+    if (Array.isArray(storedQ) && storedQ[0]?.__isChallenge) isChallengeSession = true
+  } catch { /* ignore */ }
+
   if (finished) {
     await prisma.practiceSession.update({
       where: { id: payload.sessionId },
       data: { completedAt: new Date() },
     })
-    await updateMastery(payload.sessionId)
+
+    // 提升練習不影響掌握度（跨技能綜合題，不綁定單一技能）
+    if (!isChallengeSession) {
+      await updateMastery(payload.sessionId)
+    }
 
     // ============ 遊戲化 ============
     const childId = practiceSession.childId
@@ -344,6 +463,7 @@ export async function submitAnswer(payload: {
       allCorrect,
       isPromotion: isPromotionTest,
       passedPromotion,
+      isChallenge: isChallengeSession,
     })
   }
 
@@ -568,4 +688,90 @@ export async function startPromotionTest(childId: string) {
   })
 
   redirect(`/practice/${childId}/${skills[0].id}/${practiceSession.id}`)
+}
+
+// ============ 提升練習（挑戰練習）============
+// 從孩子目前年級可觸及的所有題庫中隨機挑選挑戰題（isChallenge=true），
+// 每次 10 題。不影響掌握度、不計入升學判斷，純粹挑戰自我。
+const CHALLENGE_QUESTIONS_PER_SESSION = 10
+
+export async function startChallengePractice(childId: string) {
+  const auth = await getPracticeAuth()
+  if (!auth) throw new Error('未授權')
+  if (!(await canAccessChild(childId))) throw new Error('找不到孩子檔案')
+
+  const child = await prisma.childProfile.findUnique({ where: { id: childId } })
+  if (!child) throw new Error('找不到孩子檔案')
+
+  // 取得孩子可接觸年級下的所有挑戰題
+  const grades = accessibleGrades(child.gradeLevel)
+  const challengeQuestions = await prisma.questionTemplate.findMany({
+    where: { isActive: true, isChallenge: true, skill: { gradeLevel: { in: grades } } },
+    include: { skill: { select: { name: true } } },
+  })
+  if (challengeQuestions.length === 0) {
+    // 無挑戰題時不回傳 500，而是導回練習選單並附加錯誤訊息
+    redirect(`/practice/${childId}?error=no_challenge`)
+  }
+
+  // 從所有技能中隨機選取一個作為 session 的 skillId（僅供關聯）
+  const firstSkill = await prisma.skill.findFirst({ where: { gradeLevel: child.gradeLevel, isActive: true } })
+  if (!firstSkill) throw new Error('找不到技能')
+
+  // 隨機挑選 CHALLENGE_QUESTIONS_PER_SESSION 題
+  const selected = shuffle(challengeQuestions).slice(0, CHALLENGE_QUESTIONS_PER_SESSION)
+  const generated: StoredQuestion[] = selected.map((t) => {
+    const q = generateQuestion({
+      id: t.id,
+      type: t.type,
+      prompt: t.prompt,
+      paramsJson: t.paramsJson,
+      answer: t.answer,
+      options: t.options,
+    })
+    // 解析互動模式
+    let interaction: string | undefined
+    let rangeMin: number | undefined
+    let rangeMax: number | undefined
+    let inputMode: string | undefined
+    let maxLength: number | undefined
+    let placeholder: string | undefined
+    if (t.paramsJson) {
+      try {
+        const parsed = JSON.parse(t.paramsJson)
+        interaction = parsed.interaction
+        rangeMin = parsed.rangeMin
+        rangeMax = parsed.rangeMax
+        inputMode = parsed.inputMode
+        maxLength = parsed.maxLength
+        placeholder = parsed.placeholder
+      } catch { /* ignore */ }
+    }
+    return {
+      templateId: q.templateId!,
+      prompt: q.prompt,
+      answer: q.answer,
+      options: q.options,
+      explanation: t.explanation ?? undefined,
+      interaction,
+      rangeMin,
+      rangeMax,
+      inputMode,
+      maxLength,
+      placeholder,
+      __isChallenge: true, // 標記為提升練習
+    }
+  })
+
+  const practiceSession = await prisma.practiceSession.create({
+    data: {
+      childId,
+      skillId: firstSkill.id,
+      parentId: auth.type === 'parent' ? auth.userId : child.parentId,
+      totalQuestions: CHALLENGE_QUESTIONS_PER_SESSION,
+      questionsJson: JSON.stringify(generated),
+    },
+  })
+
+  redirect(`/practice/${childId}/${firstSkill.id}/${practiceSession.id}`)
 }

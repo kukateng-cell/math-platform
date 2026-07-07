@@ -50,6 +50,10 @@ function normalizeTimeAnswer(input: string): string {
   s = s.replace(/(\d+)\s*週/g, '$1w')
   s = s.replace(/(\d+)\s*(?:week|weeks)/g, '$1w')
 
+  // ── HH:MM 格式（如「4:45」→「4h45m」）──
+  // 必須在簡單模式之後，避免誤傷「3:」這類不完整輸入
+  s = s.replace(/(\d{1,2}):(\d{2})(?:\s*:\s*\d{2})?/g, (match, h, m) => `${parseInt(h)}h${parseInt(m)}m`)
+
   // 去掉多餘空白
   s = s.replace(/\s+/g, '')
 
@@ -161,9 +165,26 @@ function normalizeNumeric(s: string): string {
 }
 
 /**
+ * 將分數字串（a/b）轉為小數進行比對。
+ * 例：「1/2」→「0.5」、「5/4」→「1.25」。
+ * 先約分再運算，避免 2/4 不等於 1/2 的問題。
+ */
+function fractionToDecimal(s: string): string | null {
+  const m = s.match(/^(-?\d+)\s*\/\s*(-?\d+)$/)
+  if (!m) return null
+  const num = parseInt(m[1], 10)
+  const den = parseInt(m[2], 10)
+  if (den === 0) return null
+  const result = num / den
+  if (!Number.isFinite(result)) return null
+  return normalizeNumeric(String(result))
+}
+
+/**
  * 將答案正規化為可比較的標準鍵。
  * - 先全形轉半形（IME / 行動鍵盤常見）
  * - 純數字答案（含小數、前導零）→ 數值正規化（07→7、3.50→3.5），避免「答案對卻判錯」
+ * - 分數答案（a/b）→ 轉小數比對，使「1/2」等於「0.5」、「2/4」等於「1/2」
  * - 時間單位答案 → 正規化為規範形（如「1h45m」）
  * - 其他答案 → 原樣（已去空白、轉半形）
  */
@@ -175,6 +196,10 @@ export function normalizeAnswer(input: string): string {
   if (/^-?\d+\.?\d*$/.test(half) || /^-?\.\d+$/.test(half)) {
     return normalizeNumeric(half)
   }
+
+  // 分數（a/b）→ 轉小數比對
+  const decimal = fractionToDecimal(half)
+  if (decimal !== null) return decimal
 
   // 嘗試時間正規化
   const normalized = normalizeTimeAnswer(half)

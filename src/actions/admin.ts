@@ -3,11 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/session'
+import { getVerifiedSession } from '@/lib/session'
 
 // 管理員授權檢查（每個 action 都要先驗）
+// 使用 getVerifiedSession() 查 DB 確認 role 和 tokenVersion，
+// 確保降級後的舊 JWT session 無法繼續執行管理操作。
 async function requireAdmin() {
-  const session = await getSession()
+  const session = await getVerifiedSession()
   if (!session || session.role !== 'ADMIN') {
     throw new Error('需要管理員權限')
   }
