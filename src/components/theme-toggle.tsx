@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Icon, type IconName } from './icon'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -72,24 +73,24 @@ export default function ThemeToggle() {
     return <div className="h-8 w-8" aria-hidden="true" />
   }
 
-  const icon = theme === 'light' ? '🌞' : theme === 'dark' ? '🌙' : '💻'
+  const icon: IconName = theme === 'light' ? 'sun' : theme === 'dark' ? 'moon' : 'laptop'
   const label =
     theme === 'light'
-      ? '目前：白天模式 🌞（點擊切換為夜間模式）'
+      ? '目前：白天模式（點擊切換為夜間模式）'
       : theme === 'dark'
-        ? '目前：夜間模式 🌙（點擊切換為跟隨系統）'
-        : '目前：跟隨系統 💻（點擊切換為白天模式）'
+        ? '目前：夜間模式（點擊切換為跟隨系統）'
+        : '目前：跟隨系統（點擊切換為白天模式）'
 
   return (
     <button
       type="button"
       onClick={cycle}
-      className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition hover:bg-neutral-100 dark:hover:bg-gray-800"
+      className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 dark:text-gray-300 dark:hover:bg-gray-800"
       aria-label={label}
       aria-pressed={theme === 'dark'}
       title={label}
     >
-      {icon}
+      <Icon name={icon} className="h-5 w-5" />
     </button>
   )
 }

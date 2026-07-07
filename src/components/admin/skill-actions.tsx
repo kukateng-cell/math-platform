@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { deleteSkill, moveSkillUp, moveSkillDown } from '@/actions/admin'
 import Modal from './modal'
 import SkillForm from './skill-form'
+import { Icon } from '@/components/icon'
 
 type SkillData = {
   id: string
@@ -82,14 +83,14 @@ export default function SkillActions({ skill, allSkills, isFirst, isLast }: Prop
           onClick={() => setEditOpen(true)}
           className="rounded px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-950"
         >
-          ✏️ 編輯
+          <Icon name="pencil" className="h-3.5 w-3.5" />編輯
         </button>
 
         <button
           onClick={() => setDeleteOpen(true)}
-          className="rounded px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950"
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950"
         >
-          🗑️ 刪除
+          <Icon name="x" className="h-3.5 w-3.5" />刪除
         </button>
       </div>
 

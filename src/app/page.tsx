@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getCurrentUser } from '@/actions/auth'
 import AnimatedBackground from '@/components/animated-background'
+import { Icon } from '@/components/icon'
 
 export default async function Home() {
   const user = await getCurrentUser()
@@ -10,7 +11,7 @@ export default async function Home() {
       <AnimatedBackground />
 
       <div className="relative z-10 max-w-2xl">
-        <div className="mb-4 text-7xl drop-shadow-lg">🔢</div>
+        <div className="mb-4 flex justify-center drop-shadow-lg"><Icon name="calculator" className="h-20 w-20" /></div>
         <h1 className="mb-3 text-4xl font-bold tracking-tight drop-shadow sm:text-5xl">
           數學小達人
         </h1>
@@ -47,7 +48,7 @@ export default async function Home() {
         {/* 學生自主學習入口 */}
         {!user && (
           <div className="mx-auto mt-6 flex max-w-md flex-wrap items-center justify-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm backdrop-blur-sm ring-1 ring-white/20">
-            <span>🌱 我是學生，想自己練習</span>
+            <Icon name="sprout" className="h-4 w-4" /><span>我是學生，想自己練習</span>
             <Link href="/student/signup" className="font-bold underline-offset-2 hover:underline">
               學生註冊
             </Link>
@@ -61,15 +62,15 @@ export default async function Home() {
 
       <div className="relative z-10 mt-12 grid w-full max-w-3xl gap-4 sm:grid-cols-3">
         {[
-          { icon: '✏️', title: '循序做題', desc: '每次 10 題，涵蓋數數到乘除法，即時回饋' },
-          { icon: '🏅', title: '成就徽章', desc: '完成練習解鎖徽章，連擊、速度、掌握度都能挑戰' },
-          { icon: '🎓', title: '升學測驗', desc: '掌握度達標即可挑戰升學，逐步晉級更高年級' },
+          { icon: 'pencil' as const, title: '循序做題', desc: '每次 10 題，涵蓋數數到乘除法，即時回饋' },
+          { icon: 'medal' as const, title: '成就徽章', desc: '完成練習解鎖徽章，連擊、速度、掌握度都能挑戰' },
+          { icon: 'graduation' as const, title: '升學測驗', desc: '掌握度達標即可挑戰升學，逐步晉級更高年級' },
         ].map((f) => (
           <div
             key={f.title}
             className="rounded-2xl bg-white/95 p-5 text-left shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:bg-gray-900/95"
           >
-            <div className="mb-2 text-3xl">{f.icon}</div>
+            <div className="mb-2 text-blue-600 dark:text-blue-400"><Icon name={f.icon} className="h-8 w-8" /></div>
             <h3 className="mb-1 font-bold text-gray-900 dark:text-white">{f.title}</h3>
             <p className="text-sm text-neutral-600 dark:text-gray-400">{f.desc}</p>
           </div>

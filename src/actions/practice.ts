@@ -47,8 +47,9 @@ async function canAccessChild(childId: string): Promise<boolean> {
   })
   if (child) return true
 
+  // 綁定關聯須為 ACTIVE（學生主動綁定需家長確認後才生效）
   const link = await prisma.parentChild.findFirst({
-    where: { parentId: auth.userId, childId },
+    where: { parentId: auth.userId, childId, status: 'ACTIVE' },
   })
   return !!link
 }
@@ -175,6 +176,8 @@ export async function getSessionQuestions(
   answeredCount: number
   /** 已答題中答對的數量（不計 assisted） */
   correctCount: number
+  /** 此練習是否已完成（在其他設備完成的場景） */
+  completed: boolean
   /** 已答題的逐題結果（依 questionIndex 排序），用於完成頁的回顧 */
   answeredResults: {
     questionIndex: number
@@ -233,6 +236,7 @@ export async function getSessionQuestions(
     childNickname: practiceSession.child.nickname,
     answeredCount: attempts.length,
     correctCount,
+    completed: practiceSession.completedAt !== null,
     answeredResults: attempts.map((a) => ({
       questionIndex: a.questionIndex,
       correct: a.isCorrect,

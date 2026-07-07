@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { startSession } from '@/actions/practice'
 import { GRADE_ORDER, canAccessGrade } from '@/lib/grade'
+import { Icon, type IconName } from './icon'
 
 // ============ 型別 ============
 export type SkillFolderItem = {
@@ -19,24 +20,24 @@ export type SkillFolderItem = {
 // ============ 年級視覺設定 ============
 type GradeStyle = {
   label: string
-  icon: string
+  icon: IconName
   gradient: string
   borderColor: string
   hue: string
 }
 
 const GRADE_STYLE: Record<string, GradeStyle> = {
-  K: { label: '幼兒園', icon: '🧸', gradient: 'from-pink-400 to-rose-400', borderColor: 'border-pink-300 dark:border-pink-700', hue: '#f472b6' },
-  G1: { label: '一年級', icon: '📘', gradient: 'from-sky-400 to-blue-500', borderColor: 'border-sky-300 dark:border-sky-700', hue: '#38bdf8' },
-  G2: { label: '二年級', icon: '📗', gradient: 'from-emerald-400 to-green-500', borderColor: 'border-emerald-300 dark:border-emerald-700', hue: '#34d399' },
-  G3: { label: '三年級', icon: '📙', gradient: 'from-amber-400 to-orange-500', borderColor: 'border-amber-300 dark:border-amber-700', hue: '#fbbf24' },
-  G4: { label: '四年級', icon: '📕', gradient: 'from-violet-400 to-purple-500', borderColor: 'border-violet-300 dark:border-violet-700', hue: '#a78bfa' },
-  G5: { label: '五年級', icon: '📓', gradient: 'from-teal-400 to-cyan-500', borderColor: 'border-teal-300 dark:border-teal-700', hue: '#2dd4bf' },
-  G6: { label: '六年級', icon: '📔', gradient: 'from-fuchsia-400 to-pink-500', borderColor: 'border-fuchsia-300 dark:border-fuchsia-700', hue: '#d946ef' },
+  K: { label: '幼兒園', icon: 'book', gradient: 'from-pink-400 to-rose-400', borderColor: 'border-pink-300 dark:border-pink-700', hue: '#f472b6' },
+  G1: { label: '一年級', icon: 'book', gradient: 'from-sky-400 to-blue-500', borderColor: 'border-sky-300 dark:border-sky-700', hue: '#38bdf8' },
+  G2: { label: '二年級', icon: 'book', gradient: 'from-emerald-400 to-green-500', borderColor: 'border-emerald-300 dark:border-emerald-700', hue: '#34d399' },
+  G3: { label: '三年級', icon: 'book', gradient: 'from-amber-400 to-orange-500', borderColor: 'border-amber-300 dark:border-amber-700', hue: '#fbbf24' },
+  G4: { label: '四年級', icon: 'book', gradient: 'from-violet-400 to-purple-500', borderColor: 'border-violet-300 dark:border-violet-700', hue: '#a78bfa' },
+  G5: { label: '五年級', icon: 'book', gradient: 'from-teal-400 to-cyan-500', borderColor: 'border-teal-300 dark:border-teal-700', hue: '#2dd4bf' },
+  G6: { label: '六年級', icon: 'book', gradient: 'from-fuchsia-400 to-pink-500', borderColor: 'border-fuchsia-300 dark:border-fuchsia-700', hue: '#d946ef' },
 }
 
 function gradeStyle(level: string): GradeStyle {
-  return GRADE_STYLE[level] ?? { label: level, icon: '📁', gradient: 'from-slate-400 to-slate-500', borderColor: 'border-slate-300 dark:border-slate-700', hue: '#94a3b8' }
+  return GRADE_STYLE[level] ?? { label: level, icon: 'folder', gradient: 'from-slate-400 to-slate-500', borderColor: 'border-slate-300 dark:border-slate-700', hue: '#94a3b8' }
 }
 
 function isAllMastered(skills: SkillFolderItem[]): boolean {
@@ -77,7 +78,7 @@ export function SkillTree({
   if (skills.length === 0) {
     return (
       <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-900">
-        <div className="mb-3 text-5xl">🌱</div>
+        <div className="mb-3 flex justify-center text-neutral-400 dark:text-gray-500"><Icon name="sprout" className="h-12 w-12" /></div>
         <p className="text-sm text-neutral-400 dark:text-gray-500">目前沒有可練習的技能</p>
       </div>
     )
@@ -156,18 +157,18 @@ export function SkillTree({
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-2xl shadow-sm ${isLocked ? 'from-gray-300 to-gray-400' : cfg.gradient}`}>
-                    {isLocked ? '🔒' : cfg.icon}
+                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-sm ${isLocked ? 'from-gray-300 to-gray-400' : cfg.gradient}`}>
+                    {isLocked ? <Icon name="lock" className="h-6 w-6 text-white" /> : <Icon name={cfg.icon} className="h-6 w-6 text-white" />}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="truncate text-base font-bold">{cfg.label}</h3>
                       {isCurrent && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">目前年級</span>}
-                      {mastered && !isLocked && <span className="shrink-0 text-sm">✅</span>}
+                      {mastered && !isLocked && <Icon name="check-circle" className="h-4 w-4 shrink-0 text-green-500" />}
                     </div>
                     <p className="mt-0.5 text-xs text-neutral-500 dark:text-gray-400">
                       {isLocked
-                        ? `🔒 已鎖定 · ${gradeSkills.length > 0 ? `${gradeSkills.length} 項技能` : '尚無內容'}`
+                        ? `已鎖定 · ${gradeSkills.length > 0 ? `${gradeSkills.length} 項技能` : '尚無內容'}`
                         : avgMastery !== null ? `掌握度 ${avgMastery}% · ${gradeSkills.length} 項技能` : `${gradeSkills.length} 個練習項目`}
                     </p>
                   </div>
@@ -231,19 +232,19 @@ function GradeModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={handleBackdrop}>
       <div className="animate-fade-in-up relative flex max-h-[80vh] w-full max-w-lg flex-col rounded-3xl border-2 bg-white shadow-2xl dark:bg-gray-900" style={{ borderColor: cfg.hue }}>
         <div className={`flex items-center gap-3 rounded-t-3xl px-6 py-4 bg-gradient-to-r ${cfg.gradient} text-white`}>
-          <span className="text-3xl">{cfg.icon}</span>
+          <Icon name={cfg.icon} className="h-8 w-8 shrink-0" />
           <div className="flex-1">
             <h2 className="text-xl font-bold">{cfg.label}</h2>
             <p className="text-sm opacity-90">
               {avgMastery !== null ? `平均掌握度 ${avgMastery}% · ${skills.length} 項技能` : `${skills.length} 個練習項目`}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-lg transition hover:bg-white/30" aria-label="關閉">✕</button>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 transition hover:bg-white/30" aria-label="關閉"><Icon name="x" className="h-5 w-5" /></button>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
           {skills.length === 0 ? (
             <div className="py-8 text-center text-neutral-400 dark:text-gray-500">
-              <div className="mb-2 text-4xl">📭</div>
+              <div className="mb-2 flex justify-center"><Icon name="inbox" className="h-10 w-10" /></div>
               <p className="text-sm">此年級目前沒有練習項目</p>
             </div>
           ) : (
@@ -278,7 +279,7 @@ function SkillCard({ skill, childId }: { skill: SkillFolderItem; childId: string
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h4 className="truncate text-sm font-semibold">{skill.name}</h4>
-          {isMastered && <span className="shrink-0 text-sm">✅</span>}
+          {isMastered && <Icon name="check-circle" className="h-4 w-4 shrink-0 text-green-500" />}
           {skill.questionCount === 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">尚無題目</span>}
         </div>
         {skill.description && <p className="mt-0.5 truncate text-xs text-neutral-500 dark:text-gray-400">{skill.description}</p>}

@@ -143,3 +143,36 @@ export async function verifyTempToken(token: string): Promise<string | null> {
     return null
   }
 }
+
+// ====================================================================
+// 註冊意圖 token（自主學習學生註冊用）
+// --------------------------------------------------------------------
+// 安全：自主註冊時「先建立帳號再驗 OTP」會留下大量未驗證的殭屍帳號，
+// 也讓攻擊者可用別人 email 佔用帳號。改成把註冊資料簽進 token，
+// 通過 OTP 後才在 DB 建立帳號。OTP 期間以 email 為金鑰存於記憶體。
+// ====================================================================
+export type SignupIntent = {
+  email: string
+  nickname: string
+  gradeLevel: string
+}
+
+export async function createSignupToken(intent: SignupIntent): Promise<string> {
+  return new SignJWT({ ...intent, purpose: 'signup' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('10m')
+    .sign(KEY)
+}
+
+export async function verifySignupToken(token: string): Promise<SignupIntent | null> {
+  try {
+    const { payload } = await jwtVerify(token, KEY, { algorithms: ['HS256'] })
+    if ((payload as { purpose?: string }).purpose !== 'signup') return null
+    const p = payload as SignupIntent & { purpose: string }
+    if (!p.email || !p.nickname || !p.gradeLevel) return null
+    return { email: p.email, nickname: p.nickname, gradeLevel: p.gradeLevel }
+  } catch {
+    return null
+  }
+}

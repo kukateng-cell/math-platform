@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { updateChildGrade } from '@/actions/auth'
+import { Icon } from './icon'
 
 const GRADES = [
   { value: 'K', label: '幼兒園' },
@@ -49,8 +50,8 @@ export default function GradeSelector({
           </option>
         ))}
       </select>
-      <span className="text-xs text-neutral-400" title="點擊下拉選單調整年級">
-        ✏️
+      <span className="text-neutral-400" title="點擊下拉選單調整年級">
+        <Icon name="pencil" className="inline-block h-3.5 w-3.5" />
       </span>
     </form>
   )

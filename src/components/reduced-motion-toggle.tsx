@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Icon, type IconName } from './icon'
 
 export default function ReducedMotionToggle() {
   const [reduced, setReduced] = useState(false)
@@ -33,16 +34,18 @@ export default function ReducedMotionToggle() {
     return <div className="h-8 w-8" aria-hidden="true" />
   }
 
+  const icon: IconName = reduced ? 'leaf' : 'flower'
+
   return (
     <button
       type="button"
       onClick={toggle}
-      className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition hover:bg-neutral-100 dark:hover:bg-gray-800"
+      className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 dark:text-gray-300 dark:hover:bg-gray-800"
       aria-label={reduced ? '關閉減少動畫模式' : '開啟減少動畫模式'}
       aria-pressed={reduced}
-      title={reduced ? '動畫已減少 🌿（點擊恢復）' : '動畫正常 🌸（點擊減少）'}
+      title={reduced ? '動畫已減少（點擊恢復）' : '動畫正常（點擊減少）'}
     >
-      {reduced ? '🌿' : '🌸'}
+      <Icon name={icon} className="h-5 w-5" />
     </button>
   )
 }
