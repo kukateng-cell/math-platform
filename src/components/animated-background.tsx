@@ -50,6 +50,8 @@ export default function AnimatedBackground({
           className={`absolute left-1/2 top-1/3 h-[24rem] w-[24rem] -translate-x-1/2 animate-blob ${blobColors[2]} blur-3xl`}
           style={{ animationDelay: "-10s" }}
         />
+        {/* 夜間模式：覆蓋深色半透明層，讓彩色漸層與色塊變得非常暗（仍保留一點藍色調） */}
+        <div className="absolute inset-0 hidden dark:block bg-slate-950/85" />
       </div>
 
       {/* 數學方格紙底紋：淡淡的網格呼應練習本 */}
