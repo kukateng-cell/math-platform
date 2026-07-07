@@ -23,10 +23,20 @@ export default async function StudentLoginPage() {
 
         <StudentLoginForm initialCaptcha={captcha} />
 
-      <div className="flex gap-4 text-sm">
-        <Link href="/student/signup" className="text-blue-600 hover:underline dark:text-blue-400">註冊新帳號</Link>
-        <Link href="/login" className="text-neutral-400 hover:underline dark:text-gray-500">家長登入</Link>
-      </div>
+        <p className="mt-6 text-center text-sm text-neutral-600 dark:text-gray-300">
+          還沒有帳號？{' '}
+          <Link href="/student/signup" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+            學生註冊
+          </Link>
+        </p>
+
+        {/* 其他登入方式 */}
+        <div className="mt-4 space-y-2 border-t border-neutral-200 pt-4 text-center text-sm dark:border-gray-700">
+          <p className="text-neutral-500 dark:text-gray-400">其他登入方式：</p>
+          <Link href="/login" className="flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 font-medium text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
+            <Icon name="calculator" className="h-4 w-4" />家長登入（Email + 密碼）
+          </Link>
+        </div>
       </div>
     </main>
   )
