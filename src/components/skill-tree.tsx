@@ -90,7 +90,7 @@ export function SkillTree({
       <div className="flex items-stretch gap-1 sm:gap-2">
         {/* SVG 小樹（固定在最左側，作為年級 timeline 主幹）*/}
         <div className="pointer-events-none relative w-16 shrink-0 sm:w-20">
-          <svg viewBox="0 0 120 1000" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMin meet" aria-hidden="true">
+          <svg viewBox="0 0 120 1000" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
           {/* 樹冠 */}
           <defs>
             <radialGradient id="canopyS" cx="50%" cy="40%" r="50%">
