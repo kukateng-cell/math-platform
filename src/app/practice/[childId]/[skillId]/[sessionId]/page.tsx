@@ -49,6 +49,9 @@ export default async function PracticeQuestionPage({
         childNickname={data.childNickname}
         childId={childId}
         skillId={skillId}
+        initialIndex={data.answeredCount}
+        initialCorrectCount={data.correctCount}
+        initialQuestionResults={data.answeredResults}
       />
     </main>
   )
