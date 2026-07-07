@@ -110,6 +110,8 @@ export default function PracticeClient({
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showHint, setShowHint] = useState(false)
+  /** 多設備情境：此練習已在其他裝置被完成，非本地答錯 */
+  const [remoteFinished, setRemoteFinished] = useState(false)
   const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
@@ -289,6 +291,14 @@ export default function PracticeClient({
       setLastResult(result)
       if (result.correct && !assisted) setCorrectCount((c) => c + 1)
 
+      // 多設備情境：另一裝置已完成此練習 → 不顯示答錯動畫，直接跳完成頁
+      const alreadyFinished = result.finished && !result.correct && result.correctAnswer === ''
+      if (alreadyFinished) {
+        setRemoteFinished(true)
+        setFinalTotalMs(Date.now() - practiceStartRef.current)
+        return
+      }
+
       // 動畫回饋
       setQuestionResults((prev) => [
         ...prev,
@@ -331,6 +341,29 @@ export default function PracticeClient({
   }
 
   if (index >= questions.length || (lastResult?.finished && index === questions.length - 1)) {
+    // 多設備情境：另一裝置已完成了此練習，顯示專用提示
+    if (remoteFinished) {
+      return (
+        <div className="flex flex-col items-center gap-4 text-center" role="region" aria-label="練習已在其他裝置完成">
+          <div className="text-6xl">📱</div>
+          <h2 className="text-2xl font-bold">{childNickname} 的這個練習</h2>
+          <p className="text-lg text-neutral-600 dark:text-gray-300">
+            已在其他裝置完成囉！
+          </p>
+          <p className="text-sm text-neutral-500 dark:text-gray-400">
+            請回到選單開始新的練習
+          </p>
+          <a
+            ref={completionLinkRef as React.RefObject<HTMLAnchorElement>}
+            href={`/practice/${childId}`}
+            className="mt-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            返回練習選單
+          </a>
+        </div>
+      )
+    }
+
     const starsEarned = correctCount
     const accuracy = Math.round((correctCount / questions.length) * 100)
     const encouragement = getEncouragement(accuracy)
