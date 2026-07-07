@@ -154,10 +154,13 @@ export default async function ChildOverviewPage({
       : null
   if (!child) notFound()
 
-  const skillsData = await getChildSkills(childId)
+  // 平行載入技能資料與徽章資料（彼此獨立）
+  const [skillsData, badges] = await Promise.all([
+    getChildSkills(childId),
+    getChildBadges(childId),
+  ])
   const lastSession = child.sessions[0]
   const isParent = auth.type === 'parent'
-  const badges = await getChildBadges(childId)
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">

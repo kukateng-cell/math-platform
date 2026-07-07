@@ -24,19 +24,16 @@ export default async function PracticeSelectPage({
   const parentSession = await getSession()
   const isParent = !!parentSession
 
-  const data = await getChildSkills(childId)
+  // 平行載入所有獨立資料，減少頁面等待時間
+  const [data, promotion, badges, resumeable] = await Promise.all([
+    getChildSkills(childId),
+    checkPromotionEligibility(childId),
+    getChildBadges(childId),
+    getResumeableSessions(childId),
+  ])
   if (!data) notFound()
 
   const { child, skills, recommendation } = data
-
-  // 檢查升學資格
-  const promotion = await checkPromotionEligibility(childId)
-
-  // 成就徽章
-  const badges = await getChildBadges(childId)
-
-  // 斷點續做：查詢今天未完成的練習（可繼續）
-  const resumeable = await getResumeableSessions(childId)
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 lg:max-w-4xl">

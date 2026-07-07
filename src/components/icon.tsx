@@ -143,7 +143,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
 
 /**
  * 通用 SVG 圖示。用法：<Icon name="check" className="h-5 w-5 text-green-500" />
- * 顏色預設跟隨父元素文字色；可加 text-* 覆寫。尺寸用 h-* 或 w-* 控制。
+ * 顏色預設跟隨父元素文字色；可加 text-xxx 覆寫。尺寸用 h-xxx 或 w-xxx 控制。
  */
 export function Icon({ name, className = 'h-5 w-5', ...rest }: IconProps) {
   return (

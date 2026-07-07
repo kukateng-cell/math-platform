@@ -26,59 +26,76 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
   if (!child) return []
 
   const earnedIds = new Set(child.badges.map((b) => b.badgeId))
-  const allBadges = await prisma.badge.findMany()
-
-  // 收集各項數據以供進度計算
-  const sessionCount = await prisma.practiceSession.count({
-    where: { childId, completedAt: { not: null } },
-  })
 
   // 孩子可接觸的年級範圍（K..當前年級）—— all-skills 門檻應以此為準，
   // 否則低年級孩子永遠拿不到（只能練自己年級及以下）
   const reachableGrades = accessibleGrades(child.gradeLevel)
-  const reachableSkillCount = await prisma.skill.count({
-    where: { isActive: true, gradeLevel: { in: reachableGrades } },
-  })
 
-  // 練習過的技能數（限定可接觸年級，與門檻一致）
-  const attemptsByChild = await prisma.attempt.findMany({
-    where: { session: { childId }, question: { skill: { gradeLevel: { in: reachableGrades } } } },
-    include: { question: { select: { skillId: true } } },
-    distinct: ['questionId'],
-  })
+  // 🔥 平行化所有獨立的 DB 查詢（原本是 10 個串行 → 現在 1 次 round-trip）
+  // Supabase 在 ap-south-1（印度），每個查詢 ~150ms 往返延遲。
+  // 串行 10 個查詢 = ~1.5s；並行只需 ~150ms（降 90%）。
+  const [
+    allBadges,
+    sessionCount,
+    reachableSkillCount,
+    attemptsByChild,
+    allAttempts,
+    addSkillRows,
+    subSkillRows,
+    recentAttemptsAll,
+    masteredCount,
+  ] = await Promise.all([
+    prisma.badge.findMany(),
+    prisma.practiceSession.count({
+      where: { childId, completedAt: { not: null } },
+    }),
+    prisma.skill.count({
+      where: { isActive: true, gradeLevel: { in: reachableGrades } },
+    }),
+    // 練習過的技能數（限定可接觸年級，與門檻一致）
+    prisma.attempt.findMany({
+      where: { session: { childId }, question: { skill: { gradeLevel: { in: reachableGrades } } } },
+      include: { question: { select: { skillId: true } } },
+      distinct: ['questionId'],
+    }),
+    // 近期作答（含 question.skillId 關聯，供加/減法達人正確過濾）
+    prisma.attempt.findMany({
+      where: { session: { childId }, assisted: false },
+      include: { question: { select: { skillId: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
+    // 加法技能（修正：原本缺 question include 導致永遠過濾不出來）
+    prisma.skill.findMany({
+      where: { code: { in: ['add-within-10', 'add-within-20'] } },
+      select: { id: true },
+    }),
+    // 減法技能（新增徽章用）
+    prisma.skill.findMany({
+      where: { code: { in: ['sub-within-10'] } },
+      select: { id: true },
+    }),
+    // 連擊 / 速度：需要含 assisted 的完整序列（從最新往回數）
+    prisma.attempt.findMany({
+      where: { session: { childId } },
+      orderBy: { createdAt: 'desc' },
+      select: { isCorrect: true, assisted: true, durationMs: true },
+      take: 60,
+    }),
+    // 達到掌握的技能數（masteryLevel ≥ 95%）
+    prisma.masterySnapshot.count({
+      where: { childId, masteryLevel: { gte: 0.95 }, recentTotal: { gt: 0 } },
+    }),
+  ])
+
   const practicedSkillIds = new Set(attemptsByChild.map((a) => a.question.skillId))
-
-  // 近期作答（含 question.skillId 關聯，供加/減法達人正確過濾）
-  const allAttempts = await prisma.attempt.findMany({
-    where: { session: { childId }, assisted: false },
-    include: { question: { select: { skillId: true } } },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  })
-
-  // 加法技能作答（修正：原本缺 question include 導致永遠過濾不出來）
-  const addSkillIds = (await prisma.skill.findMany({
-    where: { code: { in: ['add-within-10', 'add-within-20'] } },
-    select: { id: true },
-  })).map((s) => s.id)
+  const addSkillIds = addSkillRows.map((s) => s.id)
+  const subSkillIds = subSkillRows.map((s) => s.id)
   const addAttempts = allAttempts.filter((a) => addSkillIds.includes(a.question?.skillId ?? ''))
   const addCorrect = addAttempts.filter((a) => a.isCorrect).length
-
-  // 減法技能作答（新增徽章用）
-  const subSkillIds = (await prisma.skill.findMany({
-    where: { code: { in: ['sub-within-10'] } },
-    select: { id: true },
-  })).map((s) => s.id)
   const subAttempts = allAttempts.filter((a) => subSkillIds.includes(a.question?.skillId ?? ''))
   const subCorrect = subAttempts.filter((a) => a.isCorrect).length
 
-  // 連擊 / 速度：需要含 assisted 的完整序列（從最新往回數）
-  const recentAttemptsAll = await prisma.attempt.findMany({
-    where: { session: { childId } },
-    orderBy: { createdAt: 'desc' },
-    select: { isCorrect: true, assisted: true, durationMs: true },
-    take: 60,
-  })
   let combo = 0
   for (const a of recentAttemptsAll) {
     if (a.isCorrect && !a.assisted) combo++
@@ -89,11 +106,6 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
     if (a.isCorrect && !a.assisted && a.durationMs > 0 && a.durationMs <= 5000) speedRun++
     else break
   }
-
-  // 達到掌握的技能數（masteryLevel ≥ 95%）
-  const masteredCount = await prisma.masterySnapshot.count({
-    where: { childId, masteryLevel: { gte: 0.95 }, recentTotal: { gt: 0 } },
-  })
 
   const results: BadgeWithProgress[] = []
 
