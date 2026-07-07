@@ -82,6 +82,7 @@ type BadgeCheckContext = {
   allCorrect: boolean // 本次練習是否全對（不計 assisted）
   isPromotion?: boolean // 是否為升學測試
   passedPromotion?: boolean // 升學測試是否通過
+  isChallenge?: boolean // 是否為提升練習
 }
 
 // 連擊計算（純記憶體）：從最新一筆往回數連續答對且非協助的題數，遇錯/協助即中斷
@@ -298,6 +299,18 @@ export async function checkBadges(ctx: BadgeCheckContext) {
       case 'mastery-3': {
         // 3 個技能達到掌握（使用預查詢的 masteredCount）
         earned = masteredCount >= 3
+        break
+      }
+
+      case 'challenge-first': {
+        // 第一次完成提升練習
+        earned = !!ctx.isChallenge
+        break
+      }
+
+      case 'challenge-all-correct': {
+        // 提升練習全對
+        earned = !!ctx.isChallenge && ctx.allCorrect && ctx.sessionCorrectCount === ctx.sessionTotalQuestions
         break
       }
     }

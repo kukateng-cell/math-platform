@@ -21,14 +21,15 @@ const PAGE_SIZE = 20
 export default async function AdminQuestionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; skillId?: string; page?: string }>
+  searchParams: Promise<{ q?: string; skillId?: string; page?: string; challenge?: string }>
 }) {
   const session = await getSession()
   if (!session || session.role !== 'ADMIN') redirect('/dashboard')
 
-  const { q, skillId, page: pageStr } = await searchParams
+  const { q, skillId, page: pageStr, challenge } = await searchParams
   const query = q?.trim() || ''
   const filterSkillId = skillId?.trim() || ''
+  const filterChallenge = challenge === '1'
   const page = Math.max(1, parseInt(pageStr || '1', 10) || 1)
 
   // 技能列表（供表單與篩選用）
@@ -42,6 +43,9 @@ export default async function AdminQuestionsPage({
   }
   if (filterSkillId) {
     where.skillId = filterSkillId
+  }
+  if (filterChallenge) {
+    where.isChallenge = true
   }
 
   const [total, questions] = await Promise.all([
@@ -62,6 +66,7 @@ export default async function AdminQuestionsPage({
     const params = new URLSearchParams()
     if (query) params.set('q', query)
     if (filterSkillId) params.set('skillId', filterSkillId)
+    if (filterChallenge) params.set('challenge', '1')
     if (p > 1) params.set('page', String(p))
     const qs = params.toString()
     return `/admin/questions${qs ? `?${qs}` : ''}`
@@ -117,6 +122,30 @@ export default async function AdminQuestionsPage({
             query={query}
           />
         </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-neutral-500 dark:text-gray-400">題型</label>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/admin/questions${filterChallenge ? '' : `?challenge=1${query ? `&q=${query}` : ''}${filterSkillId ? `&skillId=${filterSkillId}` : ''}`}`}
+              className={`rounded-lg border px-3 py-2 text-sm transition ${
+                filterChallenge
+                  ? 'border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-300'
+                  : 'border-neutral-300 text-neutral-500 hover:bg-neutral-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800'
+              }`}
+            >
+              ⚡ 提升練習
+            </a>
+            {filterChallenge && (
+              <a
+                href={`/admin/questions${query ? `?q=${query}` : ''}${filterSkillId ? `${query ? '&' : '?'}skillId=${filterSkillId}` : ''}`}
+                className="text-xs text-neutral-400 hover:text-neutral-600 dark:text-gray-500 dark:hover:text-gray-300"
+              >
+                ✕ 清除
+              </a>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 題目列表標題 */}
@@ -153,6 +182,11 @@ export default async function AdminQuestionsPage({
                   <span className="rounded bg-neutral-100 px-1.5 text-xs text-neutral-600 dark:bg-gray-700 dark:text-gray-300">
                     {TYPE_LABEL[q.type] ?? q.type}
                   </span>
+                  {(q as unknown as { isChallenge?: boolean }).isChallenge && (
+                    <span className="rounded-full bg-orange-100 px-2 text-xs font-medium text-orange-600 dark:bg-orange-900 dark:text-orange-300">
+                      ⚡ 提升
+                    </span>
+                  )}
                   <span className="truncate font-medium">{q.prompt}</span>
                   {!q.isActive && (
                     <span className="rounded-full bg-red-50 px-2 text-xs text-red-500">已停用</span>
