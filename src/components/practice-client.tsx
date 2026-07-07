@@ -59,6 +59,18 @@ type Props = {
   childNickname: string
   childId: string
   skillId: string
+  /** 斷點續做：從第幾題開始（已作答的題數） */
+  initialIndex?: number
+  /** 斷點續做：已答題中答對的數量 */
+  initialCorrectCount?: number
+  /** 斷點續做：已答題的逐題結果 */
+  initialQuestionResults?: {
+    questionIndex: number
+    correct: boolean
+    assisted: boolean
+    correctAnswer: string
+    userAnswer: string
+  }[]
 }
 
 export default function PracticeClient({
@@ -68,17 +80,27 @@ export default function PracticeClient({
   childNickname,
   childId,
   skillId,
+  initialIndex = 0,
+  initialCorrectCount = 0,
+  initialQuestionResults = [],
 }: Props) {
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(initialIndex)
   const [selected, setSelected] = useState<string | null>(null)
   const [fillValue, setFillValue] = useState('')
   const [lineValue, setLineValue] = useState<number | null>(null)
   const [lastResult, setLastResult] = useState<SubmitResult | null>(null)
   const [assisted, setAssisted] = useState(false)
-  const [correctCount, setCorrectCount] = useState(0)
+  const [correctCount, setCorrectCount] = useState(initialCorrectCount)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [questionResults, setQuestionResults] = useState<QuestionResult[]>([])
+  const [questionResults, setQuestionResults] = useState<QuestionResult[]>(
+    initialQuestionResults.map((r) => ({
+      correct: r.correct,
+      assisted: r.assisted,
+      correctAnswer: r.correctAnswer,
+      userAnswer: r.userAnswer,
+    }))
+  )
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
   const [revealCorrect, setRevealCorrect] = useState(false)
   const [bgFlash, setBgFlash] = useState<'green' | 'red' | null>(null)
