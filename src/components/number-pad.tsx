@@ -12,10 +12,12 @@ type Props = {
   disabled?: boolean
   /** 輸入模式：numeric(數字+小數點鍵盤) / text(文字輸入框)，預設 numeric */
   mode?: Mode
-  /** 數字模式最多輸入位數（含小數點），預設 5 */
+  /** 數字模式最多輸入位數（含小數點），預設 10 */
   maxLength?: number
   /** 文字模式 placeholder */
   placeholder?: string
+  /** 當前題號（用於題目切換時觸發聚焦） */
+  index?: number
 }
 
 export default function NumberPad({
@@ -26,6 +28,7 @@ export default function NumberPad({
   mode = 'numeric',
   maxLength = 10,
   placeholder = '輸入答案',
+  index,
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -49,6 +52,13 @@ export default function NumberPad({
       if (value.includes('.')) return
       if (value.length >= maxLength) return
       onChange(value === '' ? '0.' : value + '.')
+    } else if (k === '-') {
+      // 正負切換：已有負號則移除，否則加上
+      if (value.startsWith('-')) {
+        onChange(value.slice(1))
+      } else {
+        onChange('-' + value)
+      }
     }
   }
 
@@ -58,57 +68,40 @@ export default function NumberPad({
     onChange('')
   }
 
-  // 數字模式 input 過濾：只允許數字與一個小數點（讓手機/平板系統鍵盤也能輸入）
+  // 數字模式 input：不過濾任何字元，支援中文、符號等所有輸入
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (disabled) return
-    let raw = e.target.value.replace(/[^0-9.]/g, '')
-    const firstDot = raw.indexOf('.')
-    if (firstDot !== -1) {
-      raw = raw.slice(0, firstDot + 1) + raw.slice(firstDot + 1).replace(/\./g, '')
-    }
-    if (raw.length > maxLength) raw = raw.slice(0, maxLength)
-    onChange(raw)
+    onChange(e.target.value)
   }
 
-  // 數字模式：每題（value 清空、未禁用）自動聚焦 input，讓手機/平板鍵盤保持彈出
+  // 數字模式：每題自動聚焦 input，讓手機/平板鍵盤保持彈出
   // 用 setTimeout 確保 DOM 已完整更新，避免 React batched update 後競態
   useEffect(() => {
     if (mode !== 'numeric') return
     if (disabled) return
     if (value === '') {
-      const timer = setTimeout(() => inputRef.current?.focus(), 50)
+      const timer = setTimeout(() => inputRef.current?.focus(), 80)
       return () => clearTimeout(timer)
     }
-  }, [mode, disabled, value])
+  }, [mode, disabled, value, index])
 
-  // 數字模式：支援實體鍵盤直接輸入（0-9、小數點、退格、Enter 送出）
+  // 數字模式實體鍵盤：僅攔截 Backspace 和 Enter，其餘放行給 input 處理
   useEffect(() => {
     if (mode !== 'numeric') return
     function onKey(e: KeyboardEvent) {
       if (disabled) return
-      // 避免與頁面其它快速鍵衝突：只在輸入框未聚焦時處理
-      const active = document.activeElement
-      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return
-
-      if (/^[0-9]$/.test(e.key)) {
-        e.preventDefault()
-        if (value.length >= maxLength) return
-        onChange(value + e.key)
-      } else if (e.key === '.') {
-        e.preventDefault()
-        if (value.includes('.') || value.length >= maxLength) return
-        onChange(value === '' ? '0.' : value + '.')
-      } else if (e.key === 'Backspace') {
-        e.preventDefault()
-        onChange(value.slice(0, -1))
-      } else if (e.key === 'Enter') {
+      // 只攔截 Backspace（退格）和 Enter（送出）
+      if (e.key === 'Enter') {
+        // 輸入法組字中不攔截，避免誤送出
+        if (e.isComposing || e.keyCode === 229) return
         e.preventDefault()
         if (value) onSubmit()
       }
+      // 其餘按鍵（數字、字母、符號、中文等）全部放行給 input 原生的 onChange
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [mode, disabled, value, maxLength, onChange, onSubmit])
+  }, [mode, disabled, value, onSubmit])
 
   // ============ 文字模式：直接用輸入框（支援中文輸入法 IME）============
   if (mode === 'text') {
@@ -202,8 +195,17 @@ export default function NumberPad({
           </div>
         ))}
 
-        {/* 清空 + 確認 */}
+        {/* 正負切換 + 清空 + 確認 */}
         <div className="mt-2 flex gap-1.5 sm:gap-2">
+          <button
+            onClick={() => handleKey('-')}
+            onMouseDown={(e) => e.preventDefault()}
+            disabled={disabled}
+            aria-label="正負切換"
+            className="flex-1 rounded-xl border border-neutral-200 bg-white py-3 text-lg font-bold shadow-sm transition hover:border-blue-400 hover:bg-blue-50 active:scale-95 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:hover:border-blue-400 dark:hover:bg-blue-950"
+          >
+            {value.startsWith('-') ? '+/-' : '-/-'}
+          </button>
           <button
             onClick={handleClear}
             onMouseDown={(e) => e.preventDefault()}

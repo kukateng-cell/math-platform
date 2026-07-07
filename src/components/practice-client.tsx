@@ -731,6 +731,7 @@ export default function PracticeClient({
           onChange={setFillValue}
           onSubmit={handleSubmit}
           disabled={!!lastResult}
+          index={index}
           // 自動判斷輸入模式：
           // - inputMode 明確設為 'text' → 文字模式（鍵盤輸入中文/英文）
           // - inputMode 明確設為 'numeric' → 數字鍵盤
