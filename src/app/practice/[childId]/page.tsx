@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest, startChallengePractice, getResumeableSessions } from '@/actions/practice'
+import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest, startChallengePractice, getResumeableSessions, cancelSession } from '@/actions/practice'
 import { getSession } from '@/lib/session'
 import { childLogout } from '@/actions/child-auth'
 import { getChildBadges } from '@/actions/achievement'
