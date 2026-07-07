@@ -95,14 +95,20 @@ export default function PracticeClient({
   const [correctCount, setCorrectCount] = useState(initialCorrectCount)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [questionResults, setQuestionResults] = useState<QuestionResult[]>(
-    initialQuestionResults.map((r) => ({
-      correct: r.correct,
-      assisted: r.assisted,
-      correctAnswer: r.correctAnswer,
-      userAnswer: r.userAnswer,
-    }))
-  )
+  // questionResults 以 questionIndex 為索引的稀疏陣列
+  // 斷點續做時，從 initialQuestionResults 填入對應位置
+  const [questionResults, setQuestionResults] = useState<QuestionResult[]>(() => {
+    const arr: QuestionResult[] = []
+    for (const r of initialQuestionResults) {
+      arr[r.questionIndex] = {
+        correct: r.correct,
+        assisted: r.assisted,
+        correctAnswer: r.correctAnswer,
+        userAnswer: r.userAnswer,
+      }
+    }
+    return arr
+  })
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
   const [revealCorrect, setRevealCorrect] = useState(false)
   const [bgFlash, setBgFlash] = useState<'green' | 'red' | null>(null)
@@ -300,15 +306,16 @@ export default function PracticeClient({
       }
 
       // 動畫回饋
-      setQuestionResults((prev) => [
-        ...prev,
-        {
+      setQuestionResults((prev) => {
+        const next = [...prev]
+        next[index] = {
           correct: result.correct,
           assisted,
           correctAnswer: result.correctAnswer,
           userAnswer: currentAnswer,
-        },
-      ])
+        }
+        return next
+      })
       setFeedback(result.correct ? 'correct' : 'incorrect')
       setBgFlash(result.correct ? 'green' : 'red')
       if (!result.correct) {
