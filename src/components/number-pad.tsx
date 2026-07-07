@@ -108,19 +108,12 @@ export default function NumberPad({
   // ============ 文字模式：直接用輸入框（支援中文輸入法 IME）============
   if (mode === 'text') {
     return (
-      <div className="mx-auto w-full max-w-xs sm:max-w-sm">
+      <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-3 sm:max-w-sm">
         <input
           ref={inputRef}
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          placeholder={placeholder || '輸入答案（可輸入中文）'}
-          maxLength={100}
-          autoFocus
-          autoComplete="off"
-          enterKeyHint="done"
-          style={{ fontSize: '16px' }} /* iOS 防止自動縮放 */
           onKeyDown={(e) => {
             if (e.nativeEvent.isComposing || e.keyCode === 229) return
             if (e.key === 'Enter') {
@@ -128,6 +121,13 @@ export default function NumberPad({
               if (value.trim()) onSubmit()
             }
           }}
+          disabled={disabled}
+          placeholder={placeholder || '輸入答案（可輸入中文）'}
+          maxLength={100}
+          autoFocus
+          autoComplete="off"
+          enterKeyHint="done"
+          style={{ fontSize: '16px' }} /* iOS 防止自動縮放 */
           className="w-full rounded-xl border-2 border-neutral-200 bg-white px-4 py-4 text-center text-2xl font-bold tracking-wide outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-900 dark:text-white sm:text-3xl"
         />
         <button
