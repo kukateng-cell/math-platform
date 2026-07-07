@@ -15,7 +15,6 @@ export default async function PracticeSelectPage({
   searchParams?: Promise<{ error?: string }>
 }) {
   const { childId } = await params
-  // 從 redirect 帶回的錯誤訊息（例如提升練習無可用題目）
   const error = (await searchParams)?.error
   // 練習路由支援家長 session 或孩子 session
   const hasAccess = await hasPracticeAccess()
