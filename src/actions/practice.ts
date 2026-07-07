@@ -709,6 +709,7 @@ export async function startChallengePractice(childId: string) {
     include: { skill: { select: { name: true } } },
   })
   if (challengeQuestions.length === 0) {
+    // 無挑戰題時不回傳 500，而是導回練習選單並附加錯誤訊息
     redirect(`/practice/${childId}?error=no_challenge`)
   }
 
