@@ -399,10 +399,9 @@ export async function submitAnswer(payload: {
   } catch { /* ignore */ }
 
   if (finished) {
-    // ============ 遊戲化：先計算星星數並寫入 correctCount ============
-    // 注意：correctCount 必須在 updateMastery 之前寫入，以防 mastery 更新
-    // 拋出異常時 correctCount 仍為 0 造成儀表板顯示異常。
     const childId = practiceSession.childId
+
+    // 查詢本輪作答紀錄（計算星星數與正確率所需）
     const sessionAttempts = await prisma.attempt.findMany({
       where: { sessionId: payload.sessionId },
     })
@@ -413,19 +412,22 @@ export async function submitAnswer(payload: {
       (a) => a.isCorrect
     )
 
-    // 寫入正確數與完成時間（合併成一次 update，確保原子性）
-    await prisma.practiceSession.update({
-      where: { id: payload.sessionId },
-      data: { completedAt: new Date(), correctCount: starsEarned },
-    })
+    // 平行寫入：完成時間+正確數（原子更新）、掌握度（非 challenge）、星星、連續天數
+    // 注意：correctCount 必須與 completedAt 寫在同一筆 update 確保原子性，
+    // 避免 mastery 更新異常時 correctCount 保留預設值 0 造成儀表板顯示異常。
+    const masteryPromise = isChallengeSession
+      ? Promise.resolve()
+      : updateMastery(payload.sessionId)
 
-    // 提升練習不影響掌握度（跨技能綜合題，不綁定單一技能）
-    if (!isChallengeSession) {
-      await updateMastery(payload.sessionId)
-    }
-
-    await updateStars(childId, starsEarned)
-    await updateStreak(childId)
+    await Promise.all([
+      prisma.practiceSession.update({
+        where: { id: payload.sessionId },
+        data: { completedAt: new Date(), correctCount: starsEarned },
+      }),
+      masteryPromise,
+      updateStars(childId, starsEarned),
+      updateStreak(childId),
+    ])
 
     // ============ 升學測試處理（需在徽章檢查之前判定）============
     let isPromotionTest = false
