@@ -709,7 +709,7 @@ export async function startChallengePractice(childId: string) {
     include: { skill: { select: { name: true } } },
   })
   if (challengeQuestions.length === 0) {
-    throw new Error('目前沒有可用的提升練習題，請聯繫管理員')
+    redirect(`/practice/${childId}?error=no_challenge`)
   }
 
   // 從所有技能中隨機選取一個作為 session 的 skillId（僅供關聯）

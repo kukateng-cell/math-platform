@@ -9,10 +9,14 @@ import AchievementBadges from '@/components/achievement-badges'
 
 export default async function PracticeSelectPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ childId: string }>
+  searchParams: Promise<{ error?: string }>
 }) {
   const { childId } = await params
+  // 從 redirect 帶回的錯誤訊息（例如提升練習無可用題目）
+  const { error } = await searchParams
   // 練習路由支援家長 session 或孩子 session
   const hasAccess = await hasPracticeAccess()
   if (!hasAccess) return null
@@ -99,6 +103,15 @@ export default async function PracticeSelectPage({
               </form>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 錯誤提示（從 redirect 帶回） */}
+      {error === 'no_challenge' && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+            ⚡ 目前沒有可用的提升練習題，請聯繫管理員
+          </p>
         </div>
       )}
 
