@@ -227,6 +227,8 @@ export default function PracticeClient({
   const lastResultRef = useRef(lastResult)
   const currentAnswerRef = useRef(currentAnswer)
   const submittingRef_forListener = useRef(submitting)
+  const indexRef = useRef(index)
+  const questionsLenRef = useRef(questions.length)
   const nextQuestionRef = useRef<() => void>(() => {})
   const handleSubmitRef = useRef<() => Promise<void>>(async () => {})
 
@@ -234,12 +236,17 @@ export default function PracticeClient({
   lastResultRef.current = lastResult
   currentAnswerRef.current = currentAnswer
   submittingRef_forListener.current = submitting
+  indexRef.current = index
+  questionsLenRef.current = questions.length
 
   function handleKeyDown(e: React.KeyboardEvent) {
     // 中文輸入法（IME）組字中不攔截按鍵（Enter 是確認候選字）
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter') {
       e.preventDefault()
+      // 練習已完成時不再處理 Enter（避免完成頁按 Enter 重複觸發導致跳轉）
+      if (questions.length === 0 || index >= questions.length) return
+      if (lastResultRef.current?.finished) return
       if (lastResultRef.current) {
         nextQuestionRef.current()
       } else if (currentAnswerRef.current) {
@@ -270,6 +277,9 @@ export default function PracticeClient({
       // IME 組字中不攔截
       if (e.isComposing || e.keyCode === 229) return
       if (submittingRef.current || submittingRef_forListener.current) return
+      // 練習已完成時不再處理 Enter（避免完成頁上意外觸發跳轉）
+      if (indexRef.current >= questionsLenRef.current) return
+      if (lastResultRef.current?.finished) return
       if (lastResultRef.current) {
         e.preventDefault()
         nextQuestionRef.current()
