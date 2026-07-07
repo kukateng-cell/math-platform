@@ -113,7 +113,7 @@ export default async function ChildOverviewPage({
   const auth = await getOverviewAuth()
   if (!auth) redirect('/login')
 
-  // 家長：可查看自己建立或透過 ParentChild 綁定的孩子
+  // 家長：可查看自己建立或透過 ParentChild 綁定的孩子（綁定須為 ACTIVE）
   // 孩子（自主學習）：只能查看自己的檔案（childId 必須等於 session 中的 childId）
   const child = auth.type === 'parent'
     ? await prisma.childProfile.findFirst({
@@ -121,7 +121,7 @@ export default async function ChildOverviewPage({
           id: childId,
           OR: [
             { parentId: auth.userId },
-            { parentLinks: { some: { parentId: auth.userId } } },
+            { parentLinks: { some: { parentId: auth.userId, status: 'ACTIVE' } } },
           ],
         },
         include: {

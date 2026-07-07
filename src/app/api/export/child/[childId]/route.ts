@@ -17,13 +17,13 @@ export async function GET(
 
   const { childId } = await params
 
-  // 驗證家長可存取這個孩子（建立或綁定）
+  // 驗證家長可存取這個孩子（建立或已確認綁定，PENDING 綁定不授予存取權）
   const child = await prisma.childProfile.findFirst({
     where: {
       id: childId,
       OR: [
         { parentId: session.userId },
-        { parentLinks: { some: { parentId: session.userId } } },
+        { parentLinks: { some: { parentId: session.userId, status: 'ACTIVE' } } },
       ],
     },
     select: { id: true },

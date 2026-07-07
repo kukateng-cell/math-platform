@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createCaptcha } from '@/lib/captcha'
 import StudentSignupForm from '@/components/student-signup-form'
 import AnimatedBackground from '@/components/animated-background'
+import { Icon } from '@/components/icon'
 
 export default async function StudentSignupPage() {
   // 在服務端生成 CAPTCHA，與家長端一致：第一次載入表單下方就直接顯示驗證問題
@@ -15,7 +16,7 @@ export default async function StudentSignupPage() {
       />
       <div className="relative w-full max-w-sm rounded-3xl bg-white/95 p-8 shadow-2xl ring-1 ring-black/5 backdrop-blur-sm dark:bg-gray-900/95 sm:p-10">
         <div className="mb-6 text-center">
-          <div className="mb-3 text-5xl">🧑‍🎓</div>
+          <div className="mb-3 flex justify-center text-cyan-600 dark:text-cyan-400"><Icon name="student" className="h-12 w-12" /></div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">學生註冊</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">使用 Email + 驗證碼，自主學習</p>
         </div>

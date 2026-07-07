@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useActionState } from 'react'
 import { refreshCaptchaAction } from '@/actions/auth'
+import { Icon } from './icon'
 
 type Captcha = { question: string; token: string }
 
@@ -51,8 +52,8 @@ export default function CaptchaChallenge({ serverCaptcha }: Props) {
       <input type="hidden" name="captchaToken" value={captcha.token} />
 
       <div className="mb-1 flex items-center justify-between">
-        <label className="block text-sm font-medium text-neutral-600 dark:text-gray-300">
-          🤖 請回答驗證問題
+        <label className="flex items-center gap-1 text-sm font-medium text-neutral-600 dark:text-gray-300">
+          <Icon name="robot" className="h-4 w-4" />請回答驗證問題
         </label>
         <button
           type="button"
@@ -61,7 +62,7 @@ export default function CaptchaChallenge({ serverCaptcha }: Props) {
           title="換一題"
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50 disabled:opacity-60 dark:text-blue-400 dark:hover:bg-blue-950"
         >
-          <span className={refreshing ? 'inline-block animate-spin' : ''}>🔄</span>
+          <Icon name="refresh" className={refreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
           {refreshing ? '更新中…' : '換一題'}
         </button>
       </div>

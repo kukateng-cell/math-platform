@@ -1,3 +1,5 @@
+import { Icon, type IconName } from './icon'
+
 interface AnimatedBackgroundProps {
   /**
    * 主漸層背景的 Tailwind class。
@@ -18,16 +20,32 @@ interface AnimatedBackgroundProps {
  * 1. 模糊色塊（blob）：在背景緩慢變形，營造柔和的色彩深度
  * 2. 數學方格紙底紋：淡淡的網格，呼應數學練習本的氛圍
  * 3. 浮動幾何形狀：圓形 / 三角形 / 方形，輕微旋轉漂浮
- * 4. 數學運算子：➕ ➖ ✖️ ➗ ＝ < > π ½，完整的運算家族
- * 5. 數學工具：📏 直尺 / 📐 三角板 / 🧮 算盤 / 🕐 時鐘 / 🪙 硬幣
+ * 4. 數學運算子：＋ − × ÷ ＝ ＜ ＞ π ½，完整的運算家族
+ * 5. 數學工具：直尺 / 三角板 / 算盤 / 時鐘 / 硬幣
  * 6. 數字與算式：單一數字與 2+3、=10、5-2 等簡單算式
- * 7. 純幾何形狀符號：△ ○ □，呼應形狀單元
- * 8. 閃爍星星：散布的 ⭐✨ 以 twinkle 動畫點綴
+ * 7. 純幾何形狀：△ ○ □，呼應形狀單元
+ * 8. 閃爍星星：散布的星形以 twinkle 動畫點綴
  *
+ * 所有圖示皆為 inline SVG（取代原本 emoji，確保跨平台視覺一致）。
  * 所有動畫都會被 `.reduce-motion` 自動關閉（見 globals.css）。
  *
  * 元素皆為 `pointer-events-none` 與 `aria-hidden`，不影響互動與無障礙。
  */
+
+/** 一個漂浮的裝飾圖示：外層 div 處理定位/動畫，內含白色 SVG。 */
+function FloatIcon({
+  icon, box, anim = 'animate-float-y', delay,
+}: { icon: IconName; box: string; anim?: string; delay?: string }) {
+  return (
+    <div
+      className={`absolute ${box} ${anim} text-white`}
+      style={delay ? { animationDelay: delay } : undefined}
+    >
+      <Icon name={icon} className="h-full w-full" />
+    </div>
+  )
+}
+
 export default function AnimatedBackground({
   gradient = "from-indigo-500 via-blue-600 to-purple-700",
   blobColors = ["bg-purple-400/30", "bg-blue-400/30", "bg-indigo-300/30"],
@@ -71,9 +89,7 @@ export default function AnimatedBackground({
         aria-hidden="true"
       >
         {/* 大圓環 */}
-        <div
-          className="absolute left-[6%] top-[18%] h-24 w-24 animate-spin-slow rounded-full border-8 border-white/20"
-        />
+        <div className="absolute left-[6%] top-[18%] h-24 w-24 animate-spin-slow rounded-full border-8 border-white/20" />
         {/* 三角形（CSS border 技巧） */}
         <div
           className="absolute right-[8%] top-[60%] animate-float-y"
@@ -96,9 +112,7 @@ export default function AnimatedBackground({
           className="absolute left-[88%] top-[42%] h-12 w-12 animate-float-y rounded-lg bg-white/15"
           style={{ animationDelay: "-3s" }}
         />
-        <div
-          className="absolute left-[3%] top-[55%] h-8 w-8 animate-drift rounded-md bg-white/20"
-        />
+        <div className="absolute left-[3%] top-[55%] h-8 w-8 animate-drift rounded-md bg-white/20" />
       </div>
 
       {/* 數學符號與數字 */}
@@ -106,38 +120,14 @@ export default function AnimatedBackground({
         className="pointer-events-none absolute inset-0 select-none opacity-25"
         aria-hidden="true"
       >
-        <div className="absolute left-[8%] top-[12%] animate-float-y text-8xl">➕</div>
-        <div
-          className="absolute right-[10%] top-[22%] animate-float-y-reverse text-7xl"
-          style={{ animationDelay: "-1.5s" }}
-        >
-          ✖️
-        </div>
-        <div
-          className="absolute bottom-[14%] left-[18%] animate-drift text-6xl"
-          style={{ animationDelay: "-3s" }}
-        >
-          ➗
-        </div>
-        <div className="absolute right-[16%] bottom-[10%] animate-float-y text-8xl">🔢</div>
-        <div
-          className="absolute left-[44%] top-[6%] animate-twinkle text-5xl"
-        >
-          ⭐
-        </div>
+        <FloatIcon icon="plus" box="left-[8%] top-[12%] h-24 w-24" />
+        <FloatIcon icon="multiply" box="right-[10%] top-[22%] h-20 w-20" anim="animate-float-y-reverse" delay="-1.5s" />
+        <FloatIcon icon="divide" box="bottom-[14%] left-[18%] h-16 w-16" anim="animate-drift" delay="-3s" />
+        <FloatIcon icon="calculator" box="right-[16%] bottom-[10%] h-24 w-24" />
+        <FloatIcon icon="star" box="left-[44%] top-[6%] h-12 w-12" anim="animate-twinkle" />
         {/* 缺漏的運算子：減號、等號、不等號、圓周率、分數 */}
-        <div
-          className="absolute left-[20%] top-[40%] animate-float-y-reverse text-7xl"
-          style={{ animationDelay: "-2s" }}
-        >
-          ➖
-        </div>
-        <div
-          className="absolute right-[35%] top-[30%] animate-float-y text-6xl"
-          style={{ animationDelay: "-3.5s" }}
-        >
-          ＝
-        </div>
+        <FloatIcon icon="minus" box="left-[20%] top-[40%] h-20 w-20" anim="animate-float-y-reverse" delay="-2s" />
+        <FloatIcon icon="equals" box="right-[35%] top-[30%] h-16 w-16" anim="animate-float-y" delay="-3.5s" />
         <div
           className="absolute left-[55%] top-[15%] animate-drift font-mono text-6xl font-bold text-white"
           style={{ animationDelay: "-4.5s" }}
@@ -157,7 +147,7 @@ export default function AnimatedBackground({
           π
         </div>
         <div
-          className="absolute right-[50%] top-[88%] animate-float-y-reverse text-6xl"
+          className="absolute right-[50%] top-[88%] animate-float-y-reverse text-6xl text-white"
           style={{ animationDelay: "-1.5s" }}
         >
           ½
@@ -200,12 +190,7 @@ export default function AnimatedBackground({
         >
           5−2
         </div>
-        <div
-          className="absolute right-[40%] bottom-[20%] animate-float-y text-5xl"
-          style={{ animationDelay: "-1s" }}
-        >
-          💯
-        </div>
+        <FloatIcon icon="hundred" box="right-[40%] bottom-[20%] h-12 w-12" anim="animate-float-y" delay="-1s" />
       </div>
 
       {/* 數學工具：測量、算盤、時鐘、硬幣 */}
@@ -213,61 +198,21 @@ export default function AnimatedBackground({
         className="pointer-events-none absolute inset-0 select-none opacity-25"
         aria-hidden="true"
       >
-        <div
-          className="absolute left-[50%] top-[55%] animate-float-y text-6xl"
-          style={{ animationDelay: "-1s" }}
-        >
-          📏
-        </div>
-        <div
-          className="absolute right-[18%] top-[8%] animate-float-y-reverse text-6xl"
-          style={{ animationDelay: "-4s" }}
-        >
-          📐
-        </div>
-        <div
-          className="absolute left-[5%] top-[35%] animate-drift text-7xl"
-          style={{ animationDelay: "-2.5s" }}
-        >
-          🧮
-        </div>
-        <div
-          className="absolute right-[48%] top-[20%] animate-float-y text-6xl"
-          style={{ animationDelay: "-3.5s" }}
-        >
-          🕐
-        </div>
-        <div
-          className="absolute left-[82%] top-[28%] animate-float-y-reverse text-5xl"
-          style={{ animationDelay: "-6s" }}
-        >
-          🪙
-        </div>
+        <FloatIcon icon="ruler" box="left-[50%] top-[55%] h-16 w-16" anim="animate-float-y" delay="-1s" />
+        <FloatIcon icon="triangle-square" box="right-[18%] top-[8%] h-16 w-16" anim="animate-float-y-reverse" delay="-4s" />
+        <FloatIcon icon="abacus" box="left-[5%] top-[35%] h-20 w-20" anim="animate-drift" delay="-2.5s" />
+        <FloatIcon icon="clock" box="right-[48%] top-[20%] h-16 w-16" anim="animate-float-y" delay="-3.5s" />
+        <FloatIcon icon="coin" box="left-[82%] top-[28%] h-12 w-12" anim="animate-float-y-reverse" delay="-6s" />
       </div>
 
-      {/* 純幾何形狀符號：呼應形狀單元（△ ○ □） */}
+      {/* 純幾何形狀：呼應形狀單元（△ ○ □） */}
       <div
         className="pointer-events-none absolute inset-0 select-none opacity-30"
         aria-hidden="true"
       >
-        <div
-          className="absolute left-[46%] top-[78%] animate-float-y font-mono text-6xl text-white"
-          style={{ animationDelay: "-2s" }}
-        >
-          △
-        </div>
-        <div
-          className="absolute right-[32%] top-[68%] animate-float-y-reverse font-mono text-6xl text-white"
-          style={{ animationDelay: "-4.5s" }}
-        >
-          ○
-        </div>
-        <div
-          className="absolute left-[15%] top-[58%] animate-drift font-mono text-6xl text-white"
-          style={{ animationDelay: "-5.5s" }}
-        >
-          □
-        </div>
+        <FloatIcon icon="triangle" box="left-[46%] top-[78%] h-16 w-16" anim="animate-float-y" delay="-2s" />
+        <FloatIcon icon="circle" box="right-[32%] top-[68%] h-16 w-16" anim="animate-float-y-reverse" delay="-4.5s" />
+        <FloatIcon icon="square" box="left-[15%] top-[58%] h-16 w-16" anim="animate-drift" delay="-5.5s" />
       </div>
 
       {/* 閃爍小星星 */}
@@ -275,31 +220,11 @@ export default function AnimatedBackground({
         className="pointer-events-none absolute inset-0 select-none"
         aria-hidden="true"
       >
-        <div className="absolute left-[15%] top-[28%] animate-twinkle text-2xl">✨</div>
-        <div
-          className="absolute right-[22%] top-[40%] animate-twinkle text-xl"
-          style={{ animationDelay: "-1s" }}
-        >
-          ✨
-        </div>
-        <div
-          className="absolute left-[70%] top-[8%] animate-twinkle text-2xl"
-          style={{ animationDelay: "-2s" }}
-        >
-          ⭐
-        </div>
-        <div
-          className="absolute left-[40%] bottom-[12%] animate-twinkle text-xl"
-          style={{ animationDelay: "-1.5s" }}
-        >
-          ✨
-        </div>
-        <div
-          className="absolute right-[8%] bottom-[30%] animate-twinkle text-2xl"
-          style={{ animationDelay: "-2.5s" }}
-        >
-          ⭐
-        </div>
+        <FloatIcon icon="sparkle" box="left-[15%] top-[28%] h-6 w-6" anim="animate-twinkle" />
+        <FloatIcon icon="sparkle" box="right-[22%] top-[40%] h-5 w-5" anim="animate-twinkle" delay="-1s" />
+        <FloatIcon icon="star" box="left-[70%] top-[8%] h-6 w-6" anim="animate-twinkle" delay="-2s" />
+        <FloatIcon icon="sparkle" box="left-[40%] bottom-[12%] h-5 w-5" anim="animate-twinkle" delay="-1.5s" />
+        <FloatIcon icon="star" box="right-[8%] bottom-[30%] h-6 w-6" anim="animate-twinkle" delay="-2.5s" />
       </div>
     </>
   );

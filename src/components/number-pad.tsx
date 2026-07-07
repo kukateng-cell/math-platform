@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { Icon } from './icon'
 
 type Mode = 'numeric' | 'text'
 
@@ -70,10 +71,14 @@ export default function NumberPad({
   }
 
   // 數字模式：每題（value 清空、未禁用）自動聚焦 input，讓手機/平板鍵盤保持彈出
+  // 用 setTimeout 確保 DOM 已完整更新，避免 React batched update 後競態
   useEffect(() => {
     if (mode !== 'numeric') return
     if (disabled) return
-    if (value === '') inputRef.current?.focus()
+    if (value === '') {
+      const timer = setTimeout(() => inputRef.current?.focus(), 50)
+      return () => clearTimeout(timer)
+    }
   }, [mode, disabled, value])
 
   // 數字模式：支援實體鍵盤直接輸入（0-9、小數點、退格、Enter 送出）
@@ -124,18 +129,19 @@ export default function NumberPad({
           disabled={disabled}
           placeholder={placeholder || '輸入答案（可輸入中文）'}
           maxLength={100}
+          data-autofocus-next
           autoFocus
           autoComplete="off"
           enterKeyHint="done"
           style={{ fontSize: '16px' }} /* iOS 防止自動縮放 */
-          className="w-full rounded-xl border-2 border-neutral-200 bg-white px-4 py-4 text-center text-2xl font-bold tracking-wide outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-900 dark:text-white sm:text-3xl"
+          className="w-full rounded-xl border-2 border-neutral-200 bg-white px-4 py-4 text-center text-2xl font-bold tracking-wide outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-800 sm:text-3xl"
         />
         <button
           onClick={onSubmit}
           disabled={!value.trim() || disabled}
           className="mt-3 w-full rounded-xl bg-blue-600 py-4 text-lg font-bold text-white transition hover:bg-blue-700 active:scale-95 disabled:opacity-40 min-h-[52px]"
         >
-          ✓ 確認答案
+          <span className="inline-flex items-center gap-1.5"><Icon name="check" className="h-5 w-5" />確認答案</span>
         </button>
       </div>
     )
@@ -163,9 +169,10 @@ export default function NumberPad({
             if (value) onSubmit()
           }
         }}
+        data-autofocus-next
         placeholder="?"
         aria-label="答案輸入框"
-        className="mb-4 h-16 w-full rounded-xl border-2 border-neutral-200 bg-white px-4 text-center text-4xl font-bold tracking-widest text-neutral-800 outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:border-blue-400"
+        className="mb-4 h-16 w-full rounded-xl border-2 border-neutral-200 bg-white px-4 text-center text-4xl font-bold tracking-widest text-neutral-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-800"
       />
 
       {/* 鍵盤 */}
@@ -188,7 +195,7 @@ export default function NumberPad({
                       : 'bg-white text-neutral-800 shadow-sm border border-neutral-200 hover:border-blue-400 hover:bg-blue-50 dark:bg-gray-900 dark:text-white dark:border-gray-600 dark:hover:border-blue-400 dark:hover:bg-blue-950'
                   } disabled:opacity-40`}
                 >
-                  {k === '⌫' ? '⌫' : k}
+                  {k === '⌫' ? <Icon name="backspace" className="mx-auto h-6 w-6" /> : k}
                 </button>
               )
             })}
@@ -211,7 +218,7 @@ export default function NumberPad({
             disabled={!value || disabled}
             className="flex-[2] min-h-[52px] rounded-xl bg-blue-600 py-3 text-lg font-bold text-white transition hover:bg-blue-700 active:scale-95 disabled:opacity-40 sm:py-4"
           >
-            ✓ 確認答案
+            <span className="inline-flex items-center gap-1.5"><Icon name="check" className="h-5 w-5" />確認答案</span>
           </button>
         </div>
       </div>

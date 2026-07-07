@@ -40,7 +40,13 @@ npm run dev
 
 | 角色 | Email | 密碼 |
 | --- | --- | --- |
-| 管理員 | `admin@math.local` | `admin123` |
+| 管理員 | `admin@math.local` | 見下方說明 |
+
+> **管理員密碼不再寫死**，避免弱密碼被帶到正式環境：
+> - **開發環境**（`NODE_ENV !== production`，且未設定 `ADMIN_PASSWORD`）：預設密碼為 `admin123`，僅方便本機測試。
+> - **正式環境**：設定環境變數 `ADMIN_PASSWORD`（至少 8 碼，且不可為 `admin123`）。
+>   若未設定或設為弱密碼，seed 會**自動產生一次性隨機密碼**並印在終端機，請登入後立即修改。
+> - 若管理員已存在，seed **不會**覆蓋其密碼。
 
 家長帳號請自行註冊（雙步驟：CAPTCHA + Email OTP）。學生可自助註冊或由家長建檔。
 

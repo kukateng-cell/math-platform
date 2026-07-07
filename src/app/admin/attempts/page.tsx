@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getRecentAttempts } from '@/actions/admin'
+import { Icon } from '@/components/icon'
 
 export default async function AdminAttemptsPage() {
   const attempts = await getRecentAttempts(50)
@@ -52,9 +53,9 @@ export default async function AdminAttemptsPage() {
                   </td>
                   <td className="px-4 py-2">
                     {a.isCorrect ? (
-                      <span className="text-green-600">✓</span>
+                      <span className="inline-flex text-green-600"><Icon name="check" className="h-4 w-4" /></span>
                     ) : (
-                      <span className="text-red-500">✗ ({a.correctAnswer})</span>
+                      <span className="inline-flex items-center gap-1 text-red-500"><Icon name="x" className="h-4 w-4" /> ({a.correctAnswer})</span>
                     )}
                   </td>
                 </tr>

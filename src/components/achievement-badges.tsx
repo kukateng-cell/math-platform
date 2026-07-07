@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { BadgeWithProgress } from '@/actions/achievement'
+import { Icon, badgeIconName } from './icon'
 
 type Props = {
   badges: BadgeWithProgress[]
@@ -44,7 +45,7 @@ export default function AchievementBadges({ badges, compact }: Props) {
     return (
       <div>
         <div className="mb-2 flex items-center gap-1.5">
-          <span className="text-sm font-semibold text-neutral-700 dark:text-gray-200">🏅 成就徽章</span>
+          <span className="flex items-center gap-1 text-sm font-semibold text-neutral-700 dark:text-gray-200"><Icon name="medal" className="h-4 w-4 text-amber-500" /> 成就徽章</span>
           <span className="text-xs text-neutral-400 dark:text-gray-500">（{earned.length}/{badges.length}）</span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -55,7 +56,7 @@ export default function AchievementBadges({ badges, compact }: Props) {
               className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm shadow-sm transition hover:shadow dark:border-amber-800 dark:bg-amber-950"
               title={b.name}
             >
-              <span className="text-lg">{b.icon}</span>
+              <Icon name={badgeIconName(b.code)} className="h-5 w-5 text-white" />
               <span className="text-xs font-medium text-amber-800 dark:text-amber-200">{b.name}</span>
             </button>
           ))}
@@ -74,7 +75,7 @@ export default function AchievementBadges({ badges, compact }: Props) {
   // 完整模式
   return (
     <div>
-      <h2 className="mb-4 text-lg font-semibold">🏅 成就徽章</h2>
+      <h2 className="mb-4 flex items-center gap-1.5 text-lg font-semibold"><Icon name="medal" className="h-5 w-5 text-amber-500" /> 成就徽章</h2>
 
       {/* 已獲得 */}
       {earned.length > 0 && (
@@ -89,7 +90,7 @@ export default function AchievementBadges({ badges, compact }: Props) {
                 onClick={() => setDetail(b)}
                 className={`flex flex-col items-center gap-2 rounded-2xl bg-gradient-to-br ${badgeGradient(b.code)} p-4 text-center text-white shadow-md transition hover:scale-105 hover:shadow-lg`}
               >
-                <span className="text-3xl sm:text-4xl">{b.icon}</span>
+                <Icon name={badgeIconName(b.code)} className="h-9 w-9 sm:h-10 sm:w-10" />
                 <span className="text-xs font-bold sm:text-sm">{b.name}</span>
                 {b.earnedAt && (
                   <span className="text-[10px] opacity-75">
@@ -115,7 +116,7 @@ export default function AchievementBadges({ badges, compact }: Props) {
                 onClick={() => setDetail(b)}
                 className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-neutral-200 bg-white p-4 text-center transition hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-blue-600 dark:hover:bg-blue-950"
               >
-                <span className="text-3xl opacity-30 sm:text-4xl">{b.icon}</span>
+                <Icon name={badgeIconName(b.code)} className="h-9 w-9 text-neutral-300 dark:text-gray-600 sm:h-10 sm:w-10" />
                 <span className="text-xs font-medium text-neutral-500 dark:text-gray-400">{b.name}</span>
                 {/* 進度條 */}
                 <div className="w-full">
@@ -152,15 +153,15 @@ function BadgeDetail({ badge, onClose }: { badge: BadgeWithProgress; onClose: ()
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="w-full max-w-xs rounded-2xl bg-white p-6 text-center shadow-xl dark:bg-gray-900">
-        <div className={`mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${badgeGradient(badge.code)} text-3xl shadow-md`}>
-          {badge.icon}
+        <div className={`mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${badgeGradient(badge.code)} text-white shadow-md`}>
+          <Icon name={badgeIconName(badge.code)} className="h-8 w-8" />
         </div>
         <h3 className="text-lg font-bold dark:text-white">{badge.name}</h3>
         <p className="mt-1 text-sm text-neutral-500 dark:text-gray-400">{badge.condition}</p>
 
         {badge.earned ? (
-          <div className="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
-            ✅ 已獲得
+          <div className="mt-4 flex items-center justify-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
+            <Icon name="check-circle" className="h-4 w-4" /> 已獲得
             {badge.earnedAt && `（${new Date(badge.earnedAt).toLocaleDateString('zh-TW')}）`}
           </div>
         ) : (

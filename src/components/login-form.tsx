@@ -3,6 +3,7 @@
 import { useActionState, useState, useEffect, useRef } from 'react'
 import { login, verifyLoginOtp, resendOtp } from '@/actions/auth'
 import CaptchaChallenge from './captcha-challenge'
+import { Icon } from './icon'
 
 type Props = {
   initialCaptcha: { question: string; token: string }
@@ -101,13 +102,13 @@ export default function LoginForm({ initialCaptcha }: Props) {
         <input type="hidden" name="tempToken" value={tempToken} />
 
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-800 dark:bg-blue-950">
-          <div className="mb-2 text-3xl">📧</div>
+          <div className="mb-2 flex justify-center text-blue-500 dark:text-blue-400"><Icon name="mail" className="h-8 w-8" /></div>
           <p className="text-sm text-blue-800 dark:text-blue-200">{loginState?.message || resendState?.message}</p>
 
           {/* ═══ 開發模式：直接顯示驗證碼 ═══ */}
           {displayOtp && (
             <div className="mt-3 rounded-xl bg-white/80 px-4 py-3">
-              <p className="mb-1 text-xs text-blue-500">🔧 開發模式 — 驗證碼</p>
+              <p className="mb-1 flex items-center gap-1 text-xs text-blue-500"><Icon name="wrench" className="h-3.5 w-3.5" /> 開發模式 — 驗證碼</p>
               <p className="mb-2 select-all text-3xl font-bold tracking-[0.3em] text-blue-900 dark:text-blue-100">
                 {displayOtp}
               </p>

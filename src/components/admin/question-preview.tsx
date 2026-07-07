@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { generateQuestion } from '@/lib/question'
 import Modal from './modal'
+import { Icon } from '@/components/icon'
 
 type QuestionData = {
   id: string
@@ -87,7 +88,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
         onClick={() => setOpen(true)}
         className="rounded px-2 py-1 text-xs font-medium text-neutral-500 transition hover:bg-neutral-100 dark:hover:bg-gray-700"
       >
-        👁️ 預覽
+        <Icon name="search" className="h-3.5 w-3.5" />預覽
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="題目預覽" maxWidth="max-w-lg">
@@ -99,7 +100,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
             </span>
             {interaction && (
               <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600 dark:bg-blue-950 dark:text-blue-400">
-                {interaction === 'numberline' ? '📏 數字線' : interaction === 'fillin' ? '🔢 填答鍵盤' : '👆 選擇題'}
+                {interaction === 'numberline' ? <><Icon name="ruler" className="mr-0.5 inline-block h-3 w-3 align-text-bottom" />數字線</> : interaction === 'fillin' ? <><Icon name="pencil" className="mr-0.5 inline-block h-3 w-3 align-text-bottom" />填答鍵盤</> : <><Icon name="thumbs-up" className="mr-0.5 inline-block h-3 w-3 align-text-bottom" />選擇題</>}
               </span>
             )}
             {question.type !== 'DIRECT' && (
@@ -107,7 +108,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
                 onClick={regenerate}
                 className="rounded px-2 py-0.5 text-xs text-blue-600 transition hover:bg-blue-50"
               >
-                🔄 重新生成
+                <Icon name="refresh" className="mr-0.5 inline-block h-3 w-3 align-text-bottom" />重新生成
               </button>
             )}
           </div>
@@ -120,7 +121,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
           {/* 互動模式預覽 */}
           {interaction === 'numberline' ? (
             <div className="rounded-xl border border-neutral-200 bg-white p-6">
-              <p className="mb-3 text-center text-sm text-neutral-500">📏 數字線模式預覽</p>
+              <p className="mb-3 flex items-center justify-center gap-1 text-center text-sm text-neutral-500"><Icon name="ruler" className="h-4 w-4" />數字線模式預覽</p>
               <div className="relative mx-auto h-2 w-full max-w-sm rounded-full bg-neutral-200">
                 <div className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-blue-500 bg-white shadow-md" />
               </div>
@@ -134,7 +135,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
             </div>
           ) : interaction === 'fillin' ? (
             <div className="rounded-xl border border-neutral-200 bg-white p-6">
-              <p className="mb-3 text-center text-sm text-neutral-500">🔢 填答鍵盤模式預覽</p>
+              <p className="mb-3 flex items-center justify-center gap-1 text-center text-sm text-neutral-500"><Icon name="calculator" className="h-4 w-4" />填答鍵盤模式預覽</p>
               <div className="mx-auto max-w-[160px] rounded-xl border-2 border-neutral-200 bg-neutral-50 p-4 text-center">
                 <span className="text-2xl font-bold tracking-wider text-neutral-300 dark:text-gray-600">?</span>
               </div>
@@ -164,7 +165,7 @@ export default function QuestionPreview({ question }: { question: QuestionData }
                   >
                     {opt}
                     {isAnswer && (
-                      <span className="ml-1 text-xs text-green-600">✓</span>
+                      <Icon name="check" className="ml-1 inline-block h-4 w-4 text-green-600" />
                     )}
                   </div>
                 )
@@ -179,8 +180,8 @@ export default function QuestionPreview({ question }: { question: QuestionData }
 
           {/* 解析 */}
           {question.explanation && (
-            <div className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-600">
-              💡 {question.explanation}
+            <div className="flex items-start gap-1.5 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-600">
+              <Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{question.explanation}
             </div>
           )}
         </div>

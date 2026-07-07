@@ -44,9 +44,12 @@ export async function sendOtpEmail(
   const t = getTransporter()
 
   if (!t) {
-    // 無 SMTP 設定 → 開發模式：只輸出到 console
+    // 無 SMTP 設定 → 開發模式：只輸出到 console。
+    // 視為「成功」：驗證碼已產出且可從 console 取得，dev 流程可繼續；
+    // 這樣呼叫端只有在「真正 SMTP 寄送失敗」時才會收到 success:false，
+    // 才能正確把錯誤回給前端（避免謊稱「驗證碼已發送」）。
     console.log(`[DEV EMAIL] To: ${to} | OTP: ${otpCode}`)
-    return { success: false, error: 'SMTP 未設定（缺少 SMTP_USER / SMTP_PASS）' }
+    return { success: true }
   }
 
   try {
@@ -68,6 +71,40 @@ export async function sendOtpEmail(
           <p style="color:#999;font-size:13px;margin-top:24px;text-align:center">
             驗證碼有效期限為 5 分鐘
           </p>
+        </div>
+      `,
+    })
+    return { success: true }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '發送失敗'
+    console.error(`[EMAIL ERROR] ${msg}`)
+    return { success: false, error: msg }
+  }
+}
+
+// 寄送「學生綁定請求」通知信給家長（best-effort，失敗僅記 log）
+export async function sendLinkRequestEmail(
+  to: string,
+  childNickname: string
+): Promise<{ success: boolean; error?: string }> {
+  const t = getTransporter()
+  if (!t) {
+    console.log(`[DEV EMAIL] To: ${to} | 學生「${childNickname}」送出綁定請求`)
+    return { success: true }
+  }
+  try {
+    await t.sendMail({
+      from: fromEmail,
+      to,
+      subject: '新的綁定請求 - 數學小達人',
+      text: `學生「${childNickname}」希望與您的帳號建立綁定關係。\n\n請登入數學小達人，至「家長儀表板」確認或拒絕此請求。\n\n若這不是您預期的操作，請忽略此信件。`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+          <div style="text-align:center;font-size:40px;margin-bottom:16px">🔗</div>
+          <h1 style="font-size:20px;text-align:center;margin-bottom:24px">數學小達人 - 新的綁定請求</h1>
+          <p style="color:#555">學生「<strong>${childNickname}</strong>」希望與您的帳號建立綁定關係。</p>
+          <p style="color:#555">請登入數學小達人，至「家長儀表板」確認或拒絕此請求。</p>
+          <p style="color:#999;font-size:13px;margin-top:24px">若這不是您預期的操作，請忽略此信件。</p>
         </div>
       `,
     })
