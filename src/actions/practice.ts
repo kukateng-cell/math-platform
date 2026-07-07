@@ -78,8 +78,9 @@ type StoredQuestion = {
   placeholder?: string
 }
 
-// 開始一次練習：在伺服器生成題目快照後建立 session
-export async function startSession(childId: string, skillId: string) {
+// 建立練習 session 的內部輔助函式（不 redirect，讓呼叫端自己 redirect）
+// 解決巢狀 Server Action redirect race condition 的問題
+async function createPracticeSessionInternal(childId: string, skillId: string): Promise<{ sessionId: string; childId: string; skillId: string }> {
   const auth = await getPracticeAuth()
   if (!auth) throw new Error('未授權')
 
@@ -161,7 +162,13 @@ export async function startSession(childId: string, skillId: string) {
     },
   })
 
-  redirect(`/practice/${childId}/${skillId}/${practiceSession.id}`)
+  return { sessionId: practiceSession.id, childId, skillId }
+}
+
+// 開始一次練習：在伺服器生成題目快照後建立 session
+export async function startSession(childId: string, skillId: string) {
+  const { sessionId } = await createPracticeSessionInternal(childId, skillId)
+  redirect(`/practice/${childId}/${skillId}/${sessionId}`)
 }
 
 // 取得一次練習要做的題目（從 session 的伺服器快照讀取，確保與驗證一致）
@@ -571,17 +578,20 @@ export async function getNextPractice(childId: string): Promise<Recommendation |
 }
 
 // 完成練習後直接開始「推薦的下一個練習」
-// 基於剛更新的掌握度即時計算推薦，再由 startSession 開新 session 並 redirect。
+// 基於剛更新的掌握度即時計算推薦，再由 createPracticeSessionInternal 建立新 session 並 redirect。
+// 注意：不透過巢狀呼叫 startSession（避免 redirect 在巢狀 Server Action 中 race condition），
+// 直接使用 createPracticeSessionInternal 後自行 redirect。
 // 若無推薦技能（ALL_DONE）則回到練習選單。
 //
-// 權限檢查交由 getChildSkills / startSession 內部處理，此處不重複。
+// 權限檢查交由 getChildSkills / createPracticeSessionInternal 內部處理，此處不重複。
 export async function startNextPractice(childId: string) {
   const data = await getChildSkills(childId)
   const rec = data?.recommendation
   // 無資料或無推薦技能（ALL_DONE）→ 回練習選單
   if (!rec?.skillId) redirect(`/practice/${childId}`)
-  // 開始推薦技能的新練習（startSession 內部會 redirect 到練習頁）
-  await startSession(childId, rec.skillId)
+  // 直接建立 session 並 redirect，不再透過巢狀呼叫 startSession
+  const { sessionId } = await createPracticeSessionInternal(childId, rec.skillId)
+  redirect(`/practice/${childId}/${rec.skillId}/${sessionId}`)
 }
 
 // ============ 升學測試 ============

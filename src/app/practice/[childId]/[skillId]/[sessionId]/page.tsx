@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getSessionQuestions, hasPracticeAccess } from '@/actions/practice'
 import PracticeClient from '@/components/practice-client'
@@ -9,16 +9,32 @@ export default async function PracticeQuestionPage({
   params: Promise<{ childId: string; skillId: string; sessionId: string }>
 }) {
   const { childId, skillId, sessionId } = await params
-  // 練習路由支援家長 session 或孩子 session
+  // 練習路由支援家長 session 或孩子 session（proxy.ts middleware 已先攔檢，此處為雙重確認）
   const hasAccess = await hasPracticeAccess()
-  if (!hasAccess) return null
+  if (!hasAccess) redirect('/login?next=' + encodeURIComponent(`/practice/${childId}/${skillId}/${sessionId}`))
 
   const data = await getSessionQuestions(sessionId)
   
-  // 若 data 為 null，提供更詳細的錯誤資訊
+  // 若 data 為 null，顯示實用錯誤頁面（不直接 404，讓使用者可返回）
   if (!data) {
     console.error('Practice session not found:', { sessionId })
-    notFound()
+    return (
+      <main className="mx-auto w-full max-w-md flex-1 px-4 py-16 text-center">
+        <div className="mb-4 text-neutral-400 dark:text-gray-500">
+          <svg className="mx-auto h-16 w-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        <h2 className="mb-2 text-xl font-bold">練習無法載入</h2>
+        <p className="mb-6 text-neutral-500 dark:text-gray-400">
+          找不到這個練習的資料，請重新開始一次新的練習
+        </p>
+        <Link
+          href={`/practice/${childId}`}
+          className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700"
+        >
+          返回練習選單
+        </Link>
+      </main>
+    )
   }
 
   // 沒有題目快照（舊 session 無 questionsJson）→ 請使用者重新開始
