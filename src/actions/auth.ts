@@ -50,7 +50,7 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
     data: { name, email, passwordHash, role: 'PARENT' },
   })
 
-  await createSession({ userId: user.id, email: user.email, role: 'PARENT', tokenVersion: user.tokenVersion })
+  await createSession({ userId: user.id, email: user.email, role: 'PARENT' })
   redirect('/dashboard')
 }
 
@@ -125,7 +125,7 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) return { message: '使用者不存在' }
 
-  await createSession({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
+  await createSession({ userId: user.id, email: user.email, role: user.role })
   redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')
 }
 
@@ -149,7 +149,7 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
   }
 
   // 產生新 OTP
-  const otpCode = generateOtp(userId)
+  const otpCode = await generateOtp(userId)
 
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (user) {
