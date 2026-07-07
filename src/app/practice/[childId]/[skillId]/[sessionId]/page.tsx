@@ -56,10 +56,8 @@ export default async function PracticeQuestionPage({
     )
   }
 
-  // 此練習已在其他設備完成 → 導回練習選單（避免同一套題兩邊同時作答）
-  if (data.completed) {
-    redirect(`/practice/${childId}?info=already_completed`)
-  }
+  // 此練習已在其他設備完成 → 直接顯示完成頁（不 redirect，避免用戶剛做完卻被跳轉）
+  // 即使 completed = true，也用 PracticeClient 渲染完成頁，用戶可看到成績後自行離開
 
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 md:max-w-3xl">
