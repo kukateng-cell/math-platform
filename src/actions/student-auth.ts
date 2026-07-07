@@ -27,6 +27,7 @@ type SelfStudyState = {
   tempToken?: string
   captcha?: { question: string; token: string }
   message?: string
+  devOtp?: string
 } | undefined
 
 type StudentState = { error?: string; ok?: boolean; message?: string } | undefined
@@ -62,24 +63,27 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
   const existing = await prisma.childProfile.findUnique({ where: { email } })
   if (existing) return { error: '此 Email 已被註冊', captcha: await createCaptcha() }
 
-  // 產生 OTP（以 email 為金鑰）並寄出 — 學生端一律不顯示開發模式 OTP
+  // 产生 OTP（以 email 为金钥）并寄出
   const otpCode = await generateOtp(email)
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
-    // 寄送失敗：不謊稱「已發送」，讓使用者知道並可重試
+    // 寄送失败：不谎称「已发送」，让使用者知道并可重试
     return {
-      error: '驗證碼發送失敗，請確認 Email 是否正確或稍後再試',
+      error: '验证码发送失败，请确认 Email 是否正确或稍后再试',
       captcha: await createCaptcha(),
     }
   }
 
-  // 把註冊資料簽進 token（DB 尚未建立帳號）
+  // 把注册资料签进 token（DB 尚未建立账号）
   const tempToken = await createSignupToken({ email, nickname, gradeLevel })
+
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
 
   return {
     otpRequired: true,
     tempToken,
+    devOtp,
     message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }
@@ -169,9 +173,12 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
   }
   const tempToken = await createTempToken(child.id)
 
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+
   return {
     otpRequired: true,
     tempToken,
+    devOtp,
     message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }
@@ -198,9 +205,11 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
       console.error('[EMAIL FAILED]', emailResult.error)
       return { tempToken, error: '驗證碼發送失敗，請稍後再試' }
     }
+    const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
     return {
       otpRequired: true,
       tempToken,
+      devOtp,
       message: `新驗證碼已發送至 ${signupIntent.email.replace(/(.{3}).+@/, '$1***@')}`,
     }
   }
@@ -222,17 +231,20 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
   const child = await prisma.childProfile.findUnique({ where: { id: childId } })
   if (!child || !child.email) return { error: '帳號不存在', tempToken }
 
-  // 產生新 OTP 並透過 Gmail SMTP 寄出 — 學生端一律不顯示開發模式 OTP
+  // 产生新 OTP 并透过 Gmail SMTP 寄出
   const otpCode = await generateOtp(childId)
   const emailResult = await sendOtpEmail(child.email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
-    return { tempToken, error: '驗證碼發送失敗，請稍後再試' }
+    return { tempToken, error: '验证码发送失败，请稍后再试' }
   }
+
+  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
 
   return {
     otpRequired: true,
     tempToken,
+    devOtp,
     message: `新驗證碼已發送至 ${child.email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }
