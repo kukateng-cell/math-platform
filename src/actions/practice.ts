@@ -264,18 +264,36 @@ export async function submitAnswer(payload: {
   // 中英文等價驗證：例如「left」「左邊」都視為正確
   const correct = isAnswerCorrect(payload.userAnswer, correctAnswer)
 
-  await prisma.attempt.create({
-    data: {
-      sessionId: payload.sessionId,
-      questionId: q.templateId,
-      questionPrompt: q.prompt,
-      userAnswer: payload.userAnswer,
-      correctAnswer,
-      isCorrect: correct,
-      assisted: payload.assisted,
-      durationMs: payload.durationMs,
-    },
-  })
+  // durationMs 伺服器驗證：確保為合理範圍（0ms ~ 5 分鐘），防止前端偽造速度類徽章
+  const validatedDurationMs = Math.max(0, Math.min(payload.durationMs, 300_000))
+
+  // 防止重複提交同一題（attempt 表有 @@unique([sessionId, questionIndex])，
+  // 捕捉 Prisma P2002 錯誤並優雅回退，避免刷高星星與掌握度）
+  try {
+    await prisma.attempt.create({
+      data: {
+        sessionId: payload.sessionId,
+        questionId: q.templateId,
+        questionPrompt: q.prompt,
+        userAnswer: payload.userAnswer,
+        correctAnswer,
+        isCorrect: correct,
+        assisted: payload.assisted,
+        durationMs: validatedDurationMs,
+      },
+    })
+  } catch (e: unknown) {
+    // P2002 = unique constraint violation → 代表此題已提交過
+    if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'P2002') {
+      return {
+        correct: false,
+        correctAnswer: '',
+        finished: false,
+        sessionId: payload.sessionId,
+      }
+    }
+    throw e
+  }
 
   // 用 questionIndex 判斷完成（避免 attempt.count DB 查詢）
   const finished = payload.questionIndex + 1 >= practiceSession.totalQuestions

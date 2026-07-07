@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
+import { getSessionKey } from '@/lib/secret'
 
 // 受保護路徑：家長端、管理端
 // 注意：/children 同時允許「自主學習的孩子」查看自己的檔案（見下方 CHILD_OWN 規則）
@@ -21,7 +22,7 @@ export async function proxy(request: NextRequest) {
 
   if (token) {
     try {
-      const key = new TextEncoder().encode(process.env.SESSION_SECRET)
+      const key = getSessionKey()
       const { payload } = await jwtVerify(token, key, { algorithms: ['HS256'] })
       isAuthenticated = true
       role = payload.role as string | undefined
@@ -34,7 +35,7 @@ export async function proxy(request: NextRequest) {
   let isChildAuthenticated = false
   if (childToken && CHILD_ROUTES.some((p) => pathname.startsWith(p))) {
     try {
-      const key = new TextEncoder().encode(process.env.SESSION_SECRET)
+      const key = getSessionKey()
       await jwtVerify(childToken, key, { algorithms: ['HS256'] })
       isChildAuthenticated = true
     } catch {
@@ -46,7 +47,7 @@ export async function proxy(request: NextRequest) {
   let childOwnAllowed = false
   if (childToken && CHILD_OWN.some((p) => pathname.startsWith(p))) {
     try {
-      const key = new TextEncoder().encode(process.env.SESSION_SECRET)
+      const key = getSessionKey()
       const { payload } = await jwtVerify(childToken, key, { algorithms: ['HS256'] })
       // 路徑中的 childId 必須與 session 中的 childId 一致
       const pathChildId = pathname.split('/')[2]
