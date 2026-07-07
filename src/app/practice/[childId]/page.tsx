@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest, startChallengePractice } from '@/actions/practice'
+import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest, startChallengePractice, getResumeableSessions } from '@/actions/practice'
 import { getSession } from '@/lib/session'
 import { childLogout } from '@/actions/child-auth'
 import { getChildBadges } from '@/actions/achievement'
@@ -31,6 +31,9 @@ export default async function PracticeSelectPage({
 
   // 成就徽章
   const badges = await getChildBadges(childId)
+
+  // 斷點續做：查詢今天未完成的練習（可繼續）
+  const resumeable = await getResumeableSessions(childId)
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 lg:max-w-4xl">
@@ -95,6 +98,48 @@ export default async function PracticeSelectPage({
                 </button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 斷點續做：繼續未完成的練習 */}
+      {resumeable.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-5 dark:border-emerald-800 dark:from-emerald-950/50 dark:to-teal-950/50">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-2xl">▶️</span>
+            <span className="text-sm font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">繼續上次練習</span>
+          </div>
+          <div className="space-y-2">
+            {resumeable.map((s) => {
+              const pct = Math.round((s.answeredCount / s.totalQuestions) * 100)
+              return (
+                <Link
+                  key={s.sessionId}
+                  href={`/practice/${childId}/${s.skillId}/${s.sessionId}`}
+                  className="flex items-center justify-between gap-4 rounded-xl bg-white/70 p-4 transition hover:bg-white dark:bg-gray-800/70 dark:hover:bg-gray-800"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-neutral-800 dark:text-gray-100">
+                      {s.skillName}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-2 w-28 overflow-hidden rounded-full bg-neutral-200 dark:bg-gray-700">
+                        <div
+                          className="h-2 rounded-full bg-emerald-500 transition-all"
+                          style={{ width: pct + '%' }}
+                        />
+                      </div>
+                      <span className="whitespace-nowrap text-xs text-neutral-500 dark:text-gray-400">
+                        剩 {s.remainingCount} 題
+                      </span>
+                    </div>
+                  </div>
+                  <span className="whitespace-nowrap rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                    繼續 →
+                  </span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}
