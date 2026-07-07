@@ -5,35 +5,24 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  const sessionId = 'cmra4u1pi0003dsv5j3lcguro'
-  const s = await prisma.practiceSession.findUnique({ where: { id: sessionId } })
-  console.log('Session:', s?.id, '已完成:', !!s?.completedAt, '总题数:', s?.totalQuestions)
-
-  if (s && !s.completedAt) {
-    const existing = new Set((await prisma.attempt.findMany({ where: { sessionId }, select: { questionIndex: true } })).map(a => a.questionIndex))
-    console.log('已答题索引:', [...existing])
-    const questions = JSON.parse(s.questionsJson || '[]')
-    for (let i = 0; i < s.totalQuestions; i++) {
-      if (existing.has(i)) continue
-      const q = questions[i]
-      const isCorrect = i < 7
-      await prisma.attempt.create({
-        data: {
-          sessionId: s.id,
-          questionId: q.templateId,
-          questionIndex: i,
-          questionPrompt: q.prompt,
-          userAnswer: isCorrect ? q.answer : 'wrong',
-          correctAnswer: q.answer,
-          isCorrect,
-          assisted: false,
-          durationMs: 5000,
-        },
-      })
-      console.log('  补充答题', i, isCorrect ? '✓' : '✗')
-    }
-    await prisma.practiceSession.update({ where: { id: sessionId }, data: { completedAt: new Date() } })
-    console.log('✅ Session 已完成')
+  const session = await prisma.practiceSession.findFirst({
+    where: { childId: 'cmra4u0vc0001dsv5omiot1d8', completedAt: null },
+    orderBy: { startedAt: 'desc' },
+  })
+  if (!session) { console.log('未找到未完成的 session'); return }
+  console.log('Session:', session.id, '总题:', session.totalQuestions)
+  const questions = JSON.parse(session.questionsJson || '[]')
+  const existing = await prisma.attempt.findMany({ where: { sessionId: session.id }, select: { questionIndex: true } })
+  const answered = new Set(existing.map(a => a.questionIndex))
+  for (let i = 0; i < session.totalQuestions; i++) {
+    if (answered.has(i)) continue
+    const q = questions[i]
+    const ok = i < 5
+    await prisma.attempt.create({ data: { sessionId: session.id, questionId: q.templateId, questionIndex: i, questionPrompt: q.prompt, userAnswer: ok ? q.answer : 'x', correctAnswer: q.answer, isCorrect: ok, assisted: false, durationMs: 5000 } })
   }
+  await prisma.practiceSession.update({ where: { id: session.id }, data: { completedAt: new Date() } })
+  console.log('✅ Session completed')
+  const all = await prisma.attempt.findMany({ where: { sessionId: session.id } })
+  console.log('Total:', all.length, 'Correct:', all.filter(a => a.isCorrect).length)
 }
 main().finally(() => prisma.$disconnect())

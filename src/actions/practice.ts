@@ -498,11 +498,9 @@ export async function submitAnswer(payload: {
     })
   }
 
-  // 僅在練習完成時重新驗證快取
+  // 僅在練習完成時重新驗證快取（不包含 /practice layout，避免觸發意外 re-render 導致跳轉）
   if (finished) {
     revalidatePath('/dashboard')
-    revalidatePath('/children')
-    revalidatePath('/practice', 'layout')
   }
 
   // 回傳時檢查是否為升學測試且剛完成，附加升學結果
