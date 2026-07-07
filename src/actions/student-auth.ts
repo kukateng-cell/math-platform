@@ -64,7 +64,7 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
   })
 
   // 發送 OTP（透過 Gmail SMTP）— 學生端一律不顯示開發模式 OTP
-  const otpCode = generateOtp(child.id)
+  const otpCode = await generateOtp(child.id)
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
@@ -90,7 +90,7 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
   const childId = await verifyTempToken(tempToken)
   if (!childId) return { error: '驗證已過期，請重新操作' }
 
-  if (!verifyOtp(childId, otpCode)) return { error: '驗證碼錯誤或已過期' }
+  if (!(await verifyOtp(childId, otpCode))) return { error: '驗證碼錯誤或已過期' }
 
   const child = await prisma.childProfile.findUnique({ where: { id: childId } })
   if (!child) return { error: '帳號不存在' }
@@ -153,8 +153,8 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
   if (!childId) return { error: '階段已過期，請重新操作' }
 
   // 冷卻檢查
-  if (!canResendOtp(childId)) {
-    const cooldown = getResendCooldownSeconds(childId)
+  if (!(await canResendOtp(childId))) {
+    const cooldown = await getResendCooldownSeconds(childId)
     return {
       otpRequired: true,
       tempToken,
@@ -166,7 +166,7 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
   if (!child || !child.email) return { error: '帳號不存在', tempToken }
 
   // 產生新 OTP 並透過 Gmail SMTP 寄出 — 學生端一律不顯示開發模式 OTP
-  const otpCode = generateOtp(childId)
+  const otpCode = await generateOtp(childId)
   const emailResult = await sendOtpEmail(child.email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)

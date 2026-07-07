@@ -18,6 +18,9 @@ model User {
   name         String?
   passwordHash String
   role         Role     @default(PARENT)
+  // tokenVersion 用於 session 失效：JWT 內嵌此版本，驗證時對比 DB。
+  // 變更角色（升級/降級 admin）時遞增，使所有舊 session 立即失效。
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -173,6 +176,8 @@ model Attempt {
   id          String   @id @default(cuid())
   sessionId   String
   questionId  String
+  // 題目在 session 中的索引（0-based），配合唯一約束防止同一題重複提交
+  questionIndex Int     @default(0)
   // 保存作答當下的題目快照（避免題目修改影響歷史紀錄）
   questionPrompt String
   userAnswer  String
@@ -185,6 +190,7 @@ model Attempt {
   session  PracticeSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   question QuestionTemplate  @relation(fields: [questionId], references: [id])
 
+  @@unique([sessionId, questionIndex]) // 防止同一題重複提交刷星星/掌握度
   @@index([sessionId])
   @@index([questionId])
 }
@@ -231,4 +237,32 @@ model ChildBadge {
 
   @@unique([childId, badgeId])
   @@index([childId])
+}
+
+// ============ OTP 驗證碼（替代記憶體 Map，serverless 可靠）============
+// 用途：家長登入/忘記密碼的 Email OTP。以 identifier 為 key（通常是 userId）。
+// 冷卻與過期由 expiresAt / resentAt 欄位控制，verifyOtp 成功後刪除（一次性）。
+model OtpCode {
+  id         String   @id @default(cuid())
+  identifier String   // 通常是 userId，忘記密碼場景也用 userId
+  code       String   // 6 位數驗證碼
+  expiresAt  DateTime // OTP 有效期限（產生後 5 分鐘）
+  resentAt   DateTime // 上次發送時間（用於 60 秒冷卻判斷）
+  createdAt  DateTime @default(now())
+
+  @@index([identifier])
+  @@index([expiresAt])
+}
+
+// ============ 登入/操作限速（替代記憶體 Map，serverless 可靠）============
+// 用途：同一 key（email、userId 等）在時間窗口內的操作次數限制。
+// key 設計為帶前綴的複合字串，如 "login:alice@example.com"、"reset:bob@example.com"。
+model RateLimit {
+  id        String   @id @default(cuid())
+  key       String   @unique // 限速唯一鍵（含場景前綴）
+  count     Int      @default(0)
+  resetAt   DateTime // 窗口重置時間
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }

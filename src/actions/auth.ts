@@ -5,23 +5,11 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession, deleteSession, getSession } from '@/lib/session'
 import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds } from '@/lib/otp'
 import { sendOtpEmail } from '@/lib/email'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
 import { revalidatePath } from 'next/cache'
-
-// 簡易登入限速：同一 email 在 60 秒內最多 5 次嘗試
-const loginAttempts = new Map<string, { count: number; resetAt: number }>()
-function checkRateLimit(key: string, max = 5, windowMs = 60_000) {
-  const now = Date.now()
-  const entry = loginAttempts.get(key)
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + windowMs })
-    return true
-  }
-  entry.count++
-  return entry.count <= max
-}
 
 // ============ 重新產生 CAPTCHA（供前端「換一題」按鈕呼叫）============
 // 回傳新的 { question, token }，token 為新簽名的 JWT（5 分鐘有效）
@@ -62,7 +50,7 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
     data: { name, email, passwordHash, role: 'PARENT' },
   })
 
-  await createSession({ userId: user.id, email: user.email, role: 'PARENT' })
+  await createSession({ userId: user.id, email: user.email, role: 'PARENT', tokenVersion: user.tokenVersion })
   redirect('/dashboard')
 }
 
@@ -84,7 +72,7 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
     return { message: '驗證碼錯誤，請重新作答', captcha: await createCaptcha() }
   }
 
-  if (!checkRateLimit(email)) {
+  if (!(await checkRateLimit(email))) {
     return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
@@ -94,7 +82,7 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   }
 
   // 產生 OTP 驗證碼
-  const otpCode = generateOtp(user.id)
+  const otpCode = await generateOtp(user.id)
 
   // 透過 Gmail SMTP 寄送驗證碼
   const emailResult = await sendOtpEmail(user.email, otpCode)
@@ -130,14 +118,14 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
     return { message: '驗證已過期，請重新登入' }
   }
 
-  if (!verifyOtp(userId, otpCode)) {
+  if (!(await verifyOtp(userId, otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
   }
 
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) return { message: '使用者不存在' }
 
-  await createSession({ userId: user.id, email: user.email, role: user.role })
+  await createSession({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
   redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')
 }
 
@@ -260,7 +248,7 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
   }
 
   // 限速（避免用來探測哪些 email 存在 / 郵件轟炸）
-  if (!checkRateLimit(`reset:${email}`)) {
+  if (!(await checkRateLimit(`reset:${email}`))) {
     return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
@@ -271,7 +259,7 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
   // 忘記密碼為家長功能，一律不顯示開發模式 OTP
   let tempToken = ''
   if (user) {
-    const otpCode = generateOtp(user.id)
+    const otpCode = await generateOtp(user.id)
     const emailResult = await sendOtpEmail(user.email, otpCode)
     if (!emailResult.success) {
       console.error('[EMAIL FAILED]', emailResult.error)
@@ -300,7 +288,7 @@ export async function verifyResetOtp(state: FormState, formData: FormData): Prom
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
 
-  if (!verifyOtp(userId, otpCode)) {
+  if (!(await verifyOtp(userId, otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
   }
 
