@@ -30,7 +30,7 @@ export default async function AchievementsPage({
   const auth = await getAuth()
   if (!auth) redirect('/login')
 
-  // 家長：可檢視自己建立或綁定的孩子
+  // 家長：可檢視自己建立或綁定的孩子（綁定須為 ACTIVE）
   // 孩子：只能看自己
   const child = auth.type === 'parent'
     ? await prisma.childProfile.findFirst({
@@ -38,7 +38,7 @@ export default async function AchievementsPage({
           id: childId,
           OR: [
             { parentId: auth.userId },
-            { parentLinks: { some: { parentId: auth.userId } } },
+            { parentLinks: { some: { parentId: auth.userId, status: 'ACTIVE' } } },
           ],
         },
       })

@@ -10,7 +10,39 @@ async function main() {
   console.log('🌱 Seeding...')
 
   // ============ 管理員帳號 ============
-  const adminHash = await bcrypt.hash('admin123', 10)
+  // 安全：不再使用寫死的弱密碼（admin123）帶到正式環境。
+  //   - 開發環境：未設定 ADMIN_PASSWORD 時，沿用方便的 admin123。
+  //   - 正式環境：必須設定 ADMIN_PASSWORD；否則自動產生一次性隨機密碼並印出，
+  //     且明確拒絕 admin123 / 過短密碼。
+  //   - update: {} 表示已存在的管理員「不會」被重新設密碼（避免覆蓋已改過的密碼）。
+  const isProd = process.env.NODE_ENV === 'production'
+  const envAdminPassword = process.env.ADMIN_PASSWORD?.trim()
+
+  function randomPassword(bytes = 18): string {
+    // crypto.random 轉 base64url，去掉易混淆字元
+    const { randomBytes } = require('crypto') as typeof import('crypto')
+    return randomBytes(bytes)
+      .toString('base64url')
+      .replace(/[Il1O0]/g, 'x')
+      .slice(0, 24)
+  }
+
+  let adminPassword: string
+  if (envAdminPassword && envAdminPassword.length >= 8 && envAdminPassword !== 'admin123') {
+    adminPassword = envAdminPassword
+  } else if (isProd) {
+    adminPassword = randomPassword()
+    console.warn('')
+    console.warn('⚠️  正式環境未設定安全的 ADMIN_PASSWORD，已自動產生一次性隨機密碼：')
+    console.warn(`    👉 ${adminPassword}`)
+    console.warn('    請立即登入後修改密碼，或設定 ADMIN_PASSWORD 環境變數後重新 seed。')
+    console.warn('')
+  } else {
+    // 開發環境預設密碼（僅限 dev）
+    adminPassword = envAdminPassword || 'admin123'
+  }
+
+  const adminHash = await bcrypt.hash(adminPassword, 10)
   const admin = await prisma.user.upsert({
     where: { email: 'admin@math.local' },
     update: {},
@@ -21,7 +53,8 @@ async function main() {
       role: 'ADMIN',
     },
   })
-  console.log(`  ✓ Admin: ${admin.email} / admin123`)
+  const adminDisplay = isProd && !envAdminPassword ? '(隨機密碼，見上方)' : adminPassword
+  console.log(`  ✓ Admin: ${admin.email} / ${adminDisplay}`)
 
   // ============ 技能（K-2 數感與計算）============
   // order 重新編排以容納新技能

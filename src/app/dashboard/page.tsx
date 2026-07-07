@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import { getCurrentUser } from '@/actions/auth'
+import { getPendingLinkRequests } from '@/actions/student-auth'
 import { prisma } from '@/lib/prisma'
 import { accessibleGrades } from '@/lib/grade'
 import AddChildForm from '@/components/add-child-form'
 import DeleteChildButton from '@/components/delete-child-button'
+import PendingLinkRequests from '@/components/pending-link-requests'
 
 // 相對時間
 function relativeTime(date: Date): string {
@@ -22,8 +24,15 @@ export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) return null
 
+  // 列出家長自己建立的孩子，以及「已確認綁定」的學生（學生主動綁定須家長確認）
+  // PENDING 綁定尚未生效，不會出現在這裡（另列於下方「綁定請求」區塊）
   const children = await prisma.childProfile.findMany({
-    where: { parentId: user.id },
+    where: {
+      OR: [
+        { parentId: user.id },
+        { parentLinks: { some: { parentId: user.id, status: 'ACTIVE' } } },
+      ],
+    },
     orderBy: { createdAt: 'desc' },
     include: {
       sessions: {
@@ -35,6 +44,9 @@ export default async function DashboardPage() {
       _count: { select: { sessions: { where: { completedAt: { not: null } } } } },
     },
   })
+
+  // 待家長確認的綁定請求（學生主動綁定）
+  const pendingRequests = await getPendingLinkRequests()
 
   // 每個年級的啟用技能數（一次查出，供每個孩子依其年級計算可接觸範圍內的技能數）
   // 掌握進度的分母必須是「孩子可接觸年級範圍（K..當前年級）」的技能數，
@@ -70,6 +82,11 @@ export default async function DashboardPage() {
           ⚙️ 帳號設定
         </Link>
       </div>
+
+      {/* 待確認的綁定請求（學生主動綁定家長） */}
+      {pendingRequests.length > 0 && (
+        <PendingLinkRequests requests={pendingRequests} />
+      )}
 
       {children.length === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">

@@ -100,6 +100,8 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   const emailResult = await sendOtpEmail(user.email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
+    // 寄送失敗：不謊稱「已發送」，讓使用者知道並可稍後重試
+    return { message: '驗證碼發送失敗，請稍後再試', captcha: await createCaptcha() }
   }
 
   // 只有管理員在開發模式時才直接顯示 OTP（家長一律不顯示）
@@ -168,6 +170,12 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
     const emailResult = await sendOtpEmail(user.email, otpCode)
     if (!emailResult.success) {
       console.error('[EMAIL FAILED]', emailResult.error)
+      // 寄送失敗：不謊稱「已發送」。保留 otpRequired + tempToken 讓使用者可重試。
+      return {
+        otpRequired: true,
+        tempToken,
+        message: '驗證碼發送失敗，請稍後再試',
+      }
     }
   }
 
