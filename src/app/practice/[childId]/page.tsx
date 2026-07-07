@@ -12,10 +12,10 @@ export default async function PracticeSelectPage({
   searchParams,
 }: {
   params: Promise<{ childId: string }>
-  searchParams?: Promise<{ error?: string }>
+  searchParams?: Promise<{ error?: string; info?: string }>
 }) {
   const { childId } = await params
-  const error = (await searchParams)?.error
+  const { error, info } = (await searchParams) ?? {}
   // 練習路由支援家長 session 或孩子 session
   const hasAccess = await hasPracticeAccess()
   if (!hasAccess) return null
@@ -102,11 +102,18 @@ export default async function PracticeSelectPage({
         </div>
       )}
 
-      {/* 錯誤提示（從 redirect 帶回） */}
+      {/* 提示訊息（從 redirect 帶回） */}
       {error === 'no_challenge' && (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
           <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
             ⚡ 目前沒有可用的提升練習題，請聯繫管理員
+          </p>
+        </div>
+      )}
+      {info === 'already_completed' && (
+        <div className="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-950">
+          <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
+            ℹ️ 此練習已在其他裝置完成，請選擇新的練習
           </p>
         </div>
       )}

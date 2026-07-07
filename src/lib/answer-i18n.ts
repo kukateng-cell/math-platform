@@ -134,20 +134,14 @@ const SYNONYM_GROUPS: string[][] = [
 
 /**
  * 將答案中的同義詞統一為該組的「標準詞」（組內第一個）。
- * 僅替換「整詞」（前後為字串邊界或非中文／非英數字元），避免誤替換子字串。
+ * 做法：若答案「完全等於」該組的任一詞，則回傳標準詞。
+ * 避免用正則替換子字串（如「正方」誤替「正方形」→「正方形形」）。
  */
 function normalizeSynonyms(s: string): string {
-  let result = s
   for (const group of SYNONYM_GROUPS) {
-    const standard = group[0]
-    for (const alias of group) {
-      if (alias === standard) continue
-      // 用前後非詞字元（或字串頭尾）鎖定整詞；中文詞不含英數，故用 [^\u4e00-\u9fffA-Za-z0-9] 做邊界
-      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      result = result.replace(new RegExp(`(^|[^\\u4e00-\\u9fffA-Za-z0-9])${escaped}([^\\u4e00-\\u9fffA-Za-z0-9]|$)`, 'g'), `$1${standard}$2`)
-    }
+    if (group.includes(s)) return group[0]
   }
-  return result
+  return s
 }
 
 /**

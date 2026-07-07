@@ -40,6 +40,11 @@ export default async function PracticeQuestionPage({
     )
   }
 
+  // 此練習已在其他設備完成 → 導回練習選單（避免同一套題兩邊同時作答）
+  if (data.completed) {
+    redirect(`/practice/${childId}?info=already_completed`)
+  }
+
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 md:max-w-3xl">
       <PracticeClient
