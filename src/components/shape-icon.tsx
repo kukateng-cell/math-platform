@@ -61,6 +61,14 @@ type Size = 'sm' | 'md' | 'lg'
 
 const SIZE_PX: Record<Size, number> = { sm: 28, md: 48, lg: 96 }
 
+/**
+ * 判斷整個字串是否就是一個形狀名稱（如「正方形」/「square」/「□」）。
+ * 用於選擇題選項：若選項本身就是形狀名，則直接用大圖形顯示，不再顯示文字。
+ */
+export function isShapeName(text: string): boolean {
+  return resolveKind(text) !== null
+}
+
 /** 單一圖形 SVG。size: sm(選項/說明用) / md / lg(題幹大圖) */
 export function ShapeIcon({ kind, size = 'md' }: { kind: ShapeKind; size?: Size }) {
   const px = SIZE_PX[size]
@@ -161,4 +169,25 @@ export function renderTextWithShapes(text: string, size: Size = 'md'): React.Rea
   }
 
   return nodes
+}
+
+// ====================================================================
+// 渲染「選擇題選項」
+// --------------------------------------------------------------------
+// 「下面哪一個是正方形？」這類題目，選項在題庫裡存成純文字（正方形/圓形/...）。
+// 對孩子來說，用圖形顯示比文字更直觀、也更容易辨識。
+//
+// 規則：
+// - 整個選項就是一個形狀名（正方形/square/□…）→ 顯示單一大圖形（不顯示文字）
+// - 否則 → 走原本的 renderTextWithShapes（處理內嵌標記 / 舊符號 / 純文字）
+// ====================================================================
+export function renderOption(text: string, size: Size = 'md'): React.ReactNode {
+  const kind = resolveKind(text)
+  if (kind && text.trim() === text.trim()) {
+    // 確認「整串」都是形狀名（避免把「正方形和圓形」誤判為單一圖形）
+    if (resolveKind(text.trim())) {
+      return <ShapeIcon kind={kind} size={size} />
+    }
+  }
+  return renderTextWithShapes(text, size)
 }
