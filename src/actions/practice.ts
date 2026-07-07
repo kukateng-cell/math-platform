@@ -417,18 +417,26 @@ export async function submitAnswer(payload: {
   // 用 questionIndex 判斷完成（避免 attempt.count DB 查詢）
   const finished = payload.questionIndex + 1 >= practiceSession.totalQuestions
 
-  // 判斷是否為提升練習（從 questionsJson 的第一題標記判斷）
+  // 判斷是否為提升練習或升學測試（從 questionsJson 的第一題標記判斷）
+  // 升學測試混合了多個技能及下一年級的題目，所有作答都歸到第一個技能 ID，
+  // 若執行 updateMastery 會嚴重污染掌握度，導致推薦系統把用戶引回舊技能。
+  // 因此特殊 session（提升練習/升學測試）一律不更新掌握度。
+  let isSpecialSession = false
   let isChallengeSession = false
   try {
     const storedQ = practiceSession.questionsJson ? JSON.parse(practiceSession.questionsJson) : []
-    if (Array.isArray(storedQ) && storedQ[0]?.__isChallenge) isChallengeSession = true
+    if (Array.isArray(storedQ) && storedQ[0]) {
+      if (storedQ[0].__isChallenge) { isSpecialSession = true; isChallengeSession = true }
+      if (storedQ[0].__isPromotion) isSpecialSession = true
+    }
   } catch { /* ignore */ }
 
   if (finished) {
     const childId = practiceSession.childId
 
-    // 平行化完成時的 DB 操作：完成時間 + 掌握度（非 challenge）可同時進行
-    const masteryPromise = isChallengeSession
+    // 平行化完成時的 DB 操作：完成時間 + 掌握度（非特殊 session）可同時進行
+    // 特殊 session（提升練習/升學測試）不更新掌握度
+    const masteryPromise = isSpecialSession
       ? Promise.resolve()
       : updateMastery(payload.sessionId)
 
