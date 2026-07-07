@@ -127,7 +127,7 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
     return { error: '若此 Email 已註冊，驗證碼已發送至信箱', captcha: await createCaptcha() }
   }
 
-  const otpCode = generateOtp(child.id)
+  const otpCode = await generateOtp(child.id)
   const emailResult = await sendOtpEmail(child.email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
