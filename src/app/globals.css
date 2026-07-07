@@ -75,12 +75,13 @@ input, textarea, select {
   50% { transform: scale(1.25); opacity: 0.7; }
 }
 
-.animate-shake { animation: shake 0.4s ease-in-out; }
-.animate-pop { animation: pop 0.4s ease-out; }
-.animate-ripple { animation: ripple 0.6s ease-out; }
-.animate-fade-in-up { animation: fadeInUp 0.4s ease-out; }
-.animate-flash-green { animation: flashGreen 0.3s ease-out; }
-.animate-flash-red { animation: flashRed 0.3s ease-out; }
+/* 作答回饋動畫：縮短時長以提升響應感（背景裝飾動畫不在此列，維持原速） */
+.animate-shake { animation: shake 0.2s ease-in-out; }
+.animate-pop { animation: pop 0.2s ease-out; }
+.animate-ripple { animation: ripple 0.3s ease-out; }
+.animate-fade-in-up { animation: fadeInUp 0.2s ease-out; }
+.animate-flash-green { animation: flashGreen 0.15s ease-out; }
+.animate-flash-red { animation: flashRed 0.15s ease-out; }
 .animate-pulse-dot { animation: pulseDot 1.2s ease-in-out infinite; }
 
 /* ===== 背景裝飾動畫 ===== */

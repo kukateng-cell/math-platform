@@ -167,12 +167,12 @@ export default function PracticeClient({
       return
     }
     // 填答題 / 數字線：由對應元件內部自行聚焦
-    // 但需延遲確保 DOM 已更新
-    const timer = setTimeout(() => {
+    // 使用 requestAnimationFrame 與瀏覽器繪製同步（比 setTimeout(100) 更快且無感知延遲）
+    const raf = requestAnimationFrame(() => {
       const input = document.querySelector<HTMLInputElement>('[data-autofocus-next]')
       input?.focus()
-    }, 100)
-    return () => clearTimeout(timer)
+    })
+    return () => cancelAnimationFrame(raf)
   }, [index])
 
   useEffect(() => {
@@ -333,9 +333,9 @@ export default function PracticeClient({
       setFeedback(result.correct ? 'correct' : 'incorrect')
       setBgFlash(result.correct ? 'green' : 'red')
       if (!result.correct) {
-        setTimeout(() => setRevealCorrect(true), 500)
+        setTimeout(() => setRevealCorrect(true), 200)
       }
-      setTimeout(() => setBgFlash(null), 300)
+      setTimeout(() => setBgFlash(null), 150)
       if (result.finished) {
         setFinalTotalMs(Date.now() - practiceStartRef.current)
       }
@@ -418,7 +418,7 @@ export default function PracticeClient({
           </div>
           <div className="h-3 w-full rounded-full bg-neutral-200 dark:bg-gray-700" role="progressbar" aria-valuenow={accuracy} aria-valuemin={0} aria-valuemax={100} aria-label={"正確率 " + accuracy + "%"}>
             <div
-              className="h-3 rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-700"
+              className="h-3 rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-300"
               style={{ width: accuracy + "%" }}
             />
           </div>
@@ -631,7 +631,7 @@ export default function PracticeClient({
           aria-label={"練習進度：第 " + (index + 1) + " 題，共 " + totalQuestions + " 題"}
         >
           <div
-            className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+            className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-200"
             style={{ width: progress + "%" }}
           />
         </div>

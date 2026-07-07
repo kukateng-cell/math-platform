@@ -75,13 +75,13 @@ export default function NumberPad({
   }
 
   // 數字模式：每題自動聚焦 input，讓手機/平板鍵盤保持彈出
-  // 用 setTimeout 確保 DOM 已完整更新，避免 React batched update 後競態
+  // 用 requestAnimationFrame 與瀏覽器繪製同步（比 setTimeout(80) 更快且避免競態）
   useEffect(() => {
     if (mode !== 'numeric') return
     if (disabled) return
     if (value === '') {
-      const timer = setTimeout(() => inputRef.current?.focus(), 80)
-      return () => clearTimeout(timer)
+      const raf = requestAnimationFrame(() => inputRef.current?.focus())
+      return () => cancelAnimationFrame(raf)
     }
   }, [mode, disabled, value, index])
 
