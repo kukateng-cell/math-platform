@@ -63,7 +63,7 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
   if (existing) return { error: '此 Email 已被註冊', captcha: await createCaptcha() }
 
   // 產生 OTP（以 email 為金鑰）並寄出 — 學生端一律不顯示開發模式 OTP
-  const otpCode = generateOtp(email)
+  const otpCode = await generateOtp(email)
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
@@ -192,7 +192,7 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
       const cooldown = getResendCooldownSeconds(signupIntent.email)
       return { otpRequired: true, tempToken, message: `請 ${cooldown} 秒後再重新發送` }
     }
-    const otpCode = generateOtp(signupIntent.email)
+    const otpCode = await generateOtp(signupIntent.email)
     const emailResult = await sendOtpEmail(signupIntent.email, otpCode)
     if (!emailResult.success) {
       console.error('[EMAIL FAILED]', emailResult.error)
