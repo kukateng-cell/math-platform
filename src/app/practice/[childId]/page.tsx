@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest } from '@/actions/practice'
+import { getChildSkills, startSession, hasPracticeAccess, checkPromotionEligibility, startPromotionTest, startChallengePractice } from '@/actions/practice'
 import { getSession } from '@/lib/session'
 import { childLogout } from '@/actions/child-auth'
 import { getChildBadges } from '@/actions/achievement'
@@ -98,6 +98,31 @@ export default async function PracticeSelectPage({
           </div>
         </div>
       )}
+
+      {/* 提升練習（挑戰） */}
+      <div className="mb-6 overflow-hidden rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-5 dark:border-orange-800 dark:from-orange-950/50 dark:to-amber-950/50">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-2xl">⚡</span>
+              <span className="text-sm font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400">提升練習</span>
+              <span className="rounded-full bg-orange-200 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-800 dark:text-orange-300">挑戰</span>
+            </div>
+            <p className="text-sm text-neutral-600 dark:text-gray-300">
+              跨技能綜合應用題，挑戰自己的極限！<br />
+              <span className="text-xs text-neutral-400 dark:text-gray-500">不影響掌握度與升學，純粹挑戰自我 💪</span>
+            </p>
+          </div>
+          <form action={startChallengePractice.bind(null, childId)}>
+            <button
+              type="submit"
+              className="whitespace-nowrap rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-orange-600 hover:to-amber-600 active:scale-95"
+            >
+              開始挑戰 →
+            </button>
+          </form>
+        </div>
+      </div>
 
       {/* 技能樹 */}
       <div className="mb-2 mt-2 text-center">

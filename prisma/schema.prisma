@@ -131,6 +131,8 @@ model QuestionTemplate {
   options    String?
   explanation String?
   isActive   Boolean  @default(true)
+  // 提升練習題：跨技能綜合應用題，難度較高，不影響掌握度與升學
+  isChallenge Boolean @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
