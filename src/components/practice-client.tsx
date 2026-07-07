@@ -151,10 +151,20 @@ export default function PracticeClient({
     }
   }, [isFinished, childId])
 
+  // 每題切換時自動聚焦：選擇題聚焦第一個選項，輸入題聚焦 NumberPad 內部的 input
   useEffect(() => {
-    if (firstOptionRef.current) {
+    // 選擇題：聚焦第一個選項
+    if (interaction === 'choice' && firstOptionRef.current) {
       firstOptionRef.current.focus()
+      return
     }
+    // 填答題 / 數字線：由對應元件內部自行聚焦
+    // 但需延遲確保 DOM 已更新
+    const timer = setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('[data-autofocus-next]')
+      input?.focus()
+    }, 100)
+    return () => clearTimeout(timer)
   }, [index])
 
   useEffect(() => {
@@ -596,12 +606,12 @@ export default function PracticeClient({
       </div>
 
       <div
-        className="rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm dark:border-gray-700 dark:bg-gray-900"
+        className="rounded-2xl border-2 border-neutral-200 bg-white p-8 text-center shadow-lg ring-1 ring-black/5 dark:border-gray-600 dark:bg-gray-900 dark:ring-white/10"
         role="region"
         aria-label={"題目 " + (index + 1)}
       >
         {/* 題幹：解析 [shape:xxx] 標記或舊符號，渲染成彩色 SVG 圖形 */}
-        <p className="text-3xl font-bold tracking-wide">
+        <p className="text-3xl font-bold tracking-wide leading-relaxed text-gray-900 dark:text-white">
           {renderTextWithShapes(current.prompt, 'lg')}
         </p>
       </div>
@@ -627,9 +637,9 @@ export default function PracticeClient({
       )}
 
       {interaction === 'choice' && current.options ? (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           {current.options.map((opt, optIdx) => {
-            let cls = 'border-neutral-300 bg-white hover:border-blue-400 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:hover:border-blue-400'
+            let cls = 'border-2 border-neutral-300 bg-white shadow-sm hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:hover:border-blue-400 dark:hover:bg-gray-800 transition-all duration-150'
             if (selected === opt) cls = 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950'
             if (lastResult && feedback) {
               if (feedback === 'correct' && selected === opt) {
