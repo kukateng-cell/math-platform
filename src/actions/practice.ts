@@ -320,9 +320,13 @@ export type SubmitResult = {
   finished: boolean
   sessionId: string
   explanation?: string
-  /** 升學測試結果（僅在 finished=true 時有值） */
+  /** 升學測試結果（僅在 finished=true 時有值）
+   * - qualify: 用戶達到升學門檻（正確率 ≥ 80%）
+   * - confirmed: 用戶已手動確認升級（gradeLevel 已更新）
+   */
   promotion?: {
-    passed: boolean
+    qualify: boolean
+    confirmed: boolean
     newGrade: string | null
     targetGrade: string | null
   } | null
@@ -423,6 +427,7 @@ export async function submitAnswer(payload: {
   // 因此特殊 session（提升練習/升學測試）一律不更新掌握度。
   let isSpecialSession = false
   let isChallengeSession = false
+  let qualifyPromotion = false  // 升學測試達標標記，供完成後的回傳值使用
   try {
     const storedQ = practiceSession.questionsJson ? JSON.parse(practiceSession.questionsJson) : []
     if (Array.isArray(storedQ) && storedQ[0]) {
@@ -470,13 +475,14 @@ export async function submitAnswer(payload: {
     // ============ 升學測試處理（需在徽章檢查之前判定）============
     let isPromotionTest = false
     let passedPromotion = false
+    // qualifyPromotion 已在外部定義（供完成後的回傳值使用）
     let targetGrade: string | null = null
     try {
       const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
       if (Array.isArray(storedQuestions) && storedQuestions[0]?.__isPromotion) {
         isPromotionTest = true
         targetGrade = storedQuestions[0].__targetGrade as string
-        // 正確率 ≥ 80%（不計 assisted）即升學成功
+        // 正確率 ≥ 80%（不計 assisted）即達到升學門檻
         const legitAttempts = sessionAttempts.filter((a) => !a.assisted)
         const correctCount = legitAttempts.filter((a) => a.isCorrect).length
         const passRate = legitAttempts.length > 0
@@ -484,13 +490,10 @@ export async function submitAnswer(payload: {
           : 0
 
         if (passRate >= 0.8 && targetGrade) {
-          await prisma.childProfile.update({
-            where: { id: childId },
-            data: { gradeLevel: targetGrade },
-          })
+          qualifyPromotion = true
           passedPromotion = true
-          // 升學測試通過：獎勵雙倍星星（再加一倍）
-          await updateStars(childId, starsEarned)
+          // 注意：不在此自動升級 gradeLevel，由使用者手動確認後才升級
+          // 雙倍星星獎勵也在確認升級時發放
         }
       }
     } catch { /* ignore */ }
@@ -518,10 +521,14 @@ export async function submitAnswer(payload: {
       const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
       if (Array.isArray(storedQuestions) && storedQuestions[0]?.__isPromotion) {
         const targetGrade = storedQuestions[0].__targetGrade as string
-        const childId = practiceSession.childId
-        const child = await prisma.childProfile.findUnique({ where: { id: childId } })
-        const passed = child?.gradeLevel === targetGrade
-        promotionResult = { passed, newGrade: passed ? targetGrade : null, targetGrade }
+        const child = await prisma.childProfile.findUnique({ where: { id: practiceSession.childId } })
+        const confirmed = child?.gradeLevel === targetGrade
+        promotionResult = {
+          qualify: qualifyPromotion,
+          confirmed,
+          newGrade: confirmed ? targetGrade : null,
+          targetGrade,
+        }
       }
     } catch { /* ignore */ }
   }
@@ -609,6 +616,48 @@ export async function startNextPractice(childId: string) {
   // 直接建立 session 並 redirect，不再透過巢狀呼叫 startSession
   const { sessionId } = await createPracticeSessionInternal(childId, rec.skillId)
   redirect(`/practice/${childId}/${rec.skillId}/${sessionId}`)
+}
+
+// ============ 手動確認升學 ============
+// 升學測試達到門檻後，由使用者手動點擊按鈕觸發升級，
+// 而非 submitAnswer 自動升級，給予使用者確認與慶祝的空間。
+export async function confirmPromotion(childId: string, targetGrade: string) {
+  const auth = await getPracticeAuth()
+  if (!auth) throw new Error('未授權')
+  if (!(await canAccessChild(childId))) throw new Error('找不到孩子檔案')
+
+  const child = await prisma.childProfile.findUnique({ where: { id: childId } })
+  if (!child) throw new Error('找不到孩子檔案')
+
+  // 防止重複升級（若已升級則跳過）
+  if (child.gradeLevel === targetGrade) {
+    redirect(`/practice/${childId}`)
+    return
+  }
+
+  // 確保目標年級確實是下一年級（防止篡改 targetGrade）
+  const next = getNextGrade(child.gradeLevel)
+  if (next !== targetGrade) throw new Error('年級順序錯誤')
+
+  // 升級 gradeLevel
+  await prisma.childProfile.update({
+    where: { id: childId },
+    data: { gradeLevel: targetGrade },
+  })
+
+  // 升學確認獎勵：額外星星（與原答對星星等量，加倍鼓勵）
+  // 從最近一次完成的 promotion session 中計算星星數
+  const lastPromotionSession = await prisma.practiceSession.findFirst({
+    where: { childId, completedAt: { not: null } },
+    orderBy: { completedAt: 'desc' },
+    select: { correctCount: true },
+  })
+  if (lastPromotionSession && lastPromotionSession.correctCount > 0) {
+    await updateStars(childId, lastPromotionSession.correctCount)
+  }
+
+  revalidatePath('/dashboard')
+  redirect(`/practice/${childId}`)
 }
 
 // ============ 升學測試 ============
