@@ -70,10 +70,14 @@ export default function NumberPad({
   }
 
   // 數字模式：每題（value 清空、未禁用）自動聚焦 input，讓手機/平板鍵盤保持彈出
+  // 用 setTimeout 確保 DOM 已完整更新，避免 React batched update 後競態
   useEffect(() => {
     if (mode !== 'numeric') return
     if (disabled) return
-    if (value === '') inputRef.current?.focus()
+    if (value === '') {
+      const timer = setTimeout(() => inputRef.current?.focus(), 50)
+      return () => clearTimeout(timer)
+    }
   }, [mode, disabled, value])
 
   // 數字模式：支援實體鍵盤直接輸入（0-9、小數點、退格、Enter 送出）
@@ -124,11 +128,12 @@ export default function NumberPad({
           disabled={disabled}
           placeholder={placeholder || '輸入答案（可輸入中文）'}
           maxLength={100}
+          data-autofocus-next
           autoFocus
           autoComplete="off"
           enterKeyHint="done"
           style={{ fontSize: '16px' }} /* iOS 防止自動縮放 */
-          className="w-full rounded-xl border-2 border-neutral-200 bg-white px-4 py-4 text-center text-2xl font-bold tracking-wide outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-900 dark:text-white sm:text-3xl"
+          className="w-full rounded-xl border-2 border-neutral-200 bg-white px-4 py-4 text-center text-2xl font-bold tracking-wide outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-800 sm:text-3xl"
         />
         <button
           onClick={onSubmit}
@@ -163,9 +168,10 @@ export default function NumberPad({
             if (value) onSubmit()
           }
         }}
+        data-autofocus-next
         placeholder="?"
         aria-label="答案輸入框"
-        className="mb-4 h-16 w-full rounded-xl border-2 border-neutral-200 bg-white px-4 text-center text-4xl font-bold tracking-widest text-neutral-800 outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:border-blue-400"
+        className="mb-4 h-16 w-full rounded-xl border-2 border-neutral-200 bg-white px-4 text-center text-4xl font-bold tracking-widest text-neutral-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-800"
       />
 
       {/* 鍵盤 */}
