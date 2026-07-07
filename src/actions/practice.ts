@@ -367,6 +367,17 @@ export async function submitAnswer(payload: {
   const q = questions[payload.questionIndex]
   if (!q) throw new Error('題目不存在')
 
+  // 安全檢查：templateId 必須存在於 QuestionTemplate 表，否則外鍵約束會噴 P2003
+  const templateExists = await prisma.questionTemplate.findUnique({ where: { id: q.templateId }, select: { id: true } })
+  if (!templateExists) {
+    return {
+      correct: false,
+      correctAnswer: '',
+      finished: false,
+      sessionId: payload.sessionId,
+    }
+  }
+
   const correctAnswer = q.answer
   // 中英文等價驗證：例如「left」「左邊」都視為正確
   const correct = isAnswerCorrect(payload.userAnswer, correctAnswer)
