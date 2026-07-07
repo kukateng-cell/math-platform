@@ -32,6 +32,14 @@ function escapeCell(value: unknown): string {
   } else {
     str = String(value)
   }
+  // ── 防 CSV 公式注入 ──
+  // Excel / Google Sheets 會將以 = + - @ 開頭的值視為公式執行，
+  // 攻擊者可透過這類輸入執行任意命令（如 =CMD|...）。
+  // 解法：在開頭加上 TAB 字元（\t），破壞公式語法同時保留可見性。
+  // 注意：須在雙引號處理「之前」加前綴，否則開頭空白被忽略。
+  if (/^[=+\-@]/.test(str)) {
+    str = `\t${str}`
+  }
   // 含逗號、雙引號、換行、或首尾空白 → 用雙引號包覆，內部 " → ""
   if (/[",\r\n]/.test(str)) {
     str = `"${str.replace(/"/g, '""')}"`
