@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { gradeRank } from '@/lib/grade'
 
 // ============ 掌握度快照更新 ============
 // 每次練習結束後，依最近 N 題（不計 assisted）重算掌握度

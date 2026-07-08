@@ -20,7 +20,7 @@ async function main() {
 
   function randomPassword(bytes = 18): string {
     // crypto.random 轉 base64url，去掉易混淆字元
-    const { randomBytes } = require('crypto') as typeof import('crypto')
+    const { randomBytes } = await import('crypto')
     return randomBytes(bytes)
       .toString('base64url')
       .replace(/[Il1O0]/g, 'x')

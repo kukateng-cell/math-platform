@@ -196,7 +196,7 @@ export function SkillTree({
       {/* ===== 技能彈窗 ===== */}
       {selectedGrade && (
         <GradeModal
-          grade={selectedGrade}
+          _grade={selectedGrade}
           cfg={gradeStyle(selectedGrade)}
           skills={groups.get(selectedGrade) ?? []}
           childId={childId}
@@ -209,13 +209,13 @@ export function SkillTree({
 
 // ============ 年級技能彈窗 ============
 function GradeModal({
-  grade,
+  _grade,
   cfg,
   skills,
   childId,
   onClose,
 }: {
-  grade: string
+  _grade: string
   cfg: GradeStyle
   skills: SkillFolderItem[]
   childId: string
