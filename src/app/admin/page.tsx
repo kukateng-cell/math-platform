@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCurrentUser } from '@/actions/auth'
 import { getAdminStats } from '@/actions/admin'
-import { Icon } from '@/components/icon'
+import { Icon, type IconName } from '@/components/icon'
 
 export default async function AdminPage() {
   const user = await getCurrentUser()
@@ -29,7 +29,7 @@ export default async function AdminPage() {
             href={c.href}
             className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow dark:border-gray-700 dark:bg-gray-900 dark:hover:border-blue-500"
           >
-            <div className="mb-2 text-blue-600 dark:text-blue-400"><Icon name={c.icon as any} className="h-8 w-8" /></div>
+            <div className="mb-2 text-blue-600 dark:text-blue-400"><Icon name={c.icon as IconName} className="h-8 w-8" /></div>
             <div className="text-2xl font-bold">{c.value}</div>
             <div className="text-sm text-neutral-500 dark:text-gray-400">{c.label}</div>
           </Link>

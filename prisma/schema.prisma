@@ -266,6 +266,23 @@ model OtpCode {
   @@index([expiresAt])
 }
 
+// ============ 註冊暫存（替代記憶體 Map，serverless 可靠）============
+// 用途：家長註冊 Step 1（填寫資料）→ Step 2（驗證 OTP）之間的資料暫存。
+// 用 JWT tempToken 攜帶 pendingSignupId，避免在多個 serverless instance 間共享。
+// OTP 驗證成功後自動刪除，或由 expiresAt 定期清理。
+model PendingSignup {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  // 嘗試次數：超過 maxAttempts 後自動刪除（防暴力破解 OTP）
+  attemptCount Int      @default(0)
+  expiresAt    DateTime // 有效期限（產生後 10 分鐘）
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 // ============ 登入/操作限速（替代記憶體 Map，serverless 可靠）============
 // 用途：同一 key（email、userId 等）在時間窗口內的操作次數限制。
 // key 設計為帶前綴的複合字串，如 "login:alice@example.com"、"reset:bob@example.com"。

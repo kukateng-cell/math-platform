@@ -3,11 +3,16 @@ import { createHmac } from 'crypto'
 import { getSessionKey } from '@/lib/secret'
 
 const KEY = getSessionKey()
+const MAX_ATTEMPTS = 3
 
-// CAPTCHA 答案雜湊金鑰（與 JWT 簽名金鑰共用，避免獨立管理）
+// CAPTCHA 答案雜湊（HMAC-SHA256 前 12 位 hex，不存明文 answer 到 JWT）
 function hashAnswer(answer: number): string {
   return createHmac('sha256', KEY).update(String(answer)).digest('hex').slice(0, 12)
 }
+
+// 記憶體追蹤 CAPTCHA 嘗試次數（key: token, value: 嘗試次數）
+// JWT 本身有 5 分鐘時效，因此不需額外清理；timeout 到 JWT 過期後自然無效。
+const captchaAttempts = new Map<string, number>()
 
 // 產生 CAPTCHA 挑戰題：回傳 { question, token }，token 為簽名後的答案 hash
 // 安全：JWT payload 只存 answerHash，不存明文 answer，避免客戶端 decode 直接讀到答案。
@@ -38,12 +43,20 @@ export async function createCaptcha(): Promise<{ question: string; token: string
   return { question, token }
 }
 
-// 驗證 CAPTCHA 答案：重新計算 hash 後比對
+// 驗證 CAPTCHA 答案（含嘗試次數限制：同 token 最多 3 次）
 export async function verifyCaptcha(
   token: string | undefined,
   userAnswer: string | undefined
 ): Promise<boolean> {
   if (!token || !userAnswer) return false
+
+  // 檢查嘗試次數
+  const attempts = captchaAttempts.get(token) ?? 0
+  if (attempts >= MAX_ATTEMPTS) {
+    return false
+  }
+  captchaAttempts.set(token, attempts + 1)
+
   try {
     const { payload } = await jwtVerify(token, KEY, { algorithms: ['HS256'] })
     const data = payload as unknown as { answerHash: string }
