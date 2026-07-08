@@ -144,10 +144,13 @@ export async function getPracticeHistory(
   const auth = await getPracticeAuth()
   if (!auth || !(await canAccessChild(childId))) return null
 
+  // 防濫用：限制查詢範圍
+  const safeLimit = Math.min(Math.max(limit, 1), 100)
+
   const sessions = await prisma.practiceSession.findMany({
     where: { childId, completedAt: { not: null } },
     orderBy: { startedAt: 'desc' },
-    take: limit,
+    take: safeLimit,
     include: {
       skill: { select: { id: true, name: true } },
       attempts: {
@@ -297,8 +300,11 @@ export async function getGrowthReport(
   })
   if (!child) return null
 
+  // 防濫用：限制查詢範圍
+  const safeDays = Math.min(Math.max(days, 1), 365)
+
   const since = new Date()
-  since.setDate(since.getDate() - days)
+  since.setDate(since.getDate() - safeDays)
   since.setHours(0, 0, 0, 0)
 
   // 區間內完成的練習（含 attempts）

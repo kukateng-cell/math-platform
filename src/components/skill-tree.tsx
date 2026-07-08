@@ -196,7 +196,7 @@ export function SkillTree({
       {/* ===== 技能彈窗 ===== */}
       {selectedGrade && (
         <GradeModal
-          _grade={selectedGrade}
+          grade={selectedGrade}
           cfg={gradeStyle(selectedGrade)}
           skills={groups.get(selectedGrade) ?? []}
           childId={childId}
@@ -209,13 +209,14 @@ export function SkillTree({
 
 // ============ 年級技能彈窗 ============
 function GradeModal({
-  _grade,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  grade,
   cfg,
   skills,
   childId,
   onClose,
 }: {
-  _grade: string
+  grade: string
   cfg: GradeStyle
   skills: SkillFolderItem[]
   childId: string

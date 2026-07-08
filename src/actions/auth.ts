@@ -17,7 +17,9 @@ import { getSessionKey } from '@/lib/secret'
 // 回傳新的 { question, token }，token 為新簽名的 JWT（5 分鐘有效）
 // 使用 useActionState 相容簽名，避免 server action 直接呼叫失效問題
 export async function refreshCaptchaAction(
-  prevState: { question: string; token: string } | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prevState: { question: string; token: string } | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _formData: FormData
 ): Promise<{ question: string; token: string }> {
   return createCaptcha()
@@ -424,6 +426,10 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
     const emailResult = await sendOtpEmail(user.email, otpCode)
     if (!emailResult.success) {
       console.error('[EMAIL FAILED]', emailResult.error)
+      return {
+        message: '驗證碼暫時無法發送，請稍後再試',
+        captcha: await createCaptcha(),
+      }
     }
     tempToken = await createTempToken(user.id)
   }

@@ -555,8 +555,7 @@ export async function submitAnswer(payload: {
       }
     }
 
-    // 平行化完成時的 DB 操作：掌握度（非特殊 session）可同時進行
-    // 特殊 session（提升練習/升學測試）不更新掌握度
+    // 平行化掌握度更新（特殊 session 不更新掌握度）
     const masteryPromise = isSpecialSession
       ? Promise.resolve()
       : updateMastery(payload.sessionId)
@@ -665,12 +664,12 @@ export async function getChildSkills(childId: string) {
   // 家長：只能看自己建立/綁定的孩子；孩子：只能看自己
   const child =
     auth.type === 'child'
-      ? auth.childId === childId
-        ? await prisma.childProfile.findFirst({
+      ? auth.childId !== childId
+        ? null
+        : await prisma.childProfile.findFirst({
             where: { id: childId },
             include: { masterySnapshots: { include: { skill: true } } },
           })
-        : null
       : await prisma.childProfile.findFirst({
           where: {
             id: childId,
@@ -761,7 +760,7 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
   if (next !== targetGrade) throw new Error('年級順序錯誤')
 
   // ============ 重新驗證升學測試 ============
-  // 確認孩子確實完成並通過最近一次 promotion test，防止直接呼叫繞過測試
+  // 查出最近一次完成的 session，確認是升學測試且達到及格標準
   const lastSession = await prisma.practiceSession.findFirst({
     where: { childId, completedAt: { not: null } },
     orderBy: { completedAt: 'desc' },
@@ -791,7 +790,7 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
     ? currentCorrect / currentGradeAttempts.length
     : 0
   if (passRate < 0.8) {
-    throw new Error('升學測試未達及格標準（80%），無法升學')
+    throw new Error(`目前年級正確率 ${Math.round(passRate * 100)}% 未達 80%，無法升學`)
   }
 
   // 升級 gradeLevel（這會「解鎖」下一年級的技能：accessibleGrades 會包含新年級）
@@ -947,12 +946,17 @@ export async function startPromotionTest(childId: string) {
     __targetGrade: next,
   }))
 
+  // 實際題數可能會少於 QUESTIONS_PER_SESSION（題庫不足時），
+  // 以實際數量寫入 totalQuestions，避免學生做完所有題目後仍無法完成 session
+  const actualTotal = sessionQuestions.length
+  if (actualTotal === 0) throw new Error('沒有可用題目')
+
   const practiceSession = await prisma.practiceSession.create({
     data: {
       childId,
       skillId: skills[0].id, // 用第一個技能存關聯
       parentId: auth.type === 'parent' ? auth.userId : child.parentId,
-      totalQuestions: QUESTIONS_PER_SESSION,
+      totalQuestions: actualTotal,
       questionsJson: JSON.stringify(sessionQuestions),
     },
   })
@@ -1033,12 +1037,15 @@ export async function startChallengePractice(childId: string) {
     }
   })
 
+  // 實際題數可能少於 CHALLENGE_QUESTIONS_PER_SESSION
+  const actualTotal = generated.length
+
   const practiceSession = await prisma.practiceSession.create({
     data: {
       childId,
       skillId: firstSkill.id,
       parentId: auth.type === 'parent' ? auth.userId : child.parentId,
-      totalQuestions: CHALLENGE_QUESTIONS_PER_SESSION,
+      totalQuestions: actualTotal,
       questionsJson: JSON.stringify(generated),
     },
   })
@@ -1054,13 +1061,12 @@ export async function cancelSession(sessionId: string) {
 
   const practiceSession = await prisma.practiceSession.findUnique({
     where: { id: sessionId },
-    select: { childId: true, parentId: true },
+    select: { childId: true },
   })
   if (!practiceSession) throw new Error('練習不存在')
 
-  // 驗證權限
-  if (auth.type === 'child' && auth.childId !== practiceSession.childId) throw new Error('無權存取')
-  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) throw new Error('無權存取')
+  // 使用 canAccessChild 統一驗證（支援 linked parent、self-study child 等場景）
+  if (!(await canAccessChild(practiceSession.childId))) throw new Error('無權存取')
 
   // 只取消未完成的練習
   await prisma.practiceSession.updateMany({

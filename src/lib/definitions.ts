@@ -1,5 +1,26 @@
 import { z } from 'zod'
 
+// ============ 參數化題目參數驗證（Admin 建立/編輯/Seed 共用）============
+export const QuestionParamsSchema = z.object({
+  aMin: z.number().int(),
+  aMax: z.number().int(),
+  bMin: z.number().int(),
+  bMax: z.number().int(),
+  sumMax: z.number().int().optional(),
+  interaction: z.enum(['choice', 'numberline', 'fillin']).optional(),
+  rangeMin: z.number().int().optional(),
+  rangeMax: z.number().int().optional(),
+  inputMode: z.enum(['numeric', 'text']).optional(),
+  maxLength: z.number().int().positive().optional(),
+  placeholder: z.string().optional(),
+  aMultipleOfB: z.boolean().optional(),
+  operation: z.enum(['add', 'sub', 'mul', 'div']).optional(),
+}).refine((p) => p.aMin <= p.aMax, {
+  message: 'aMin 必須小於等於 aMax',
+}).refine((p) => p.bMin <= p.bMax, {
+  message: 'bMin 必須小於等於 bMax',
+})
+
 // 註冊表單驗證
 export const SignupFormSchema = z.object({
   name: z.string().min(2, '請輸入至少 2 個字元的稱呼').trim(),

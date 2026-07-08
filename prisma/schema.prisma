@@ -257,7 +257,7 @@ model ChildBadge {
 model OtpCode {
   id         String   @id @default(cuid())
   identifier String   // 通常是 userId，忘記密碼場景也用 userId
-  code       String   // OTP 的 HMAC-SHA256 hash，不存明文
+  code       String   // OTP 的 HMAC-SHA256 hash（含 identifier），不存明文
   expiresAt  DateTime // OTP 有效期限（產生後 5 分鐘）
   resentAt   DateTime // 上次發送時間（用於 60 秒冷卻判斷）
   createdAt  DateTime @default(now())
