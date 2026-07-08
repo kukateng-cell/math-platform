@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose'
+import { createHmac } from 'crypto'
 import { getSessionKey } from '@/lib/secret'
 import { prisma } from '@/lib/prisma'
 
@@ -7,11 +8,18 @@ const KEY = getSessionKey()
 const OTP_EXPIRY_MS = 5 * 60 * 1000  // 5 分鐘
 const RESEND_COOLDOWN_MS = 60 * 1000  // 60 秒冷卻
 
+// ============ OTP code 雜湊 ============
+// OTP 明文只在產生時短暫存在於記憶體中用來寄信；存入 DB 與記憶體備援
+// 一律存 HMAC-SHA256(hex)。即使 DB 外洩，攻擊者也無法直接看到驗證碼。
+function hashOtp(code: string): string {
+  return createHmac('sha256', KEY).update(code).digest('hex')
+}
+
 // ============ OTP 驗證碼（優先使用 DB，降級至記憶體）============
 // 若 OtpCode 表尚未建立，自動降級至記憶體 Map 確保功能正常。
 
-// 記憶體備援
-const memoryOtpStore = new Map<string, { code: string; expiresAt: number; resentAt: number }>()
+// 記憶體備援（value 為 hash 後的 code）
+const memoryOtpStore = new Map<string, { codeHash: string; expiresAt: number; resentAt: number }>()
 
 let otpDbAvailable: boolean | null = null
 
@@ -38,7 +46,7 @@ export async function generateOtp(identifier: string): Promise<string> {
       await prisma.otpCode.create({
         data: {
           identifier,
-          code,
+          code: hashOtp(code),  // 存 HMAC 雜湊，不存明文
           expiresAt: new Date(now.getTime() + OTP_EXPIRY_MS),
           resentAt: now,
         },
@@ -50,7 +58,7 @@ export async function generateOtp(identifier: string): Promise<string> {
   }
 
   // 記憶體備援
-  memoryOtpStore.set(identifier, { code, expiresAt: Date.now() + OTP_EXPIRY_MS, resentAt: Date.now() })
+  memoryOtpStore.set(identifier, { codeHash: hashOtp(code), expiresAt: Date.now() + OTP_EXPIRY_MS, resentAt: Date.now() })
   return code
 }
 
@@ -107,7 +115,9 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
         await prisma.otpCode.delete({ where: { id: entry.id } })
         return false
       }
-      if (entry.code !== code.trim()) return false
+      // 常數時間比較，避免 timing 攻擊
+      const candidate = hashOtp(code.trim())
+      if (candidate !== entry.code) return false
       await prisma.otpCode.delete({ where: { id: entry.id } }) // 一次性使用
       return true
     } catch {
@@ -120,7 +130,8 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
     memoryOtpStore.delete(identifier)
     return false
   }
-  if (entry.code !== code.trim()) return false
+  const candidate = hashOtp(code.trim())
+  if (candidate !== entry.codeHash) return false
   memoryOtpStore.delete(identifier) // 一次性使用
   return true
 }

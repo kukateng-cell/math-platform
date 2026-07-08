@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { createSession, deleteSession, getSession } from '@/lib/session'
+import { createSession, deleteSession, getSession, revokeAllSessions } from '@/lib/session'
 import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds } from '@/lib/otp'
@@ -117,7 +117,13 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
     data: { name, email, passwordHash, role: 'PARENT' },
   })
 
-  await createSession({ userId: user.id, email: user.email, role: 'PARENT' })
+  // 帶入 tokenVersion，使 getVerifiedSession 能比對 DB 版本以即時失效舊 session
+  await createSession({
+    userId: user.id,
+    email: user.email,
+    role: 'PARENT',
+    tokenVersion: user.tokenVersion,
+  })
   redirect('/dashboard')
 }
 
@@ -233,7 +239,13 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) return { message: '使用者不存在' }
 
-  await createSession({ userId: user.id, email: user.email, role: user.role })
+  // 帶入 tokenVersion，使 getVerifiedSession 能比對 DB 版本以即時失效舊 session
+  await createSession({
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+    tokenVersion: user.tokenVersion,
+  })
   redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')
 }
 
@@ -441,6 +453,10 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
     where: { id: userId },
     data: { passwordHash },
   })
+
+  // 密碼重設後即時失效所有舊 session（遞增 tokenVersion）。
+  // 例如密碼外洩，攻擊者已登入的情況下也能立即把他踢下線。
+  await revokeAllSessions(userId)
 
   // 重設完成 → 引導回登入頁
   return { ok: true, message: '密碼已重設成功，請使用新密碼登入' }
