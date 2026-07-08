@@ -23,9 +23,9 @@ export async function refreshCaptchaAction(
   return createCaptcha()
 }
 
-// 暫存註冊資料（記憶體，僅在 OTP 驗證前有效）
-// key: tempToken（JWT）, value: { name, email, passwordHash }
-const pendingSignups = new Map<string, { name: string; email: string; passwordHash: string }>()
+// 暫存註冊資料改用 DB（PendingSignup table），捨棄記憶體 Map。
+// serverless 多 instance 環境下，記憶體 Map 在冷啟動或路由到不同實例時會丟失資料。
+// DB 確保 Step 1（送出註冊表單）與 Step 2（驗證 OTP）之間的資料一致。
 
 // ============ 註冊 Step 1：驗證資料 + CAPTCHA → 發送 OTP ============
 export async function signup(state: FormState, formData: FormData): Promise<FormState> {
@@ -63,13 +63,20 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
   // 哈希密碼，暫存
   const passwordHash = await bcrypt.hash(password, 10)
 
-  // 暫存註冊資料（不放入 JWT，JWT 是簽名非加密）
-  const pendingKey = crypto.randomUUID()
-  pendingSignups.set(pendingKey, { name, email, passwordHash })
+  // 暫存註冊資料到 DB（PendingSignup table），取代記憶體 Map。
+  // serverless 多 instance 下，記憶體 Map 會因冷啟動或路由到不同實例而遺失。
+  const pendingSignup = await prisma.pendingSignup.create({
+    data: {
+      email,
+      name,
+      passwordHash,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 分鐘有效
+    },
+  })
 
-  // 用 pendingKey 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 key 取出暫存資料建立用戶
+  // 用 pendingSignup.id 簽發 tempToken，驗證 OTP 後依 id 讀取暫存資料建立用戶
   const KEY = getSessionKey()
-  const tempToken = await new SignJWT({ email, pendingKey })
+  const tempToken = await new SignJWT({ email, pendingId: pendingSignup.id })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('10m')
@@ -94,9 +101,9 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
     return { message: '缺少必要參數' }
   }
 
-  // 解碼 tempToken 取出 pendingKey
+  // 解碼 tempToken 取出 pendingId
   let email: string
-  let pendingKey: string
+  let pendingId: string
   try {
     const KEY = getSessionKey()
     const { payload: decoded } = await jwtVerify(
@@ -104,34 +111,42 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
       KEY,
       { algorithms: ['HS256'] }
     )
-    const p = decoded as { email: string; pendingKey: string }
+    const p = decoded as { email: string; pendingId: string }
     email = p.email
-    pendingKey = p.pendingKey
+    pendingId = p.pendingId
   } catch {
     return { message: '驗證已過期，請重新註冊' }
   }
 
-  const pending = pendingSignups.get(pendingKey)
+  // 從 DB 讀取 pending signup（取代記憶體 Map）
+  const pending = await prisma.pendingSignup.findUnique({
+    where: { id: pendingId },
+  })
   if (!pending) return { message: '驗證已過期，請重新註冊' }
+  if (Date.now() > pending.expiresAt.getTime()) {
+    await prisma.pendingSignup.delete({ where: { id: pendingId } }).catch(() => {})
+    return { message: '驗證已過期，請重新註冊' }
+  }
   const { name, passwordHash } = pending
 
   // 驗證 OTP（用 email 作 identifier）
   if (!(await verifyOtp(email, otpCode))) {
-    pendingSignups.delete(pendingKey)
+    // 單次 OTP 錯誤不刪除 pending signup（仍可重新輸入/重發 OTP）
     return { message: '驗證碼錯誤或已過期' }
   }
 
   // 再次確認 email 未被註冊（可能在 OTP 等待期間被別人註冊）
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
-    pendingSignups.delete(pendingKey)
+    await prisma.pendingSignup.delete({ where: { id: pendingId } }).catch(() => {})
     return { message: '此 Email 已在 OTP 驗證期間被註冊' }
   }
 
   const user = await prisma.user.create({
     data: { name, email, passwordHash, role: 'PARENT' },
   })
-  pendingSignups.delete(pendingKey)
+  // OTP 驗證通過且帳號建立完成後才刪除 pending signup
+  await prisma.pendingSignup.delete({ where: { id: pendingId } }).catch(() => {})
 
   // 帶入 user.tokenVersion，讓 getVerifiedSession 能比對版本實現角色變更即時失效
   await createSession({ userId: user.id, email: user.email, role: 'PARENT', tokenVersion: user.tokenVersion })
@@ -216,7 +231,7 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   }
 
   // 只有管理員在開發模式時才直接顯示 OTP（家長一律不顯示）
-  const showOtp = (process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true') && user.role === 'ADMIN'
+  const showOtp = process.env.NODE_ENV === 'development' && user.role === 'ADMIN'
   const devOtp = showOtp ? otpCode : undefined
 
   const tempToken = await createTempToken(user.id)
@@ -297,7 +312,7 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
 
   // 只有管理員在開發模式時才直接顯示 OTP
   const isAdmin = user?.role === 'ADMIN'
-  const showOtp = (process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true') && isAdmin
+  const showOtp = process.env.NODE_ENV === 'development' && isAdmin
   const devOtp = showOtp ? otpCode : undefined
 
   return {
