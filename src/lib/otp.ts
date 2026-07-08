@@ -29,6 +29,9 @@ async function otpIsDbAvailable(): Promise<boolean> {
     await prisma.otpCode.findFirst()
     otpDbAvailable = true
   } catch {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[OTP] DB table not available in production')
+    }
     console.warn('[OTP] DB table not available, falling back to in-memory')
     otpDbAvailable = false
   }
@@ -53,6 +56,9 @@ export async function generateOtp(identifier: string): Promise<string> {
       })
       return code
     } catch {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[OTP] DB write failed in production')
+      }
       otpDbAvailable = null
     }
   }
@@ -73,6 +79,9 @@ export async function canResendOtp(identifier: string): Promise<boolean> {
       if (!entry) return true
       return Date.now() - entry.resentAt.getTime() >= RESEND_COOLDOWN_MS
     } catch {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[OTP] DB read failed in production')
+      }
       otpDbAvailable = null
     }
   }
@@ -93,6 +102,9 @@ export async function getResendCooldownSeconds(identifier: string): Promise<numb
       const remaining = RESEND_COOLDOWN_MS - (Date.now() - entry.resentAt.getTime())
       return Math.max(0, Math.ceil(remaining / 1000))
     } catch {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[OTP] DB read failed in production')
+      }
       otpDbAvailable = null
     }
   }
@@ -121,6 +133,9 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
       await prisma.otpCode.delete({ where: { id: entry.id } }) // 一次性使用
       return true
     } catch {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[OTP] DB read failed in production')
+      }
       otpDbAvailable = null
     }
   }

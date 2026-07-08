@@ -89,9 +89,9 @@ npm run dev
 
 | 類型 | Cookie | 過期 | 說明 |
 | --- | --- | --- | --- |
-| 家長 | `math-session` | 7 天 | JWT，含 `tokenVersion`，角色變更即時失效 |
+| 家長 | `math-session` | 7 天 | JWT，含 `tokenVersion`，角色變更即時失效（admin 等敏感操作經 `getVerifiedSession()` 查 DB 驗證） |
 | 孩子（家長建檔） | `math-child` | 2 小時 | 依 childId 存取，免帳密 |
-| 學生自助 | `math-child` | 2 小時 | 獨立帳密 + 4 位 PIN，可事後綁定家長 |
+| 學生自助 | `math-child` | 2 小時 | Email + 驗證碼（OTP）登入，可事後申請綁定家長（須家長確認） |
 
 ## 專案結構
 
@@ -127,8 +127,9 @@ src/
 │   └── csv.ts|export-data.ts  # CSV 匯出
 prisma/
 ├── schema.prisma         # 資料模型（9 表 + 2 輔助表）
-├── prisma.config.ts      # CLI 連線字串
 └── seed.ts               # 種子資料
+prisma.config.ts          # CLI 連線字串（位於 repo root，非 prisma/ 下）
+vitest.config.ts          # 單元測試設定
 ```
 
 ## 開發指令
@@ -139,6 +140,7 @@ prisma/
 | `npm run build` | 正式建置 |
 | `npm run lint` | ESLint 檢查 |
 | `npm run typecheck` | TypeScript 型別檢查（`tsc --noEmit`） |
+| `npm run test` | 單元測試（vitest，覆蓋 grade.ts / answer-i18n.ts 等純邏輯） |
 | `npm run db:push` | 同步 schema 到 PostgreSQL |
 | `npm run db:seed` | 填入種子資料 |
 | `npm run db:seed:demo` | 填入示範資料 |

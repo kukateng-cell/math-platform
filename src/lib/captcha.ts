@@ -1,7 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose'
-
-const SECRET = process.env.SESSION_SECRET || 'fallback-secret'
-const KEY = new TextEncoder().encode(SECRET)
+import { getSessionKey } from '@/lib/secret'
 
 type CaptchaPayload = {
   a: number
@@ -29,7 +27,7 @@ export async function createCaptcha(): Promise<{ question: string; token: string
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('5m')
-    .sign(KEY)
+    .sign(getSessionKey())
 
   const question = op === '+'
     ? `${a} + ${b} = ?`
@@ -45,7 +43,7 @@ export async function verifyCaptcha(
 ): Promise<boolean> {
   if (!token || !userAnswer) return false
   try {
-    const { payload } = await jwtVerify(token, KEY, { algorithms: ['HS256'] })
+    const { payload } = await jwtVerify(token, getSessionKey(), { algorithms: ['HS256'] })
     const data = payload as unknown as CaptchaPayload
     return String(data.answer) === userAnswer.trim()
   } catch {

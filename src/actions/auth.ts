@@ -11,6 +11,7 @@ import { sendOtpEmail } from '@/lib/email'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
 import { revalidatePath } from 'next/cache'
 import { SignJWT, jwtVerify } from 'jose'
+import { getSessionKey } from '@/lib/secret'
 
 // ============ 重新產生 CAPTCHA（供前端「換一題」按鈕呼叫）============
 // 回傳新的 { question, token }，token 為新簽名的 JWT（5 分鐘有效）
@@ -61,12 +62,18 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
 
   // 哈希密碼，暫存
   const passwordHash = await bcrypt.hash(password, 10)
-  // 用 email 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 token 取出暫存資料建立用戶
-  const tempToken = await new SignJWT({ email, name, passwordHash } as unknown as Record<string, unknown>)
+
+  // 暫存註冊資料（不放入 JWT，JWT 是簽名非加密）
+  const pendingKey = crypto.randomUUID()
+  pendingSignups.set(pendingKey, { name, email, passwordHash })
+
+  // 用 pendingKey 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 key 取出暫存資料建立用戶
+  const KEY = getSessionKey()
+  const tempToken = await new SignJWT({ email, pendingKey })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('10m')
-    .sign(new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret'))
+    .sign(KEY)
 
   const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
 
@@ -87,43 +94,47 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
     return { message: '缺少必要參數' }
   }
 
-  // 解碼 tempToken 取出 email
-  let payload: { email: string; name: string; passwordHash: string }
+  // 解碼 tempToken 取出 pendingKey
+  let email: string
+  let pendingKey: string
   try {
+    const KEY = getSessionKey()
     const { payload: decoded } = await jwtVerify(
       tempToken,
-      new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret'),
+      KEY,
       { algorithms: ['HS256'] }
     )
-    payload = decoded as unknown as { email: string; name: string; passwordHash: string }
+    const p = decoded as { email: string; pendingKey: string }
+    email = p.email
+    pendingKey = p.pendingKey
   } catch {
     return { message: '驗證已過期，請重新註冊' }
   }
 
-  const { email, name, passwordHash } = payload
+  const pending = pendingSignups.get(pendingKey)
+  if (!pending) return { message: '驗證已過期，請重新註冊' }
+  const { name, passwordHash } = pending
 
   // 驗證 OTP（用 email 作 identifier）
   if (!(await verifyOtp(email, otpCode))) {
+    pendingSignups.delete(pendingKey)
     return { message: '驗證碼錯誤或已過期' }
   }
 
   // 再次確認 email 未被註冊（可能在 OTP 等待期間被別人註冊）
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
+    pendingSignups.delete(pendingKey)
     return { message: '此 Email 已在 OTP 驗證期間被註冊' }
   }
 
   const user = await prisma.user.create({
     data: { name, email, passwordHash, role: 'PARENT' },
   })
+  pendingSignups.delete(pendingKey)
 
-  // 帶入 tokenVersion，使 getVerifiedSession 能比對 DB 版本以即時失效舊 session
-  await createSession({
-    userId: user.id,
-    email: user.email,
-    role: 'PARENT',
-    tokenVersion: user.tokenVersion,
-  })
+  // 帶入 user.tokenVersion，讓 getVerifiedSession 能比對版本實現角色變更即時失效
+  await createSession({ userId: user.id, email: user.email, role: 'PARENT', tokenVersion: user.tokenVersion })
   redirect('/dashboard')
 }
 
@@ -137,7 +148,7 @@ export async function resendSignupOtp(state: FormState, formData: FormData): Pro
   try {
     const { payload } = await jwtVerify(
       tempToken,
-      new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret'),
+      getSessionKey(),
       { algorithms: ['HS256'] }
     )
     email = (payload as unknown as { email: string }).email
@@ -239,13 +250,8 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) return { message: '使用者不存在' }
 
-  // 帶入 tokenVersion，使 getVerifiedSession 能比對 DB 版本以即時失效舊 session
-  await createSession({
-    userId: user.id,
-    email: user.email,
-    role: user.role,
-    tokenVersion: user.tokenVersion,
-  })
+  // 帶入 user.tokenVersion，讓 getVerifiedSession 能比對版本實現角色變更即時失效
+  await createSession({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
   redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')
 }
 
@@ -263,8 +269,8 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
   }
 
   // 檢查冷卻時間
-  if (!canResendOtp(userId)) {
-    const cooldown = getResendCooldownSeconds(userId)
+  if (!(await canResendOtp(userId))) {
+    const cooldown = await getResendCooldownSeconds(userId)
     return { message: `請 ${cooldown} 秒後再重新發送` }
   }
 
