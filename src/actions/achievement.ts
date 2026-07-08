@@ -1,7 +1,47 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
+import { getChildSession } from '@/lib/child-session'
 import { gradeRank, accessibleGrades } from '@/lib/grade'
+
+// ============ 練習授權輔助（與 practice.ts / reports.ts 同一套邏輯）============
+// achievement.ts 是 exported server action，頁面層的授權檢查無法保護它被其他
+// 呼叫端誤用，因此內部也須自行檢查，避免任何 caller 直接用任意 childId 讀取徽章。
+type PracticeAuth =
+  | { type: 'parent'; userId: string }
+  | { type: 'child'; childId: string }
+  | null
+
+async function getPracticeAuth(): Promise<PracticeAuth> {
+  const session = await getSession()
+  if (session) return { type: 'parent', userId: session.userId }
+
+  const childSession = await getChildSession()
+  if (childSession) return { type: 'child', childId: childSession.childId }
+
+  return null
+}
+
+// 驗證目前身分是否有權存取指定的孩子
+// - 孩子：只能存取自己
+// - 家長：可存取自己建立的孩子，或 ACTIVE 綁定的孩子
+async function canAccessChild(childId: string): Promise<boolean> {
+  const auth = await getPracticeAuth()
+  if (!auth) return false
+  if (auth.type === 'child') return auth.childId === childId
+
+  const child = await prisma.childProfile.findFirst({
+    where: { id: childId, parentId: auth.userId },
+  })
+  if (child) return true
+
+  // 綁定關聯須為 ACTIVE（學生主動綁定需家長確認後才生效）
+  const link = await prisma.parentChild.findFirst({
+    where: { parentId: auth.userId, childId, status: 'ACTIVE' },
+  })
+  return !!link
+}
 
 export type BadgeWithProgress = {
   id: string
@@ -18,7 +58,12 @@ export type BadgeWithProgress = {
 }
 
 // 取得孩子的完整徽章列表（含進度）
+// 權限：必須是孩子本人、或其家長（含 ACTIVE 綁定）。未授權則回傳空陣列，
+// 與「找不到孩子」的回傳值一致，避免洩漏該 childId 是否存在。
 export async function getChildBadges(childId: string): Promise<BadgeWithProgress[]> {
+  // 授權檢查（防禦性：即使頁面層已檢查，server action 本身也須自保）
+  if (!(await canAccessChild(childId))) return []
+
   const child = await prisma.childProfile.findUnique({
     where: { id: childId },
     include: { badges: true },

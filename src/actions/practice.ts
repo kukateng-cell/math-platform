@@ -386,24 +386,38 @@ export async function submitAnswer(payload: {
   // 中英文等價驗證：例如「left」「左邊」都視為正確
   const correct = isAnswerCorrect(payload.userAnswer, correctAnswer)
 
-  // durationMs 伺服器驗證：確保為合理範圍（0ms ~ 5 分鐘），防止前端偽造速度類徽章
-  const validatedDurationMs = Math.max(0, Math.min(payload.durationMs, 300_000))
+  // durationMs 伺服器驗證：下限 1 秒、上限 5 分鐘，防止前端偽造速度類徽章。
+  // 下限設為 1000ms 而非 0ms：人類不可能在 1 秒內讀題並作答，
+  // 若允許 0ms 會被偽造為 1ms 而通過速度徽章的 durationMs > 0 檢查。
+  const validatedDurationMs = Math.max(1000, Math.min(payload.durationMs, 300_000))
 
   // 防止重複提交同一題（attempt 表有 @@unique([sessionId, questionIndex])，
   // 捕捉 Prisma P2002 錯誤並優雅回退，避免刷高星星與掌握度）
+  //
+  // 完成判斷改用 DB count：attempt 建立與 count 包在同一 transaction，
+  // 確保即使前端偽造 questionIndex（例如直接提交最後一題 index）也無法
+  // 令 session 被標記完成。只有實際作答數 ≥ totalQuestions 才算完成。
+  let finished: boolean
   try {
-    await prisma.attempt.create({
-      data: {
-        sessionId: payload.sessionId,
-        questionId: q.templateId,
-        questionIndex: payload.questionIndex,
-        questionPrompt: q.prompt,
-        userAnswer: payload.userAnswer,
-        correctAnswer,
-        isCorrect: correct,
-        assisted: payload.assisted,
-        durationMs: validatedDurationMs,
-      },
+    finished = await prisma.$transaction(async (tx) => {
+      await tx.attempt.create({
+        data: {
+          sessionId: payload.sessionId,
+          questionId: q.templateId,
+          questionIndex: payload.questionIndex,
+          questionPrompt: q.prompt,
+          userAnswer: payload.userAnswer,
+          correctAnswer,
+          isCorrect: correct,
+          assisted: payload.assisted,
+          durationMs: validatedDurationMs,
+        },
+      })
+      // 用實際作答數判斷完成，而非信任前端傳入的 questionIndex
+      const answeredCount = await tx.attempt.count({
+        where: { sessionId: payload.sessionId },
+      })
+      return answeredCount >= practiceSession.totalQuestions
     })
   } catch (e: unknown) {
     // P2002 = unique constraint violation → 代表此題已提交過
@@ -417,9 +431,6 @@ export async function submitAnswer(payload: {
     }
     throw e
   }
-
-  // 用 questionIndex 判斷完成（避免 attempt.count DB 查詢）
-  const finished = payload.questionIndex + 1 >= practiceSession.totalQuestions
 
   // 判斷是否為提升練習或升學測試（從 questionsJson 的第一題標記判斷）
   // 升學測試混合了多個技能及下一年級的題目，所有作答都歸到第一個技能 ID，
