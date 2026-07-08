@@ -23,9 +23,9 @@ export async function refreshCaptchaAction(
   return createCaptcha()
 }
 
-// 暫存註冊資料改用 DB（PendingSignup table），捨棄記憶體 Map。
-// serverless 多 instance 環境下，記憶體 Map 在冷啟動或路由到不同實例時會丟失資料。
-// DB 確保 Step 1（送出註冊表單）與 Step 2（驗證 OTP）之間的資料一致。
+// PendingSignup 暫存時間（超過此時間的記錄在查詢時自動忽略）
+const PENDING_SIGNUP_TTL_MINUTES = 10
+const PENDING_SIGNUP_MAX_ATTEMPTS = 5
 
 // ============ 註冊 Step 1：驗證資料 + CAPTCHA → 發送 OTP ============
 export async function signup(state: FormState, formData: FormData): Promise<FormState> {
@@ -63,18 +63,13 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
   // 哈希密碼，暫存
   const passwordHash = await bcrypt.hash(password, 10)
 
-  // 暫存註冊資料到 DB（PendingSignup table），取代記憶體 Map。
-  // serverless 多 instance 下，記憶體 Map 會因冷啟動或路由到不同實例而遺失。
-  const pendingSignup = await prisma.pendingSignup.create({
-    data: {
-      email,
-      name,
-      passwordHash,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 分鐘有效
-    },
+  // 暫存註冊資料到 DB（不放入 JWT，JWT 是簽名非加密）
+  const expiresAt = new Date(Date.now() + PENDING_SIGNUP_TTL_MINUTES * 60 * 1000)
+  const pending = await prisma.pendingSignup.create({
+    data: { email, name, passwordHash, expiresAt },
   })
 
-  // 用 pendingSignup.id 簽發 tempToken，驗證 OTP 後依 id 讀取暫存資料建立用戶
+  // 用 pending.id 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 id 取出暫存資料建立用戶
   const KEY = getSessionKey()
   const tempToken = await new SignJWT({ email, pendingId: pendingSignup.id })
     .setProtectedHeader({ alg: 'HS256' })
@@ -118,35 +113,45 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
     return { message: '驗證已過期，請重新註冊' }
   }
 
-  // 從 DB 讀取 pending signup（取代記憶體 Map）
-  const pending = await prisma.pendingSignup.findUnique({
-    where: { id: pendingId },
+  // 從 DB 取出暫存的註冊資料（同時過濾已過期的記錄）
+  const pending = await prisma.pendingSignup.findFirst({
+    where: { id: pendingId, expiresAt: { gt: new Date() } },
   })
   if (!pending) return { message: '驗證已過期，請重新註冊' }
-  if (Date.now() > pending.expiresAt.getTime()) {
-    await prisma.pendingSignup.delete({ where: { id: pendingId } }).catch(() => {})
-    return { message: '驗證已過期，請重新註冊' }
+  const { name, passwordHash, attemptCount } = pending
+
+  // 檢查嘗試次數（防 OTP 暴力破解）
+  if (attemptCount >= PENDING_SIGNUP_MAX_ATTEMPTS) {
+    await prisma.pendingSignup.delete({ where: { id: pendingId } })
+    return { message: '驗證碼錯誤次數過多，請重新註冊' }
   }
-  const { name, passwordHash } = pending
 
   // 驗證 OTP（用 email 作 identifier）
   if (!(await verifyOtp(email, otpCode))) {
-    // 單次 OTP 錯誤不刪除 pending signup（仍可重新輸入/重發 OTP）
+    // 累計嘗試次數，超過上限才刪除（避免單次錯誤即遺失資料）
+    const newAttempt = attemptCount + 1
+    if (newAttempt >= PENDING_SIGNUP_MAX_ATTEMPTS) {
+      await prisma.pendingSignup.delete({ where: { id: pendingId } })
+    } else {
+      await prisma.pendingSignup.update({
+        where: { id: pendingId },
+        data: { attemptCount: newAttempt },
+      })
+    }
     return { message: '驗證碼錯誤或已過期' }
   }
 
   // 再次確認 email 未被註冊（可能在 OTP 等待期間被別人註冊）
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
-    await prisma.pendingSignup.delete({ where: { id: pendingId } }).catch(() => {})
+    await prisma.pendingSignup.delete({ where: { id: pendingId } })
     return { message: '此 Email 已在 OTP 驗證期間被註冊' }
   }
 
   const user = await prisma.user.create({
     data: { name, email, passwordHash, role: 'PARENT' },
   })
-  // OTP 驗證通過且帳號建立完成後才刪除 pending signup
-  await prisma.pendingSignup.delete({ where: { id: pendingId } }).catch(() => {})
+  await prisma.pendingSignup.delete({ where: { id: pendingId } })
 
   // 帶入 user.tokenVersion，讓 getVerifiedSession 能比對版本實現角色變更即時失效
   await createSession({ userId: user.id, email: user.email, role: 'PARENT', tokenVersion: user.tokenVersion })
