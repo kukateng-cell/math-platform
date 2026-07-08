@@ -168,17 +168,19 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
   if (staleSessions.length > 0) {
     const now = new Date()
     await Promise.all(
-      staleSessions.map((s) =>
-        prisma.practiceSession.update({
+      staleSessions.map(async (s) => {
+        // 先算出該 session 的實際答對數（isCorrect 且非 assisted），再寫回
+        const realCorrect = await prisma.attempt.count({
+          where: { sessionId: s.id, isCorrect: true, assisted: false },
+        })
+        return prisma.practiceSession.update({
           where: { id: s.id },
           data: {
             completedAt: now,
-            correctCount: await prisma.attempt.count({
-              where: { sessionId: s.id, isCorrect: true, assisted: false },
-            }),
+            correctCount: realCorrect,
           },
         })
-      )
+      })
     )
   }
 
