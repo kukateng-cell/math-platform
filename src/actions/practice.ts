@@ -523,13 +523,20 @@ export async function submitAnswer(payload: {
       if (Array.isArray(storedQuestions) && storedQuestions[0]?.__isPromotion) {
         isPromotionTest = true
         targetGrade = storedQuestions[0].__targetGrade as string
-        // 正確率 ≥ 80%（不計 assisted）即達到升學門檻
+        // 升學及格判斷：只看「目前年級」題目（孩子已學過的內容），
+        // 下一年級預覽題（__fromGrade === targetGrade）不計入及格率，
+        // 避免孩子因為沒學過的新內容而無法升學。
         const legitAttempts = sessionAttempts.filter((a) => !a.assisted)
-        const correctCount = legitAttempts.filter((a) => a.isCorrect).length
-        const passRate = legitAttempts.length > 0
-          ? correctCount / legitAttempts.length
+        const currentGradeAttempts = legitAttempts.filter((a) => {
+          const q = storedQuestions[a.questionIndex]
+          // 沒有 __fromGrade 標記的舊 session 一律視為目前年級題（向後相容）
+          return !q?.__fromGrade || q.__fromGrade !== targetGrade
+        })
+        const currentCorrect = currentGradeAttempts.filter((a) => a.isCorrect).length
+        const passRate = currentGradeAttempts.length > 0
+          ? currentCorrect / currentGradeAttempts.length
           : 0
-
+        // 目前年級正確率 ≥ 80% 即達升學門檻（預覽題答對另外加星鼓勵）
         if (passRate >= 0.8 && targetGrade) {
           qualifyPromotion = true
           passedPromotion = true
@@ -680,7 +687,7 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
   const next = getNextGrade(child.gradeLevel)
   if (next !== targetGrade) throw new Error('年級順序錯誤')
 
-  // 升級 gradeLevel
+  // 升級 gradeLevel（這會「解鎖」下一年級的技能：accessibleGrades 會包含新年級）
   await prisma.childProfile.update({
     where: { id: childId },
     data: { gradeLevel: targetGrade },
@@ -697,8 +704,11 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
     await updateStars(childId, lastPromotionSession.correctCount)
   }
 
+  // 重新驗證快取：儀表板與練習選單都會讀到新年級
   revalidatePath('/dashboard')
-  redirect(`/practice/${childId}`)
+  revalidatePath(`/practice/${childId}`)
+  // 帶 ?promoted=G1 旗標，讓練習選單顯示「已解鎖新年級」的慶祝橫幅
+  redirect(`/practice/${childId}?promoted=${targetGrade}`)
 }
 
 // ============ 升學測試 ============
@@ -747,25 +757,37 @@ export async function startPromotionTest(childId: string) {
     throw new Error('目前年級沒有題目可供測試')
   }
 
-  // 也取得下一年級的題目（用來出「預覽題」評估真實實力）
+  // 也取得下一年級的題目（用來出「預覽題」提前適應新內容）
   const nextSkills = await prisma.skill.findMany({
     where: { gradeLevel: next, isActive: true },
     include: { questions: { where: { isActive: true } } },
   })
+  const nextTotalQuestions = nextSkills.reduce((sum, s) => sum + s.questions.length, 0)
 
   const QUESTIONS_PER_SESSION = 10
-  // 目前年級約 5 題（保留已學知識的考驗）
-  const currentGradeCount = Math.min(5, Math.floor(QUESTIONS_PER_SESSION / 2))
-  // 下一年級約 5 題（預覽題，真正有難度）
-  const nextGradeCount = Math.min(QUESTIONS_PER_SESSION - currentGradeCount,
-    nextSkills.reduce((sum, s) => sum + s.questions.length, 0))
+  // 題目比例：以「目前年級」為主（證明已學內容扎實），下一年級僅少量「預覽題」。
+  // 預覽題不計入升學及格判斷（孩子還沒學過，答錯不該懲罰）。
+  // 7 題目前年級 + 3 題下一年級預覽（若下一年級題庫不足則全用目前年級）
+  const desiredNextGradeCount = nextTotalQuestions > 0 ? 3 : 0
+  const currentGradeCount = QUESTIONS_PER_SESSION - desiredNextGradeCount
 
-  const allQuestions: { templateId: string; prompt: string; answer: string; options?: string[]; explanation?: string }[] = []
+  type SeedQuestion = {
+    templateId: string
+    prompt: string
+    answer: string
+    options?: string[]
+    explanation?: string
+    /** 標記題目來源年級，用於及格判斷（目前年級才計分） */
+    __fromGrade: string
+  }
+  const currentGradeQuestions: SeedQuestion[] = []
+  const nextGradeQuestions: SeedQuestion[] = []
 
-  // 從目前年級出題（驗證已學內容）
-  const questionsPerSkill = Math.max(1, Math.floor(currentGradeCount / skills.length))
+  // 從目前年級出題（平均分配到每個技能，先各出足夠數量再取前 N 題）
   for (const skill of skills) {
-    const templates = shuffle(skill.questions).slice(0, questionsPerSkill)
+    // 每個技能最多取 ceil(currentGradeCount / 技能數)，確保湊得到目標題數
+    const perSkill = Math.ceil(currentGradeCount / skills.length)
+    const templates = shuffle(skill.questions).slice(0, perSkill)
     for (const t of templates) {
       const q = generateQuestion({
         id: t.id,
@@ -775,45 +797,49 @@ export async function startPromotionTest(childId: string) {
         answer: t.answer,
         options: t.options,
       })
-      allQuestions.push({
+      currentGradeQuestions.push({
         templateId: q.templateId!,
         prompt: q.prompt,
         answer: q.answer,
         options: q.options,
         explanation: t.explanation ?? undefined,
+        __fromGrade: child.gradeLevel,
       })
     }
   }
 
-  // 從下一年級出題（預覽題 — 真正有難度的挑戰）
-  const nextQuestionsPerSkill = nextSkills.length > 0
-    ? Math.max(1, Math.floor(nextGradeCount / nextSkills.length))
-    : 0
-  for (const skill of nextSkills) {
-    const templates = shuffle(skill.questions).slice(0, nextQuestionsPerSkill)
-    for (const t of templates) {
-      const q = generateQuestion({
-        id: t.id,
-        type: t.type,
-        prompt: t.prompt,
-        paramsJson: t.paramsJson,
-        answer: t.answer,
-        options: t.options,
-      })
-      allQuestions.push({
-        templateId: q.templateId!,
-        prompt: q.prompt,
-        answer: q.answer,
-        options: q.options,
-        explanation: t.explanation ?? undefined,
-      })
+  // 從下一年級出題（預覽題 — 提前看看新內容，答錯不影響及格）
+  if (nextTotalQuestions > 0) {
+    for (const skill of nextSkills) {
+      const perSkill = Math.max(1, Math.ceil(desiredNextGradeCount / nextSkills.length))
+      const templates = shuffle(skill.questions).slice(0, perSkill)
+      for (const t of templates) {
+        const q = generateQuestion({
+          id: t.id,
+          type: t.type,
+          prompt: t.prompt,
+          paramsJson: t.paramsJson,
+          answer: t.answer,
+          options: t.options,
+        })
+        nextGradeQuestions.push({
+          templateId: q.templateId!,
+          prompt: q.prompt,
+          answer: q.answer,
+          options: q.options,
+          explanation: t.explanation ?? undefined,
+          __fromGrade: next,
+        })
+      }
     }
   }
 
-  // 洗牌後取 QUESTIONS_PER_SESSION 題
-  const finalQuestions = shuffle(allQuestions).slice(0, QUESTIONS_PER_SESSION)
+  // 組合：取足夠的目前年級題 + 預覽題，洗牌後恰好取 QUESTIONS_PER_SESSION 題
+  const pickedCurrent = shuffle(currentGradeQuestions).slice(0, currentGradeCount)
+  const pickedNext = shuffle(nextGradeQuestions).slice(0, desiredNextGradeCount)
+  const finalQuestions = shuffle([...pickedCurrent, ...pickedNext]).slice(0, QUESTIONS_PER_SESSION)
 
-  // 用 __isPromotion: true 標記這是升學測試
+  // 用 __isPromotion: true 標記這是升學測試；保留各題 __fromGrade 以供及格判斷
   const sessionQuestions = finalQuestions.map((q) => ({
     ...q,
     __isPromotion: true,
