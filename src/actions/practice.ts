@@ -152,6 +152,18 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
     })
   }
 
+  // 清理同一技能下「未完成」的舊 session：將它們標記為完成（completedAt），
+  // 避免使用者多次開啟同一技能卻未完成，造成「繼續練習」清單出現重複技能。
+  // 注意：僅處理一般技能 session，特殊 session（升學測試/提升練習）帶有標記，不在此清理。
+  await prisma.practiceSession.updateMany({
+    where: {
+      childId,
+      skillId,
+      completedAt: null,
+    },
+    data: { completedAt: new Date() },
+  })
+
   const practiceSession = await prisma.practiceSession.create({
     data: {
       childId,
@@ -303,15 +315,33 @@ export async function getResumeableSessions(childId: string): Promise<Resumeable
         return !firstQ?.__isPromotion && !firstQ?.__isChallenge
       } catch { return true }
     })
-    .map((s) => ({
-      sessionId: s.id,
-      skillId: s.skill.id,
-      skillName: s.skill.name,
-      totalQuestions: s.totalQuestions,
-      answeredCount: s._count.attempts,
-      remainingCount: s.totalQuestions - s._count.attempts,
-      startedAt: s.startedAt,
-    }))
+    // 同一個技能只保留「進度最多」的一筆（進度相同則取最近建立的），
+    // 避免使用者多次開啟同一技能卻未完成，造成「繼續練習」清單出現重複技能。
+    .reduce<ResumeableSession[]>((acc, s) => {
+      const item: ResumeableSession = {
+        sessionId: s.id,
+        skillId: s.skill.id,
+        skillName: s.skill.name,
+        totalQuestions: s.totalQuestions,
+        answeredCount: s._count.attempts,
+        remainingCount: s.totalQuestions - s._count.attempts,
+        startedAt: s.startedAt,
+      }
+      const existing = acc.find((x) => x.skillId === item.skillId)
+      if (!existing) {
+        acc.push(item)
+      } else {
+        // 進度較多者勝出；進度相同則取最近建立的（sessions 已依 startedAt desc 排序）
+        const betterProgress = item.answeredCount > existing.answeredCount
+        const sameProgressMoreRecent =
+          item.answeredCount === existing.answeredCount &&
+          item.startedAt.getTime() > existing.startedAt.getTime()
+        if (betterProgress || sameProgressMoreRecent) {
+          Object.assign(existing, item)
+        }
+      }
+      return acc
+    }, [])
 }
 
 export type SubmitResult = {
