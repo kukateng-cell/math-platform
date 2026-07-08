@@ -480,7 +480,28 @@ export async function submitAnswer(payload: {
   if (finished) {
     const childId = practiceSession.childId
 
-    // 平行化完成時的 DB 操作：完成時間 + 掌握度（非特殊 session）可同時進行
+    // ============ idempotency gate：用 updateMany + completedAt:null 條件式更新 ============
+    // 多題併發提交時，只有第一個請求能成功將 completedAt 從 null 設為時間戳，
+    // 後續請求的 completed.count === 0，就不會重複發放星星/streak/badge。
+    // 此 gate 必須在掌握度/遊戲化之前執行，確保冪等性。
+    const completed = await prisma.practiceSession.updateMany({
+      where: { id: payload.sessionId, completedAt: null },
+      data: { completedAt: new Date() },
+    })
+
+    if (completed.count === 0) {
+      // 已有其他併發請求完成了此 session → 不重複發獎勵
+      return {
+        correct,
+        correctAnswer,
+        finished: true,
+        sessionId: payload.sessionId,
+        explanation: q.explanation,
+        promotion: null,
+      }
+    }
+
+    // 平行化完成時的 DB 操作：掌握度（非特殊 session）可同時進行
     // 特殊 session（提升練習/升學測試）不更新掌握度
     const masteryPromise = isSpecialSession
       ? Promise.resolve()
@@ -488,10 +509,6 @@ export async function submitAnswer(payload: {
 
     const [sessionAttempts] = await Promise.all([
       prisma.attempt.findMany({ where: { sessionId: payload.sessionId } }),
-      prisma.practiceSession.update({
-        where: { id: payload.sessionId },
-        data: { completedAt: new Date() },
-      }),
       masteryPromise,
     ])
 
@@ -594,10 +611,12 @@ export async function getChildSkills(childId: string) {
   // 家長：只能看自己建立/綁定的孩子；孩子：只能看自己
   const child =
     auth.type === 'child'
-      ? await prisma.childProfile.findFirst({
-          where: { id: childId },
-          include: { masterySnapshots: { include: { skill: true } } },
-        })
+      ? auth.childId === childId
+        ? await prisma.childProfile.findFirst({
+            where: { id: childId },
+            include: { masterySnapshots: { include: { skill: true } } },
+          })
+        : null
       : await prisma.childProfile.findFirst({
           where: {
             id: childId,
@@ -687,6 +706,40 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
   const next = getNextGrade(child.gradeLevel)
   if (next !== targetGrade) throw new Error('年級順序錯誤')
 
+  // ============ 重新驗證升學測試 ============
+  // 確認孩子確實完成並通過最近一次 promotion test，防止直接呼叫繞過測試
+  const lastSession = await prisma.practiceSession.findFirst({
+    where: { childId, completedAt: { not: null } },
+    orderBy: { completedAt: 'desc' },
+    include: { attempts: true },
+  })
+  if (!lastSession) throw new Error('未完成任何練習，無法升學')
+
+  const storedQuestions: unknown[] = lastSession.questionsJson
+    ? JSON.parse(lastSession.questionsJson)
+    : []
+  if (!Array.isArray(storedQuestions) || !storedQuestions[0]) {
+    throw new Error('找不到練習記錄')
+  }
+  const firstQ = storedQuestions[0] as Record<string, unknown>
+  if (!firstQ.__isPromotion || firstQ.__targetGrade !== targetGrade) {
+    throw new Error('未通過升學測試，無法升學')
+  }
+
+  // 重算升學及格率（與 submitAnswer 邏輯一致）
+  const legitAttempts = lastSession.attempts.filter((a) => !a.assisted)
+  const currentGradeAttempts = legitAttempts.filter((a) => {
+    const q = storedQuestions[a.questionIndex] as Record<string, unknown> | undefined
+    return !q?.__fromGrade || q.__fromGrade !== targetGrade
+  })
+  const currentCorrect = currentGradeAttempts.filter((a) => a.isCorrect).length
+  const passRate = currentGradeAttempts.length > 0
+    ? currentCorrect / currentGradeAttempts.length
+    : 0
+  if (passRate < 0.8) {
+    throw new Error('升學測試未達及格標準（80%），無法升學')
+  }
+
   // 升級 gradeLevel（這會「解鎖」下一年級的技能：accessibleGrades 會包含新年級）
   await prisma.childProfile.update({
     where: { id: childId },
@@ -694,14 +747,8 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
   })
 
   // 升學確認獎勵：額外星星（與原答對星星等量，加倍鼓勵）
-  // 從最近一次完成的 promotion session 中計算星星數
-  const lastPromotionSession = await prisma.practiceSession.findFirst({
-    where: { childId, completedAt: { not: null } },
-    orderBy: { completedAt: 'desc' },
-    select: { correctCount: true },
-  })
-  if (lastPromotionSession && lastPromotionSession.correctCount > 0) {
-    await updateStars(childId, lastPromotionSession.correctCount)
+  if (lastSession.correctCount > 0) {
+    await updateStars(childId, lastSession.correctCount)
   }
 
   // 重新驗證快取：儀表板與練習選單都會讀到新年級
