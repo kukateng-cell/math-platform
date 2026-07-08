@@ -58,6 +58,10 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
+    return {
+      message: '驗證碼發送失敗，請稍後再試',
+      captcha: await createCaptcha(),
+    }
   }
 
   // 哈希密碼，暫存
@@ -185,6 +189,11 @@ export async function resendSignupOtp(state: FormState, formData: FormData): Pro
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
+    return {
+      otpRequired: true,
+      tempToken,
+      message: '驗證碼發送失敗，請稍後再試',
+    }
   }
 
   const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
