@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getVerifiedSession } from '@/lib/session'
 
@@ -37,7 +36,7 @@ export async function createSkill(state: AdminFormState, formData: FormData): Pr
     await prisma.skill.create({
       data: { code, name, description, gradeLevel, prerequisiteId },
     })
-  } catch (e) {
+  } catch {
     return { message: '建立失敗（代碼可能重複）' }
   }
   revalidatePath('/admin')

@@ -146,7 +146,7 @@ export function renderTextWithShapes(text: string, size: Size = 'md'): React.Rea
   }
 
   // 處理剩餘的裸 Unicode 符號（□○△▭）——相容舊題庫
-  let tail = lastIndex < text.length ? text.slice(lastIndex) : ''
+  const tail = lastIndex < text.length ? text.slice(lastIndex) : ''
   // 用佔位符拆分，逐段輸出
   const legacyRe = /[□○△▭]/g
   let lm: RegExpExecArray | null

@@ -8,7 +8,7 @@ import { getChildSession } from '@/lib/child-session'
 import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation, isGradeAllMastered, type Recommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
-import { getNextGrade, gradeRank } from '@/lib/grade'
+import { getNextGrade } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
 import { isAnswerCorrect } from '@/lib/answer-i18n'
 
