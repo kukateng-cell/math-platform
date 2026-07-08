@@ -155,14 +155,34 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
   // 清理同一技能下「未完成」的舊 session：將它們標記為完成（completedAt），
   // 避免使用者多次開啟同一技能卻未完成，造成「繼續練習」清單出現重複技能。
   // 注意：僅處理一般技能 session，特殊 session（升學測試/提升練習）帶有標記，不在此清理。
-  await prisma.practiceSession.updateMany({
-    where: {
-      childId,
-      skillId,
-      completedAt: null,
-    },
-    data: { completedAt: new Date() },
+  //
+  // ⚠️ 必須同時回填 correctCount：
+  // 先前只用 updateMany 設 completedAt 而未計算 correctCount，會讓「中途被強制完成」
+  // 的 session 永遠顯示 0/N（正確率 0%）。使用者明明答對了多數題目，完成頁卻顯示
+  // 全錯，造成「無論答什麼都判錯直到結束」的嚴重誤導。因此這裡先查出受影響的
+  // session，逐個計算其實際答對數，再一併寫回 completedAt 與 correctCount。
+  const staleSessions = await prisma.practiceSession.findMany({
+    where: { childId, skillId, completedAt: null },
+    select: { id: true },
   })
+  if (staleSessions.length > 0) {
+    const now = new Date()
+    await Promise.all(
+      staleSessions.map(async (s) => {
+        // 先算出該 session 的實際答對數（isCorrect 且非 assisted），再寫回
+        const realCorrect = await prisma.attempt.count({
+          where: { sessionId: s.id, isCorrect: true, assisted: false },
+        })
+        return prisma.practiceSession.update({
+          where: { id: s.id },
+          data: {
+            completedAt: now,
+            correctCount: realCorrect,
+          },
+        })
+      })
+    )
+  }
 
   const practiceSession = await prisma.practiceSession.create({
     data: {
@@ -404,11 +424,16 @@ export async function submitAnswer(payload: {
   // 安全檢查：templateId 必須存在於 QuestionTemplate 表，否則外鍵約束會噴 P2003
   const templateExists = await prisma.questionTemplate.findUnique({ where: { id: q.templateId }, select: { id: true } })
   if (!templateExists) {
+    // 題目模板已被刪除（例如管理員移除），但舊 session 快照仍保留題目內容與答案。
+    // 此情況下無法寫入 Attempt（questionId 外鍵失效），但題目本身仍可正常判分。
+    // 改為正常判分並回傳正確答案，避免使用者「明明答對卻被判錯」且看不到正確答案與提示。
+    const correct = isAnswerCorrect(payload.userAnswer, q.answer)
     return {
-      correct: false,
-      correctAnswer: '',
+      correct,
+      correctAnswer: q.answer,
       finished: false,
       sessionId: payload.sessionId,
+      explanation: q.explanation,
     }
   }
 
@@ -450,13 +475,33 @@ export async function submitAnswer(payload: {
       return answeredCount >= practiceSession.totalQuestions
     })
   } catch (e: unknown) {
-    // P2002 = unique constraint violation → 代表此題已提交過
+    // P2002 = unique constraint violation → 代表此題已提交過。
+    // 常見於多設備/多分頁同時作答，或網路重試導致同一題被提交兩次。
+    // 先前的實作回傳空白的 correctAnswer，會讓前端顯示「答錯且無正確答案」——
+    // 也就是使用者明明答對了（第一次提交已記錄為正確），第二次的空結果卻覆蓋顯示為錯，
+    // 同時也不會顯示該如何解題。這正是「明明答對卻被判錯 + 沒有錯誤提示」的原因。
+    // 修正：查詢已存在的作答紀錄，回傳真實的對錯與正確答案。
     if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'P2002') {
+      const existing = await prisma.attempt.findUnique({
+        where: { sessionId_questionIndex: { sessionId: payload.sessionId, questionIndex: payload.questionIndex } },
+        select: { isCorrect: true, correctAnswer: true },
+      })
+      if (existing) {
+        return {
+          correct: existing.isCorrect,
+          correctAnswer: existing.correctAnswer,
+          finished: practiceSession.completedAt !== null,
+          sessionId: payload.sessionId,
+          explanation: q.explanation,
+        }
+      }
+      // 理論上 P2002 必有已存在紀錄；以防萬一，用快照答案回傳，確保前端看得到正確答案
       return {
-        correct: false,
-        correctAnswer: '',
-        finished: false,
+        correct: isAnswerCorrect(payload.userAnswer, q.answer),
+        correctAnswer: q.answer,
+        finished: practiceSession.completedAt !== null,
         sessionId: payload.sessionId,
+        explanation: q.explanation,
       }
     }
     throw e

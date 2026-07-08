@@ -907,7 +907,7 @@ export default function PracticeClient({
             <p className="flex items-center justify-center gap-1.5 text-lg font-bold">
               {lastResult.correct
                 ? <><Icon name="check" className="h-5 w-5" /> 答對了！</>
-                : <><Icon name="x" className="h-5 w-5" /> 正確答案是 {displayAnswer(lastResult.correctAnswer)}</>}
+                : <><Icon name="x" className="h-5 w-5" /> 正確答案是 {displayAnswer(lastResult.correctAnswer || current.answer)}</>}
             </p>
             {lastResult.explanation && (
               <p className="mt-2 flex items-start gap-1.5 text-sm opacity-80"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{renderTextWithShapes(lastResult.explanation, 'sm')}</p>
