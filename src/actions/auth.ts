@@ -71,7 +71,7 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
 
   // 用 pending.id 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 id 取出暫存資料建立用戶
   const KEY = getSessionKey()
-  const tempToken = await new SignJWT({ email, pendingId: pendingSignup.id })
+  const tempToken = await new SignJWT({ email, pendingId: pending.id })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('10m')
