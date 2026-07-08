@@ -10,10 +10,11 @@ import { sendOtpEmail } from '@/lib/email'
 
 // ============ 驗證 ============
 // 自主學習註冊：Email + 暱稱 + 年級（免密碼，用驗證碼登入）
+// 年級範圍需與 UI（student-signup-form.tsx）及 grade.ts 的 GRADE_ORDER 一致（K~G6）
 const SelfStudySignupSchema = z.object({
   email: z.string().email('請輸入有效的 Email').trim(),
   nickname: z.string().min(1, '請輸入暱稱').max(20).trim(),
-  gradeLevel: z.enum(['K', 'G1', 'G2', 'G3', 'G4']),
+  gradeLevel: z.enum(['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6']),
 })
 
 // 自主學習登入：只需 Email（密碼由驗證碼取代）
