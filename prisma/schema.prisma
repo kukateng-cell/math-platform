@@ -257,7 +257,7 @@ model ChildBadge {
 model OtpCode {
   id         String   @id @default(cuid())
   identifier String   // 通常是 userId，忘記密碼場景也用 userId
-  code       String   // 6 位數驗證碼
+  code       String   // OTP 的 HMAC-SHA256 hash（含 identifier），不存明文
   expiresAt  DateTime // OTP 有效期限（產生後 5 分鐘）
   resentAt   DateTime // 上次發送時間（用於 60 秒冷卻判斷）
   createdAt  DateTime @default(now())
@@ -277,4 +277,20 @@ model RateLimit {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+// ============ 註冊暫存（serverless 安全替代 pendingSignups Map）============
+// 家長註冊 Step 1→Step 2 之間暫存的使用者資料。
+// 之前在記憶體 Map 中，不支援多實例且會因冷啟動而丟失。
+// identifier 存在 JWT tempToken 中，取出後以此表查詢完整資料。
+model PendingSignup {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  expiresAt    DateTime
+  attemptCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
 }

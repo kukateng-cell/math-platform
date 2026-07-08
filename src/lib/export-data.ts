@@ -174,6 +174,8 @@ function badgesTable(
 /**
  * 取得單一孩子的完整 CSV（4 個區塊：檔案 / 練習 / 作答 / 掌握度 / 徽章）。
  * 呼叫端須已確認身分可存取此 childId。
+ *
+ * 安全限制：最多匯出最近 500 筆 sessions，避免資料過多造成超時。
  */
 export async function buildChildCsv(childId: string): Promise<{ nickname: string; csv: string }> {
   const child = await prisma.childProfile.findUnique({
@@ -181,7 +183,9 @@ export async function buildChildCsv(childId: string): Promise<{ nickname: string
     include: {
       parent: { select: { email: true } },
       sessions: {
+        where: { completedAt: { not: null } },
         orderBy: { startedAt: 'desc' },
+        take: 500, // 最多匯出 500 筆
         include: { skill: { select: { name: true, gradeLevel: true } } },
       },
       masterySnapshots: {

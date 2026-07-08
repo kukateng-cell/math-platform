@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { createBadge, updateBadge } from '@/actions/admin'
 import BadgeForm from './badge-form'
 import DeleteBadgeButton from './delete-badge-button'
 

@@ -11,8 +11,9 @@ const RESEND_COOLDOWN_MS = 60 * 1000  // 60 秒冷卻
 // ============ OTP code 雜湊 ============
 // OTP 明文只在產生時短暫存在於記憶體中用來寄信；存入 DB 與記憶體備援
 // 一律存 HMAC-SHA256(hex)。即使 DB 外洩，攻擊者也無法直接看到驗證碼。
-function hashOtp(code: string): string {
-  return createHmac('sha256', KEY).update(code).digest('hex')
+function hashOtp(identifier: string, code: string): string {
+  // 加入 identifier 避免同一 OTP 在不同帳號下 hash 相同
+  return createHmac('sha256', KEY).update(`${identifier}:${code}`).digest('hex')
 }
 
 // ============ OTP 驗證碼（優先使用 DB，降級至記憶體）============
@@ -49,7 +50,7 @@ export async function generateOtp(identifier: string): Promise<string> {
       await prisma.otpCode.create({
         data: {
           identifier,
-          code: hashOtp(code),  // 存 HMAC 雜湊，不存明文
+          code: hashOtp(identifier, code),  // 存 HMAC 雜湊，不存明文
           expiresAt: new Date(now.getTime() + OTP_EXPIRY_MS),
           resentAt: now,
         },
@@ -64,7 +65,7 @@ export async function generateOtp(identifier: string): Promise<string> {
   }
 
   // 記憶體備援
-  memoryOtpStore.set(identifier, { codeHash: hashOtp(code), expiresAt: Date.now() + OTP_EXPIRY_MS, resentAt: Date.now() })
+  memoryOtpStore.set(identifier, { codeHash: hashOtp(identifier, code), expiresAt: Date.now() + OTP_EXPIRY_MS, resentAt: Date.now() })
   return code
 }
 
@@ -128,7 +129,7 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
         return false
       }
       // 常數時間比較，避免 timing 攻擊
-      const candidate = hashOtp(code.trim())
+      const candidate = hashOtp(identifier, code.trim())
       if (candidate !== entry.code) return false
       await prisma.otpCode.delete({ where: { id: entry.id } }) // 一次性使用
       return true
@@ -145,7 +146,7 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
     memoryOtpStore.delete(identifier)
     return false
   }
-  const candidate = hashOtp(code.trim())
+  const candidate = hashOtp(identifier, code.trim())
   if (candidate !== entry.codeHash) return false
   memoryOtpStore.delete(identifier) // 一次性使用
   return true

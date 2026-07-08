@@ -1,9 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getVerifiedSession } from '@/lib/session'
+import { accessibleGrades } from '@/lib/grade'
+import { QuestionParamsSchema } from '@/lib/definitions'
 
 // 管理員授權檢查（每個 action 都要先驗）
 // 使用 getVerifiedSession() 查 DB 確認 role 和 tokenVersion，
@@ -37,7 +38,7 @@ export async function createSkill(state: AdminFormState, formData: FormData): Pr
     await prisma.skill.create({
       data: { code, name, description, gradeLevel, prerequisiteId },
     })
-  } catch (e) {
+  } catch {
     return { message: '建立失敗（代碼可能重複）' }
   }
   revalidatePath('/admin')
@@ -73,13 +74,13 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   let mergedParamsJson: string | null = paramsJsonRaw || null
   if (type === 'ADD' || type === 'SUB' || type === 'MUL' || type === 'DIV' || type === 'WORD_PROBLEM') {
     if (!paramsJsonRaw) {
-      return { message: '參數化題型（ADD/SUB）必須填寫參數 JSON' }
+      return { message: '參數化題型必須填寫參數 JSON' }
     }
     try {
       const parsed = JSON.parse(paramsJsonRaw)
-      if (typeof parsed.aMin !== 'number' || typeof parsed.aMax !== 'number' ||
-          typeof parsed.bMin !== 'number' || typeof parsed.bMax !== 'number') {
-        return { message: '參數 JSON 需包含 aMin, aMax, bMin, bMax 數字欄位' }
+      const result = QuestionParamsSchema.safeParse(parsed)
+      if (!result.success) {
+        return { message: `參數驗證失敗：${result.error.errors.map((e) => e.message).join('；')}` }
       }
     } catch {
       return { message: '參數 JSON 格式無效，請檢查語法' }
@@ -185,7 +186,20 @@ export async function deleteSkill(formData: FormData) {
     throw new Error(`無法刪除：以下技能以此為前置技能 — ${dependents.map((d) => d.name).join('、')}`)
   }
 
-  await prisma.skill.delete({ where: { id } })
+  // 檢查是否有歷史資料（session / question / mastery）
+  const [sessionCount, questionCount, masteryCount] = await Promise.all([
+    prisma.practiceSession.count({ where: { skillId: id } }),
+    prisma.questionTemplate.count({ where: { skillId: id } }),
+    prisma.masterySnapshot.count({ where: { skillId: id } }),
+  ])
+
+  if (sessionCount > 0 || questionCount > 0 || masteryCount > 0) {
+    // 已有歷史資料 → 只允許停用，保留關聯資料
+    await prisma.skill.update({ where: { id }, data: { isActive: false } })
+  } else {
+    // 完全未使用 → 可安全刪除
+    await prisma.skill.delete({ where: { id } })
+  }
   revalidatePath('/admin')
   revalidatePath('/admin/skills')
 }
@@ -198,9 +212,9 @@ export async function moveSkillUp(formData: FormData) {
   const skill = await prisma.skill.findUnique({ where: { id } })
   if (!skill) return
 
-  // 找上一個（order 小於當前且最接近的）
+  // 找上一個（同年級內 order 小於當前且最接近的）
   const prev = await prisma.skill.findFirst({
-    where: { order: { lt: skill.order } },
+    where: { gradeLevel: skill.gradeLevel, order: { lt: skill.order } },
     orderBy: { order: 'desc' },
   })
   if (!prev) return
@@ -219,9 +233,9 @@ export async function moveSkillDown(formData: FormData) {
   const skill = await prisma.skill.findUnique({ where: { id } })
   if (!skill) return
 
-  // 找下一個（order 大於當前且最接近的）
+  // 找下一個（同年級內 order 大於當前且最接近的）
   const next = await prisma.skill.findFirst({
-    where: { order: { gt: skill.order } },
+    where: { gradeLevel: skill.gradeLevel, order: { gt: skill.order } },
     orderBy: { order: 'asc' },
   })
   if (!next) return
@@ -256,13 +270,13 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
   let mergedParamsJson: string | null = paramsJson
   if (existing.type === 'ADD' || existing.type === 'SUB' || existing.type === 'MUL' || existing.type === 'DIV' || existing.type === 'WORD_PROBLEM') {
     if (!paramsJson) {
-      return { message: '參數化題型（ADD/SUB）必須填寫參數 JSON' }
+      return { message: '參數化題型必須填寫參數 JSON' }
     }
     try {
       const parsed = JSON.parse(paramsJson)
-      if (typeof parsed.aMin !== 'number' || typeof parsed.aMax !== 'number' ||
-          typeof parsed.bMin !== 'number' || typeof parsed.bMax !== 'number') {
-        return { message: '參數 JSON 需包含 aMin, aMax, bMin, bMax 數字欄位' }
+      const result = QuestionParamsSchema.safeParse(parsed)
+      if (!result.success) {
+        return { message: `參數驗證失敗：${result.error.errors.map((e) => e.message).join('；')}` }
       }
     } catch {
       return { message: '參數 JSON 格式無效，請檢查語法' }
@@ -299,8 +313,8 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
 }
 
 // ============ 題目刪除 ============
-// 採用方案 A：刪除題目前先將關聯 Attempt 的 questionId 設為 null
-// 若不想實作 migration，可改用方案 B 僅停用
+// 若有關聯作答，僅停用（isActive = false）以保護歷史資料；
+// 完全無關聯資料時才 hard delete。
 export async function deleteQuestion(formData: FormData) {
   await requireAdmin()
   const id = String(formData.get('id'))
@@ -411,7 +425,6 @@ export async function deleteBadge(formData: FormData) {
 // - 歸屬家長暱稱（若有）
 export async function getAllChildrenStats() {
   await requireAdmin()
-  const totalSkills = await prisma.skill.count({ where: { isActive: true } })
 
   const children = await prisma.childProfile.findMany({
     orderBy: { createdAt: 'desc' },
@@ -434,7 +447,18 @@ export async function getAllChildrenStats() {
     },
   })
 
+  // 預查所有年級的有效技能數（供各孩子計算可觸及技能數）
+  const skillsByGrade = await prisma.skill.groupBy({
+    by: ['gradeLevel'],
+    where: { isActive: true },
+    _count: { id: true },
+  })
+  const skillsCountByGrade = new Map(skillsByGrade.map((s) => [s.gradeLevel, s._count.id]))
+
   return children.map((c) => {
+    // 按孩子 gradeLevel 計算可觸及的技能數（與 Dashboard 一致）
+    const grades = accessibleGrades(c.gradeLevel)
+    const totalSkills = grades.reduce((sum, g) => sum + (skillsCountByGrade.get(g) ?? 0), 0)
     const practicedSkills = c.masterySnapshots.filter((m) => m.recentTotal > 0).length
     const masteredSkills = c.masterySnapshots.filter(
       (m) => m.recentTotal > 0 && m.masteryLevel >= 0.95

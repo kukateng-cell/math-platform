@@ -8,7 +8,7 @@ import { getChildSession } from '@/lib/child-session'
 import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation, isGradeAllMastered, type Recommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
-import { getNextGrade, gradeRank } from '@/lib/grade'
+import { getNextGrade } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
 import { isAnswerCorrect } from '@/lib/answer-i18n'
 
@@ -525,18 +525,32 @@ export async function submitAnswer(payload: {
   if (finished) {
     const childId = practiceSession.childId
 
-    // 平行化完成時的 DB 操作：完成時間 + 掌握度（非特殊 session）可同時進行
-    // 特殊 session（提升練習/升學測試）不更新掌握度
+    // ============ Idempotency Gate：只有第一個完成請求能進入獎勵流程 ============
+    // 當第 9 題和第 10 題接近同時提交時，兩個請求都可能 count 到 >= totalQuestions
+    // 若不加閘，兩者都會進入 finished 區塊，導致星星 / streak / badges 重複發放。
+    // 解法：用 updateMany 條件式更新 completedAt（只有 currently null 才會寫入），
+    // 第二個請求的 completed.count === 0，直接跳過獎勵流程。
+    const completed = await prisma.practiceSession.updateMany({
+      where: { id: payload.sessionId, completedAt: null },
+      data: { completedAt: new Date() },
+    })
+    if (completed.count === 0) {
+      return {
+        correct,
+        correctAnswer,
+        finished: true,
+        sessionId: payload.sessionId,
+        explanation: q.explanation,
+      }
+    }
+
+    // 平行化掌握度更新（特殊 session 不更新掌握度）
     const masteryPromise = isSpecialSession
       ? Promise.resolve()
       : updateMastery(payload.sessionId)
 
     const [sessionAttempts] = await Promise.all([
       prisma.attempt.findMany({ where: { sessionId: payload.sessionId } }),
-      prisma.practiceSession.update({
-        where: { id: payload.sessionId },
-        data: { completedAt: new Date() },
-      }),
       masteryPromise,
     ])
 
@@ -639,10 +653,12 @@ export async function getChildSkills(childId: string) {
   // 家長：只能看自己建立/綁定的孩子；孩子：只能看自己
   const child =
     auth.type === 'child'
-      ? await prisma.childProfile.findFirst({
-          where: { id: childId },
-          include: { masterySnapshots: { include: { skill: true } } },
-        })
+      ? auth.childId !== childId
+        ? null
+        : await prisma.childProfile.findFirst({
+            where: { id: childId },
+            include: { masterySnapshots: { include: { skill: true } } },
+          })
       : await prisma.childProfile.findFirst({
           where: {
             id: childId,
@@ -731,6 +747,41 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
   // 確保目標年級確實是下一年級（防止篡改 targetGrade）
   const next = getNextGrade(child.gradeLevel)
   if (next !== targetGrade) throw new Error('年級順序錯誤')
+
+  // ============ 重新驗證：確實通過升學測試 ============
+  // 查出最近一次完成的 session，確認是升學測試且達到及格標準
+  const lastSession = await prisma.practiceSession.findFirst({
+    where: { childId, completedAt: { not: null } },
+    orderBy: { completedAt: 'desc' },
+    include: { attempts: true },
+  })
+  if (!lastSession) throw new Error('未完成任何練習，無法升學')
+
+  const sessionQuestions: unknown[] = lastSession.questionsJson
+    ? JSON.parse(lastSession.questionsJson)
+    : []
+  const firstQ = Array.isArray(sessionQuestions) ? sessionQuestions[0] : null
+  if (!firstQ || !(firstQ as Record<string, unknown>).__isPromotion) {
+    throw new Error('最近一次完成的練習不是升學測試，無法升學')
+  }
+  if ((firstQ as Record<string, unknown>).__targetGrade !== targetGrade) {
+    throw new Error('升學測試目標年級不符')
+  }
+
+  // 重新計算目前年級正確率（與 submitAnswer 內邏輯一致）
+  const legitAttempts = lastSession.attempts.filter((a) => !a.assisted)
+  const currentGradeAttempts = legitAttempts.filter((a) => {
+    const q = Array.isArray(sessionQuestions) ? sessionQuestions[a.questionIndex] : null
+    return !(q as Record<string, unknown>)?.__fromGrade ||
+      (q as Record<string, unknown>).__fromGrade !== targetGrade
+  })
+  const currentCorrect = currentGradeAttempts.filter((a) => a.isCorrect).length
+  const passRate = currentGradeAttempts.length > 0
+    ? currentCorrect / currentGradeAttempts.length
+    : 0
+  if (passRate < 0.8) {
+    throw new Error(`目前年級正確率 ${Math.round(passRate * 100)}% 未達 80%，無法升學`)
+  }
 
   // 升級 gradeLevel（這會「解鎖」下一年級的技能：accessibleGrades 會包含新年級）
   await prisma.childProfile.update({
@@ -891,12 +942,17 @@ export async function startPromotionTest(childId: string) {
     __targetGrade: next,
   }))
 
+  // 實際題數可能會少於 QUESTIONS_PER_SESSION（題庫不足時），
+  // 以實際數量寫入 totalQuestions，避免學生做完所有題目後仍無法完成 session
+  const actualTotal = sessionQuestions.length
+  if (actualTotal === 0) throw new Error('沒有可用題目')
+
   const practiceSession = await prisma.practiceSession.create({
     data: {
       childId,
       skillId: skills[0].id, // 用第一個技能存關聯
       parentId: auth.type === 'parent' ? auth.userId : child.parentId,
-      totalQuestions: QUESTIONS_PER_SESSION,
+      totalQuestions: actualTotal,
       questionsJson: JSON.stringify(sessionQuestions),
     },
   })
@@ -977,12 +1033,15 @@ export async function startChallengePractice(childId: string) {
     }
   })
 
+  // 實際題數可能少於 CHALLENGE_QUESTIONS_PER_SESSION
+  const actualTotal = generated.length
+
   const practiceSession = await prisma.practiceSession.create({
     data: {
       childId,
       skillId: firstSkill.id,
       parentId: auth.type === 'parent' ? auth.userId : child.parentId,
-      totalQuestions: CHALLENGE_QUESTIONS_PER_SESSION,
+      totalQuestions: actualTotal,
       questionsJson: JSON.stringify(generated),
     },
   })
@@ -998,13 +1057,12 @@ export async function cancelSession(sessionId: string) {
 
   const practiceSession = await prisma.practiceSession.findUnique({
     where: { id: sessionId },
-    select: { childId: true, parentId: true },
+    select: { childId: true },
   })
   if (!practiceSession) throw new Error('練習不存在')
 
-  // 驗證權限
-  if (auth.type === 'child' && auth.childId !== practiceSession.childId) throw new Error('無權存取')
-  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) throw new Error('無權存取')
+  // 使用 canAccessChild 統一驗證（支援 linked parent、self-study child 等場景）
+  if (!(await canAccessChild(practiceSession.childId))) throw new Error('無權存取')
 
   // 只取消未完成的練習
   await prisma.practiceSession.updateMany({

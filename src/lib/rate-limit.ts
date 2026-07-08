@@ -82,13 +82,13 @@ async function dbConsumeRateLimit(
     return { allowed: true, remaining: max - 1, resetAt }
   }
 
-  const newCount = existing.count + 1
-  const allowed = newCount <= max
-  await prisma.rateLimit.update({
+  // 使用原子 increment 避免併發時低估嘗試次數
+  const updated = await prisma.rateLimit.update({
     where: { key },
-    data: { count: newCount },
+    data: { count: { increment: 1 } },
   })
-  return { allowed, remaining: Math.max(0, max - newCount), resetAt: existing.resetAt }
+  const allowed = updated.count <= max
+  return { allowed, remaining: Math.max(0, max - updated.count), resetAt: updated.resetAt }
 }
 
 function memoryConsumeRateLimit(
