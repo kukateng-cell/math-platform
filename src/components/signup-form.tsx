@@ -23,6 +23,7 @@ export default function SignupForm({ initialCaptcha }: Props) {
 
   useEffect(() => {
     if (isOtpMode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCountdown(60)
       timerRef.current = setInterval(() => {
         setCountdown((prev) => { if (prev <= 1) { clearInterval(timerRef.current!); return 0 }; return prev - 1 })
@@ -33,6 +34,7 @@ export default function SignupForm({ initialCaptcha }: Props) {
 
   useEffect(() => {
     if (resendState?.otpRequired) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCountdown(60)
       if (timerRef.current) clearInterval(timerRef.current)
       timerRef.current = setInterval(() => {
