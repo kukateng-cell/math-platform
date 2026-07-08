@@ -133,7 +133,8 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
   })
   pendingSignups.delete(pendingKey)
 
-  await createSession({ userId: user.id, email: user.email, role: 'PARENT' })
+  // 帶入 user.tokenVersion，讓 getVerifiedSession 能比對版本實現角色變更即時失效
+  await createSession({ userId: user.id, email: user.email, role: 'PARENT', tokenVersion: user.tokenVersion })
   redirect('/dashboard')
 }
 
@@ -249,7 +250,8 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) return { message: '使用者不存在' }
 
-  await createSession({ userId: user.id, email: user.email, role: user.role })
+  // 帶入 user.tokenVersion，讓 getVerifiedSession 能比對版本實現角色變更即時失效
+  await createSession({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
   redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')
 }
 

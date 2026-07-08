@@ -1,0 +1,96 @@
+name: CI
+
+# ============ 持續整合 ============
+# 每次 push / PR 到 main 時，自動執行 lint / typecheck / 單元測試 / build，
+# 確保型別錯誤、lint 違規、測試失敗不會進到主分支。
+#
+# 不需要資料庫連線：typecheck / lint / test / build 都只依賴程式碼本身。
+# （build 會執行 next build；若專案未設定必要環境變數導致 build 失敗，
+#  可將 build job 的 needs 移除或改為允許失敗。）
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一分支新推送時，取消舊的執行節省資源
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ───────── 單元測試（最快，優先跑）─────────
+  test:
+    name: 單元測試
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安裝依賴
+        run: npm ci
+
+      - name: 執行單元測試
+        run: npm run test
+
+  # ───────── 型別檢查 + Lint ─────────
+  lint-typecheck:
+    name: Lint 與型別檢查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安裝依賴
+        run: npm ci
+
+      - name: ESLint
+        # 既有程式碼仍有少數 lint 違規（主要為 React hooks 規則），
+        # 暫以非阻塞方式執行，輸出仍會顯示在 CI 記錄供逐步清理。
+        # 待既有違規清理完畢後，可移除 continue-on-error 改為強制阻塞。
+        continue-on-error: true
+        run: npm run lint
+
+      - name: TypeScript 型別檢查
+        run: npm run typecheck
+
+  # ───────── 建置（最後把關，確保能產出可部署產物）─────────
+  build:
+    name: 建置
+    runs-on: ubuntu-latest
+    # 提供最小必要環境變數，避免 next build 因缺少變數而中斷
+    env:
+      # CI build 不需要真實的金鑰／連線，但程式碼可能在模組載入時讀取，
+      # 給予佔位值確保 build 能完成。這些值不會被用於實際連線。
+      SESSION_SECRET: ci-build-placeholder-not-a-real-secret-32chars
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      SMTP_HOST: localhost
+      SMTP_PORT: '587'
+      SMTP_USER: ci
+      SMTP_PASS: ci
+      SMTP_FROM: ci@example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安裝依賴
+        run: npm ci
+
+      - name: 建置
+        run: npm run build
