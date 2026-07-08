@@ -2,6 +2,7 @@ import 'server-only'
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+import { getSessionKey } from '@/lib/secret'
 
 // session payload
 export type SessionPayload = {
@@ -13,25 +14,23 @@ export type SessionPayload = {
 }
 
 const COOKIE_NAME = 'math-session'
-const secretKey = process.env.SESSION_SECRET
-if (!secretKey) {
-  throw new Error('SESSION_SECRET is not set. Add it to .env (use: openssl rand -base64 32)')
-}
-const encodedKey = new TextEncoder().encode(secretKey)
 
 // 加密產生 JWT
+// 簽章金鑰由 getSessionKey()（@/lib/secret）統一管理並帶 fail-fast 檢查，
+// 此處不再於模組頂層拋錯，避免 SESSION_SECRET 未設定時整個應用啟動即崩潰，
+// 無法提供任何頁面（連登入頁都打不開）。改為呼叫時才檢查，做到優雅降級。
 export async function encrypt(payload: SessionPayload) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(encodedKey)
+    .sign(getSessionKey())
 }
 
 // 解密驗證 JWT
 export async function decrypt(token: string | undefined = ''): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, encodedKey, {
+    const { payload } = await jwtVerify(token, getSessionKey(), {
       algorithms: ['HS256'],
     })
     return payload as unknown as SessionPayload
