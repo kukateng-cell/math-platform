@@ -1,8 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
-
-const SECRET = process.env.SESSION_SECRET || 'fallback-secret'
-const KEY = new TextEncoder().encode(SECRET)
+import { getSessionKey } from '@/lib/secret'
 
 const CHILD_COOKIE = 'math-child'
 
@@ -18,7 +16,7 @@ export async function createChildSession(payload: ChildSessionPayload) {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('2h') // 孩子練習 session 2 小時過期
-    .sign(KEY)
+    .sign(getSessionKey())
 
   const cookieStore = await cookies()
   cookieStore.set(CHILD_COOKIE, token, {
@@ -36,7 +34,7 @@ export async function getChildSession(): Promise<ChildSessionPayload | null> {
   const token = cookieStore.get(CHILD_COOKIE)?.value
   if (!token) return null
   try {
-    const { payload } = await jwtVerify(token, KEY, { algorithms: ['HS256'] })
+    const { payload } = await jwtVerify(token, getSessionKey(), { algorithms: ['HS256'] })
     return payload as unknown as ChildSessionPayload
   } catch {
     return null

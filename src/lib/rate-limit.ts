@@ -22,6 +22,9 @@ async function isDbAvailable(): Promise<boolean> {
     await prisma.rateLimit.findFirst()
     dbAvailable = true
   } catch {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[RateLimit] DB table not available in production')
+    }
     console.warn('[RateLimit] DB table not available, falling back to in-memory')
     dbAvailable = false
   }
@@ -49,11 +52,14 @@ export async function consumeRateLimit(
     try {
       return await dbConsumeRateLimit(key, max, windowMs)
     } catch {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[RateLimit] DB operation failed in production')
+      }
       dbAvailable = null // 下次重試
     }
   }
 
-  // 記憶體備援
+  // 記憶體備援（僅開發模式）
   return memoryConsumeRateLimit(key, max, windowMs)
 }
 
@@ -108,7 +114,11 @@ export async function cleanupExpiredRateLimits(): Promise<void> {
   if (await isDbAvailable()) {
     try {
       await prisma.rateLimit.deleteMany({ where: { resetAt: { lt: new Date() } } })
-    } catch { /* ignore */ }
+    } catch {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[RateLimit] DB cleanup failed in production')
+      }
+    }
   }
   const now = Date.now()
   for (const [key, entry] of memoryStore) {
