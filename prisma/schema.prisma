@@ -295,19 +295,3 @@ model RateLimit {
 
   @@index([resetAt])
 }
-
-// ============ 註冊暫存（serverless 安全替代 pendingSignups Map）============
-// 家長註冊 Step 1→Step 2 之間暫存的使用者資料。
-// 之前在記憶體 Map 中，不支援多實例且會因冷啟動而丟失。
-// identifier 存在 JWT tempToken 中，取出後以此表查詢完整資料。
-model PendingSignup {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  expiresAt    DateTime
-  attemptCount Int      @default(0)
-  createdAt    DateTime @default(now())
-
-  @@index([expiresAt])
-}
