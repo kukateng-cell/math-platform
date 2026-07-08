@@ -44,10 +44,10 @@ export async function sendOtpEmail(
   const t = getTransporter()
 
   if (!t) {
-    // 無 SMTP 設定 → 開發模式：只輸出到 console。
-    // 視為「成功」：驗證碼已產出且可從 console 取得，dev 流程可繼續；
-    // 這樣呼叫端只有在「真正 SMTP 寄送失敗」時才會收到 success:false，
-    // 才能正確把錯誤回給前端（避免謊稱「驗證碼已發送」）。
+    if (process.env.NODE_ENV === 'production') {
+      return { success: false, error: 'SMTP 未設定，無法寄送驗證碼' }
+    }
+    // 開發模式：只輸出到 console，視為成功讓開發流程可繼續
     console.log(`[DEV EMAIL] To: ${to} | OTP: ${otpCode}`)
     return { success: true }
   }
@@ -89,6 +89,9 @@ export async function sendLinkRequestEmail(
 ): Promise<{ success: boolean; error?: string }> {
   const t = getTransporter()
   if (!t) {
+    if (process.env.NODE_ENV === 'production') {
+      return { success: false, error: 'SMTP 未設定，無法寄送通知信' }
+    }
     console.log(`[DEV EMAIL] To: ${to} | 學生「${childNickname}」送出綁定請求`)
     return { success: true }
   }

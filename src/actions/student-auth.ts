@@ -104,7 +104,7 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
   const signupIntent = await verifySignupToken(tempToken)
   if (signupIntent) {
     // 註冊路徑：OTP 以 email 為金鑰
-    if (!verifyOtp(signupIntent.email, otpCode)) {
+    if (!(await verifyOtp(signupIntent.email, otpCode))) {
       return { tempToken, error: '驗證碼錯誤或已過期' }
     }
     // 再次確認 email 未被佔用（避免競態：發信後、驗證前被人註冊）
@@ -195,8 +195,8 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
   // 先嘗試視為「註冊」token（OTP 以 email 為金鑰）
   const signupIntent = await verifySignupToken(tempToken)
   if (signupIntent) {
-    if (!canResendOtp(signupIntent.email)) {
-      const cooldown = getResendCooldownSeconds(signupIntent.email)
+    if (!(await canResendOtp(signupIntent.email))) {
+      const cooldown = await getResendCooldownSeconds(signupIntent.email)
       return { otpRequired: true, tempToken, message: `請 ${cooldown} 秒後再重新發送` }
     }
     const otpCode = await generateOtp(signupIntent.email)
