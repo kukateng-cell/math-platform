@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { startSession } from '@/actions/practice'
+import { startSession, hasIncompleteSession } from '@/actions/practice'
 import { gradeRank } from '@/lib/grade'
 import { Icon, type IconName } from './icon'
 
@@ -173,6 +173,36 @@ function SkillRow({
 }) {
   const rate =
     skill.recentTotal > 0 ? Math.round(skill.masteryLevel * 100) : null
+  const [confirming, setConfirming] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  async function handleStart() {
+    if (loading) return
+    setLoading(true)
+    try {
+      // 先檢查是否有未完成的舊 session
+      const hasStale = await hasIncompleteSession(childId, skill.id)
+      if (hasStale) {
+        setConfirming(true)
+        setLoading(false)
+        return
+      }
+      // 沒有舊 session → 直接開始
+      await startSession(childId, skill.id)
+    } catch {
+      setLoading(false)
+    }
+  }
+
+  async function handleConfirm() {
+    setLoading(true)
+    try {
+      await startSession(childId, skill.id)
+    } catch {
+      setLoading(false)
+      setConfirming(false)
+    }
+  }
 
   return (
     <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
@@ -197,18 +227,54 @@ function SkillRow({
         )}
       </div>
       {skill.questionCount > 0 ? (
-        <form action={startSession.bind(null, childId, skill.id)}>
-          <button
-            type="submit"
-            className="ml-3 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-          >
-            練習
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={handleStart}
+          disabled={loading}
+          className="ml-3 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? '處理中…' : '練習'}
+        </button>
       ) : (
         <span className="ml-3 shrink-0 text-sm text-neutral-400 dark:text-gray-500">
           無題目
         </span>
+      )}
+
+      {/* 確認結束舊練習的對話框 */}
+      {confirming && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirming(false)
+          }}
+        >
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl dark:bg-gray-900">
+            <div className="mb-2 flex justify-center text-amber-500"><Icon name="help-circle" className="h-10 w-10" /></div>
+            <h3 className="mb-1 text-center text-lg font-semibold dark:text-white">偵測到進行中的練習</h3>
+            <p className="mb-4 text-center text-sm text-neutral-500 dark:text-gray-400">
+              這個練習已有未完成的記錄，開始新練習將會結束它。<br />
+              要繼續嗎？
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={loading}
+                className="rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+              >
+                {loading ? '處理中…' : '確定，開始新練習'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="rounded-lg border border-neutral-300 px-4 py-2.5 text-center text-sm font-medium transition hover:bg-neutral-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-800"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

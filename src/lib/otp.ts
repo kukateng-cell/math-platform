@@ -1,9 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { createHmac } from 'crypto'
-import { getSessionKey } from '@/lib/secret'
+import { getOtpKey } from '@/lib/secret'
 import { prisma } from '@/lib/prisma'
 
-const KEY = getSessionKey()
+const KEY = getOtpKey()
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000  // 5 分鐘
 const RESEND_COOLDOWN_MS = 60 * 1000  // 60 秒冷卻

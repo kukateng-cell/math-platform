@@ -157,10 +157,6 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
   // 注意：僅處理一般技能 session，特殊 session（升學測試/提升練習）帶有標記，不在此清理。
   //
   // ⚠️ 必須同時回填 correctCount：
-  // 先前只用 updateMany 設 completedAt 而未計算 correctCount，會讓「中途被強制完成」
-  // 的 session 永遠顯示 0/N（正確率 0%）。使用者明明答對了多數題目，完成頁卻顯示
-  // 全錯，造成「無論答什麼都判錯直到結束」的嚴重誤導。因此這裡先查出受影響的
-  // session，逐個計算其實際答對數，再一併寫回 completedAt 與 correctCount。
   const staleSessions = await prisma.practiceSession.findMany({
     where: { childId, skillId, completedAt: null },
     select: { id: true },
@@ -362,6 +358,19 @@ export async function getResumeableSessions(childId: string): Promise<Resumeable
       }
       return acc
     }, [])
+}
+
+// 檢查指定技能是否有未完成的舊 session（供前端顯示確認對話框用）
+// 避免使用者沒注意到「已有進行中的練習」就直接被強制結束。
+export async function hasIncompleteSession(childId: string, skillId: string): Promise<boolean> {
+  const auth = await getPracticeAuth()
+  if (!auth) return false
+  if (!(await canAccessChild(childId))) return false
+
+  const count = await prisma.practiceSession.count({
+    where: { childId, skillId, completedAt: null },
+  })
+  return count > 0
 }
 
 export type SubmitResult = {

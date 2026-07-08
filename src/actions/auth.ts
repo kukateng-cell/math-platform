@@ -23,7 +23,7 @@ export async function refreshCaptchaAction(
   return createCaptcha()
 }
 
-// PendingSignup 暫存天數（超過此天數的記錄在查詢時自動忽略）
+// PendingSignup 暫存時間（超過此時間的記錄在查詢時自動忽略）
 const PENDING_SIGNUP_TTL_MINUTES = 10
 const PENDING_SIGNUP_MAX_ATTEMPTS = 5
 
@@ -122,12 +122,18 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
     where: { id: pendingId, expiresAt: { gt: new Date() } },
   })
   if (!pending) return { message: '驗證已過期，請重新註冊' }
-  const { name, passwordHash } = pending
+  const { name, passwordHash, attemptCount } = pending
+
+  // 檢查嘗試次數（防 OTP 暴力破解）
+  if (attemptCount >= PENDING_SIGNUP_MAX_ATTEMPTS) {
+    await prisma.pendingSignup.delete({ where: { id: pendingId } })
+    return { message: '驗證碼錯誤次數過多，請重新註冊' }
+  }
 
   // 驗證 OTP（用 email 作 identifier）
   if (!(await verifyOtp(email, otpCode))) {
     // 累計嘗試次數，超過上限才刪除（避免單次錯誤即遺失資料）
-    const newAttempt = pending.attemptCount + 1
+    const newAttempt = attemptCount + 1
     if (newAttempt >= PENDING_SIGNUP_MAX_ATTEMPTS) {
       await prisma.pendingSignup.delete({ where: { id: pendingId } })
     } else {
@@ -239,7 +245,7 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   }
 
   // 只有管理員在開發模式時才直接顯示 OTP（家長一律不顯示）
-  const showOtp = (process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true') && user.role === 'ADMIN'
+  const showOtp = process.env.NODE_ENV === 'development' && user.role === 'ADMIN'
   const devOtp = showOtp ? otpCode : undefined
 
   const tempToken = await createTempToken(user.id)
@@ -320,7 +326,7 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
 
   // 只有管理員在開發模式時才直接顯示 OTP
   const isAdmin = user?.role === 'ADMIN'
-  const showOtp = (process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true') && isAdmin
+  const showOtp = process.env.NODE_ENV === 'development' && isAdmin
   const devOtp = showOtp ? otpCode : undefined
 
   return {
