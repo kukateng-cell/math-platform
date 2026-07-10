@@ -2,30 +2,17 @@ import 'dotenv/config'
 import { PrismaClient } from '../src/generated/prisma/client.js'
 import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
-async function main() {
-  console.log('🌱 Seeding...')
-
-  // ============ 管理員帳號 ============
-  // 安全：不再使用寫死的弱密碼（admin123）帶到正式環境。
-  //   - 開發環境：未設定 ADMIN_PASSWORD 時，沿用方便的 admin123。
-  //   - 正式環境：必須設定 ADMIN_PASSWORD；否則自動產生一次性隨機密碼並印出，
-  //     且明確拒絕 admin123 / 過短密碼。
-  //   - update: {} 表示已存在的管理員「不會」被重新設密碼（避免覆蓋已改過的密碼）。
-  const isProd = process.env.NODE_ENV === 'production'
-  const envAdminPassword = process.env.ADMIN_PASSWORD?.trim()
-
-  function randomPassword(bytes = 18): string {
-    // crypto.random 轉 base64url，去掉易混淆字元
-    const { randomBytes } = await import('crypto')
-    return randomBytes(bytes)
-      .toString('base64url')
-      .replace(/[Il1O0]/g, 'x')
-      .slice(0, 24)
-  }
+function randomPassword(bytes = 18): string {
+  return randomBytes(bytes)
+    .toString('base64url')
+    .replace(/[Il1O0]/g, 'x')
+    .slice(0, 24)
+}
 
   let adminPassword: string
   if (envAdminPassword && envAdminPassword.length >= 8 && envAdminPassword !== 'admin123') {
@@ -662,13 +649,26 @@ async function main() {
   })
 
   // ============ 題目模板 ============
-  // 必須按外鍵依賴順序清除，避免 SQLite 外鍵約束錯誤
-  await prisma.attempt.deleteMany({})
-  await prisma.practiceSession.deleteMany({})
-  await prisma.masterySnapshot.deleteMany({})
-  await prisma.questionTemplate.deleteMany({})
+  // ⚠️ 安全保護：非破壞模式（預設）不會刪除既有學習資料（作答、session、掌握度）。
+  // 僅在 ALLOW_DESTRUCTIVE_SEED=true 環境變數下才允許刪除。
+  // 正式環境禁止無條件 deleteMany({}) 以免清空正式學習資料。
+  const isDestructive = process.env.ALLOW_DESTRUCTIVE_SEED === 'true'
 
-  // ───────── 1. 數數（count-objects）: 20+ 題 ─────────
+  // 檢查是否有非 demo 的學習資料（作答紀錄），避免誤刪
+  const existingAttemptCount = await prisma.attempt.count()
+  if (existingAttemptCount > 0 && !isDestructive) {
+    console.log(`  ℹ️  發現 ${existingAttemptCount} 筆作答紀錄，跳過題目重建。`)
+    console.log(`  ℹ️  若要強制重建題庫，設定 ALLOW_DESTRUCTIVE_SEED=true 後重新執行。`)
+  } else {
+    if (isDestructive) {
+      console.log('  ⚠️  破壞模式啟用（ALLOW_DESTRUCTIVE_SEED=true），清除既有學習資料與題庫...')
+      await prisma.attempt.deleteMany({})
+      await prisma.practiceSession.deleteMany({})
+      await prisma.masterySnapshot.deleteMany({})
+      await prisma.questionTemplate.deleteMany({})
+    }
+
+    // ───────── 1. 數數（count-objects）: 20+ 題 ─────────
   const countSymbols = ['★', '●', '■', '◆', '▲', '♥', '⬟', '⬢']
   const countQuestions: { prompt: string; answer: string; options: string }[] = []
   for (let n = 3; n <= 10; n++) {
@@ -1571,6 +1571,7 @@ async function main() {
       explanation: '9 減 5 等於 4。',
     },
   })
+  } // ← end of `if (existingAttemptCount > 0 && !isDestructive)` else block
 
   // ============ 成就徽章 ============
   const badges = [
