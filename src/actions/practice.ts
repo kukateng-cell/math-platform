@@ -9,7 +9,7 @@ import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation, isGradeAllMastered, type Recommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
 import { getNextGrade } from '@/lib/grade'
-import { accessibleGrades, canAccessGrade } from '@/lib/grade'
+import { accessibleGrades, canAccessGrade, gradeRank } from '@/lib/grade'
 import { isAnswerCorrect } from '@/lib/answer-i18n'
 import { startOfToday } from '@/lib/timezone'
 import { z } from 'zod'
@@ -801,9 +801,18 @@ export async function getChildSkills(childId: string) {
     include: { _count: { select: { questions: { where: { isActive: true, isChallenge: false } } } } },
   })
 
+  // P2-6：跨年級排序——先依年級順序（K→G6），再依同年級內的 order。
+  // DB 的 orderBy 只能按單一欄位，不同年級可能有重複 order 值（如 G3/G4 都有 17、18），
+  // 不先按年級排會導致跨年級技能順序錯亂，影響推薦流程。
+  const sortedSkills = [...skills].sort((a, b) => {
+    const gradeDiff = gradeRank(a.gradeLevel as string) - gradeRank(b.gradeLevel as string)
+    if (gradeDiff !== 0) return gradeDiff
+    return a.order - b.order
+  })
+
   return {
     child,
-    skills: skills.map((s) => {
+    skills: sortedSkills.map((s) => {
       const mastery = child.masterySnapshots.find((m) => m.skillId === s.id)
       return {
         id: s.id,
