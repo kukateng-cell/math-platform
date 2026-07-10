@@ -92,7 +92,7 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
   ] = await Promise.all([
     prisma.badge.findMany(),
     prisma.practiceSession.count({
-      where: { childId, completedAt: { not: null } },
+      where: { childId, status: 'COMPLETED' },
     }),
     prisma.skill.count({
       where: { isActive: true, gradeLevel: { in: reachableGrades } },
@@ -133,7 +133,7 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
     }),
   ])
 
-  const practicedSkillIds = new Set(attemptsByChild.map((a) => a.question.skillId))
+  const practicedSkillIds = new Set(attemptsByChild.filter((a) => a.question).map((a) => a.question!.skillId))
   const addSkillIds = addSkillRows.map((s) => s.id)
   const subSkillIds = subSkillRows.map((s) => s.id)
   const addAttempts = allAttempts.filter((a) => addSkillIds.includes(a.question?.skillId ?? ''))

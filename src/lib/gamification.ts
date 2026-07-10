@@ -83,6 +83,7 @@ type BadgeCheckContext = {
   isPromotion?: boolean // 是否為升學測試
   passedPromotion?: boolean // 升學測試是否通過
   isChallenge?: boolean // 是否為提升練習
+  kind?: string // P1-4：session kind（NORMAL/PROMOTION/CHALLENGE）
 }
 
 // 連擊計算（純記憶體）：從最新一筆往回數連續答對且非協助的題數，遇錯/協助即中斷
@@ -121,7 +122,7 @@ export async function checkBadges(ctx: BadgeCheckContext) {
       sessions: {
         orderBy: { startedAt: 'desc' },
         take: 1,
-        where: { completedAt: { not: null } },
+        where: { status: 'COMPLETED' },
       },
     },
   })
@@ -136,7 +137,7 @@ export async function checkBadges(ctx: BadgeCheckContext) {
   // ============ 批量預查詢（一次查齊所有徽章判定所需的資料）============
   // 1. 完成練習數（first-practice / persistent-5 共用）
   const completedSessionCount = await prisma.practiceSession.count({
-    where: { childId, completedAt: { not: null } },
+    where: { childId, status: 'COMPLETED' },
   })
 
   // 2. 近期作答（帶 question.skill 關聯）：一次查 60 筆，供以下共用——
@@ -172,10 +173,10 @@ export async function checkBadges(ctx: BadgeCheckContext) {
   // 注意：達人需「最近 20 題」，從全部 attempts 中過濾（不侷限於前 60 筆的視窗）。
   // 但預查只取 60 筆——達人判定取最近 20 題，60 筆已足夠涵蓋。
   const addAttempts = recentAttemptsRaw
-    .filter((a) => !a.assisted && a.question?.skill && addSkillCodes.has(a.question.skill.code))
+    .filter((a): a is typeof a & { question: NonNullable<typeof a.question> } => !a.assisted && !!a.question?.skill && addSkillCodes.has(a.question.skill.code))
     .slice(0, 20)
   const subAttempts = recentAttemptsRaw
-    .filter((a) => !a.assisted && a.question?.skill && subSkillCodes.has(a.question.skill.code))
+    .filter((a): a is typeof a & { question: NonNullable<typeof a.question> } => !a.assisted && !!a.question?.skill && subSkillCodes.has(a.question.skill.code))
     .slice(0, 20)
   const addCorrectRate = addAttempts.length > 0
     ? addAttempts.filter((a) => a.isCorrect).length / addAttempts.length
@@ -187,7 +188,8 @@ export async function checkBadges(ctx: BadgeCheckContext) {
   // all-skills：已練過的技能數（限定可接觸年級）
   const practicedSkillIds = new Set(
     recentAttemptsRaw
-      .filter((a) => a.question?.skill && reachableGrades.includes(a.question.skill.gradeLevel))
+      .filter((a): a is typeof a & { question: NonNullable<typeof a.question> } =>
+        !!a.question?.skill && reachableGrades.includes(a.question.skill.gradeLevel))
       .map((a) => a.question.skillId)
   )
 

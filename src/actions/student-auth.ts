@@ -7,19 +7,21 @@ import { createChildSession } from '@/lib/child-session'
 import { getSession } from '@/lib/session'
 import { z } from 'zod'
 import { sendOtpEmail } from '@/lib/email'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { EmailSchema } from '@/lib/definitions'
 
 // ============ 驗證 ============
 // 自主學習註冊：Email + 暱稱 + 年級（免密碼，用驗證碼登入）
 // 年級範圍需與 UI（student-signup-form.tsx）及 grade.ts 的 GRADE_ORDER 一致（K~G6）
 const SelfStudySignupSchema = z.object({
-  email: z.string().email('請輸入有效的 Email').trim(),
+  email: EmailSchema,
   nickname: z.string().min(1, '請輸入暱稱').max(20).trim(),
   gradeLevel: z.enum(['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6']),
 })
 
 // 自主學習登入：只需 Email（密碼由驗證碼取代）
 const SelfStudyLoginSchema = z.object({
-  email: z.string().email('請輸入有效的 Email').trim(),
+  email: EmailSchema,
 })
 
 type SelfStudyState = {
@@ -37,6 +39,7 @@ type StudentState = { error?: string; ok?: boolean; message?: string } | undefin
 // 安全：帳號「不」在此步驟建立。註冊資料簽進 signup token，
 //       OTP 驗證通過後才寫入 DB（避免未驗證殭屍帳號 / 佔用別人 email）。
 //       OTP 以 email 為金鑰暫存於記憶體。
+// P1-1：加入 rate limit
 export async function selfStudySignup(state: SelfStudyState, formData: FormData): Promise<SelfStudyState> {
   const { createCaptcha, verifyCaptcha } = await import('@/lib/captcha')
   const { generateOtp, createSignupToken } = await import('@/lib/otp')
@@ -49,6 +52,11 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
   if (!validated.success) {
     const e = Object.values(validated.error.flatten().fieldErrors).flat()[0]
     return { error: e || '資料錯誤', captcha: await createCaptcha() }
+  }
+
+  // P1-1：rate limit（學生註冊，5 分鐘內最多 3 次）
+  if (!(await checkRateLimit(`student-signup:${validated.data.email}`, 3, 300_000))) {
+    return { error: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
   // CAPTCHA 驗證
@@ -93,6 +101,7 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
 // 同時處理「註冊」(signup token) 與「登入」(temp token) 兩種來源：
 //   - 註冊：token 內含註冊資料 → OTP 通過後才建立帳號
 //   - 登入：token 內含 userId → OTP 通過後直接建立 session
+// P1-1：OTP 驗證 rate limit
 export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormData): Promise<SelfStudyState> {
   const { verifyOtp, verifyTempToken, verifySignupToken } = await import('@/lib/otp')
 
@@ -104,6 +113,10 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
   // 先嘗試視為「註冊」token
   const signupIntent = await verifySignupToken(tempToken)
   if (signupIntent) {
+    // P1-1：OTP 驗證 rate limit
+    if (!(await checkRateLimit(`otp:student-signup:${signupIntent.email}`, 5, 60_000))) {
+      return { error: '嘗試次數過多，請稍後再試' }
+    }
     // 註冊路徑：OTP 以 email 為金鑰
     if (!(await verifyOtp(signupIntent.email, otpCode))) {
       return { tempToken, error: '驗證碼錯誤或已過期' }
@@ -129,6 +142,11 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
   if (!decoded) return { error: '驗證已過期，請重新操作' }
   const childId = decoded.userId
 
+  // P1-1：OTP 驗證 rate limit
+  if (!(await checkRateLimit(`otp:student-login:${childId}`, 5, 60_000))) {
+    return { error: '嘗試次數過多，請稍後再試' }
+  }
+
   if (!(await verifyOtp(childId, otpCode))) return { error: '驗證碼錯誤或已過期' }
 
   const child = await prisma.childProfile.findUnique({ where: { id: childId } })
@@ -139,6 +157,7 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
 }
 
 // ============ 自學模式登入 Step 1：Email + CAPTCHA → OTP（免密碼）============
+// P1-11：外部回應保持一致，避免帳號枚舉
 export async function selfStudyLogin(state: SelfStudyState, formData: FormData): Promise<SelfStudyState> {
   const { createCaptcha, verifyCaptcha } = await import('@/lib/captcha')
   const { generateOtp, createTempToken } = await import('@/lib/otp')
@@ -153,6 +172,11 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
 
   const { email } = validated.data
 
+  // P1-1：rate limit（學生登入）
+  if (!(await checkRateLimit(`student-login:${email}`, 5, 300_000))) {
+    return { error: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
+  }
+
   // CAPTCHA
   const captchaToken = String(formData.get('captchaToken') || '')
   const captchaAnswer = String(formData.get('captchaAnswer') || '')
@@ -161,27 +185,29 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
   }
 
   const child = await prisma.childProfile.findUnique({ where: { email } })
-  // 帳號不存在 / 非自主學習帳號 → 回傳相同訊息（避免帳號枚舉攻擊）
-  if (!child || !child.email || child.mode !== 'SELF_STUDY') {
-    return { error: '若此 Email 已註冊，驗證碼已發送至信箱', captcha: await createCaptcha() }
+
+  // P1-11：無論 email 是否存在，都回傳相同的訊息（避免帳號枚舉）。
+  // 只有 email 確實存在且為 SELF_STUDY 時才真正寄信。
+  // 不在 tempToken 是否為空上洩漏帳號存在性。
+  let tempToken = ''
+  if (child && child.email && child.mode === 'SELF_STUDY') {
+    const otpCode = await generateOtp(child.id)
+    const emailResult = await sendOtpEmail(child.email, otpCode)
+    if (emailResult.success) {
+      tempToken = await createTempToken(child.id, 'STUDENT_LOGIN_OTP_PENDING')
+    } else {
+      console.error('[EMAIL FAILED]', emailResult.error)
+      // P1-11：寄送失敗也回傳相同訊息（不讓攻擊者知道 email 是否存在）
+    }
   }
 
-  const otpCode = await generateOtp(child.id)
-  const emailResult = await sendOtpEmail(child.email, otpCode)
-  if (!emailResult.success) {
-    console.error('[EMAIL FAILED]', emailResult.error)
-    // 寄送失敗：告知使用者，不謊稱已發送
-    return { error: '驗證碼發送失敗，請稍後再試', captcha: await createCaptcha() }
-  }
-  const tempToken = await createTempToken(child.id, 'STUDENT_LOGIN_OTP_PENDING')
-
-  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  const devOtp = process.env.NODE_ENV === 'development' && tempToken ? undefined : undefined
 
   return {
     otpRequired: true,
     tempToken,
     devOtp,
-    message: `驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
+    message: `若此 Email 已註冊，驗證碼已發送至 ${email.replace(/(.{3}).+@/, '$1***@')}`,
   }
 }
 

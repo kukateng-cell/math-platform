@@ -148,7 +148,7 @@ export async function getPracticeHistory(
   const safeLimit = Math.min(Math.max(limit, 1), 100)
 
   const sessions = await prisma.practiceSession.findMany({
-    where: { childId, completedAt: { not: null } },
+    where: { childId, status: 'COMPLETED' },
     orderBy: { startedAt: 'desc' },
     take: safeLimit,
     include: {

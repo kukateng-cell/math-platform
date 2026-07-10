@@ -25,9 +25,10 @@ describe('gradeRank', () => {
     expect(gradeRank('G6')).toBe(6)
   })
 
-  it('未知年級回傳 999（排在最後）', () => {
-    expect(gradeRank('G9')).toBe(999)
-    expect(gradeRank('')).toBe(999)
+  it('未知年級回傳 -1（fail-closed）', () => {
+    expect(gradeRank('G9')).toBe(-1)
+    expect(gradeRank('')).toBe(-1)
+    expect(gradeRank('g1')).toBe(-1)
   })
 })
 
@@ -63,8 +64,9 @@ describe('accessibleGrades', () => {
     expect(accessibleGrades('G6')).toEqual(['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6'])
   })
 
-  it('未知年級放行全部（permissive fallback）', () => {
-    expect(accessibleGrades('XYZ')).toEqual(['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6'])
+  it('未知年級回傳空陣列（fail-closed）', () => {
+    expect(accessibleGrades('XYZ')).toEqual([])
+    expect(accessibleGrades('')).toEqual([])
   })
 })
 

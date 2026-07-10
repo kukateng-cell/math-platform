@@ -183,7 +183,7 @@ export async function buildChildCsv(childId: string): Promise<{ nickname: string
     include: {
       parent: { select: { email: true } },
       sessions: {
-        where: { completedAt: { not: null } },
+        where: { status: 'COMPLETED' },
         orderBy: { startedAt: 'desc' },
         take: 500, // 最多匯出 500 筆
         include: { skill: { select: { name: true, gradeLevel: true } } },
@@ -277,7 +277,7 @@ export async function buildAllChildrenCsv(): Promise<string> {
     include: {
       parent: { select: { email: true } },
       sessions: {
-        where: { completedAt: { not: null } },
+        where: { status: 'COMPLETED' },
         orderBy: { startedAt: 'desc' },
         include: { skill: { select: { name: true, gradeLevel: true } } },
       },

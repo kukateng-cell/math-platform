@@ -11,6 +11,9 @@ export async function updateMastery(sessionId: string) {
   })
   if (!practiceSession) return
 
+  // P1-6：Challenge/Promotion session 不更新掌握度
+  if (practiceSession.kind !== 'NORMAL') return
+
   const { childId, skillId } = practiceSession
 
   // 取該技能最近 RECENT_WINDOW 題（非 assisted），按時間倒序

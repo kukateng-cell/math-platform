@@ -7,6 +7,8 @@ const KEY = getOtpKey()
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000  // 5 分鐘
 const RESEND_COOLDOWN_MS = 60 * 1000  // 60 秒冷卻
+// P1-1：OTP 最大錯誤嘗試次數，超過後 OTP 自動作廢
+const OTP_MAX_ATTEMPTS = 5
 
 // ============ OTP code 雜湊 ============
 // OTP 明文只在產生時短暫存在於記憶體中用來寄信；存入 DB 與記憶體備援
@@ -116,6 +118,7 @@ export async function getResendCooldownSeconds(identifier: string): Promise<numb
 }
 
 // 驗證 OTP：過期或錯誤回傳 false，成功則刪除（一次性）
+// P1-1：加入 attemptCount 與 lockedAt 檢查。錯誤達上限即作廢並鎖定。
 export async function verifyOtp(identifier: string, code: string): Promise<boolean> {
   if (await otpIsDbAvailable()) {
     try {
@@ -128,9 +131,24 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
         await prisma.otpCode.delete({ where: { id: entry.id } })
         return false
       }
+      // P1-1：檢查是否已鎖定（錯誤次數過多）
+      if (entry.lockedAt) return false
+      if (entry.attemptCount >= OTP_MAX_ATTEMPTS) {
+        await prisma.otpCode.update({ where: { id: entry.id }, data: { lockedAt: new Date() } })
+        return false
+      }
       // 常數時間比較，避免 timing 攻擊
       const candidate = hashOtp(identifier, code.trim())
-      if (candidate !== entry.code) return false
+      if (candidate !== entry.code) {
+        // P1-1：錯誤次數遞增，達上限即鎖定
+        const newAttempt = entry.attemptCount + 1
+        if (newAttempt >= OTP_MAX_ATTEMPTS) {
+          await prisma.otpCode.update({ where: { id: entry.id }, data: { attemptCount: newAttempt, lockedAt: new Date() } })
+        } else {
+          await prisma.otpCode.update({ where: { id: entry.id }, data: { attemptCount: newAttempt } })
+        }
+        return false
+      }
       await prisma.otpCode.delete({ where: { id: entry.id } }) // 一次性使用
       return true
     } catch {
