@@ -36,6 +36,29 @@ enum Role {
   ADMIN
 }
 
+enum GradeLevel {
+  K
+  G1
+  G2
+  G3
+  G4
+  G5
+  G6
+}
+
+enum PracticeStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ABANDONED
+}
+
+enum PracticeKind {
+  NORMAL
+  PROMOTION
+  CHALLENGE
+}
+
 // ============ 親子關聯（學生可主動綁定家長，家長也可綁定學生）============
 // 安全：學生主動綁定家長時，先建立 PENDING 記錄並通知家長，
 //       家長須在後台「確認」後才會變成 ACTIVE（家長才看得到該孩子資料）。
@@ -83,6 +106,11 @@ model ChildProfile {
   lastPracticeAt DateTime?               // 上次練習日期（供 streak 計算）
   promotionCount Int       @default(0)   // 升學通過次數（供 promotion-star 徽章計算）
 
+  // ============ 升學追蹤（P1-9：防重複獎勵 race condition）============
+  promotionPassedAt  DateTime?  // 最後一次通過升學測試的時間
+  promotionTarget    String?    // 通過的目標年級
+  promotionRewarded  Boolean    @default(false)  // 是否已發放升學獎勵
+
   parent            User?             @relation(fields: [parentId], references: [id], onDelete: Cascade)
   parentLinks       ParentChild[]     @relation("ChildLinks")
   masterySnapshots  MasterySnapshot[]
@@ -94,18 +122,18 @@ model ChildProfile {
 }
 
 enum ChildMode {
-  STANDARD   // 需 PIN,可綁家長
-  SELF_STUDY // 免 PIN,用驗證碼登入,自主學習
+  STANDARD   // 可綁家長
+  SELF_STUDY // 用驗證碼登入,自主學習
 }
 
 // ============ 技能 ============
 
 model Skill {
-  id          String   @id @default(cuid())
-  code        String   @unique // e.g. "count-compare", "add-within-10"
+  id          String    @id @default(cuid())
+  code        String    @unique // e.g. "count-compare", "add-within-10"
   name        String
   description String?
-  gradeLevel  String // K, G1, G2
+  gradeLevel  String // K, G1, G2（程式碼層驗證，見 grade.ts / definitions.ts）
   order       Int      @default(0)
   // 前置技能（可選），規則式推薦用
   prerequisiteId String?
@@ -163,14 +191,18 @@ enum QuestionType {
 // ============ 練習 ============
 
 model PracticeSession {
-  id         String    @id @default(cuid())
+  id         String         @id @default(cuid())
   childId    String
   skillId    String
   parentId   String?
-  startedAt  DateTime  @default(now())
+  status     PracticeStatus @default(IN_PROGRESS)
+  kind       PracticeKind   @default(NORMAL)
+  startedAt  DateTime       @default(now())
   completedAt DateTime?
-  totalQuestions Int    @default(0)
-  correctCount   Int    @default(0)
+  cancelledAt DateTime?
+  abandonedAt DateTime?
+  totalQuestions Int         @default(0)
+  correctCount   Int         @default(0)
   // P2-4：非 assisted 的答題數（正確率分母用），避免 assisted 題被當成錯題
   gradedQuestionCount Int @default(0)
   // P2-4：assisted（家長協助）的答題數
@@ -190,7 +222,9 @@ model PracticeSession {
 model Attempt {
   id          String   @id @default(cuid())
   sessionId   String
-  questionId  String
+  // P1-7：questionId 改為可空。題目模板被刪除（soft delete → isActive=false）時，
+  // Attempt 仍可保留，questionId 設為 null，歷史資料不遺失。
+  questionId  String?
   // 題目在 session 中的索引（0-based），配合唯一約束防止同一題重複提交
   questionIndex Int     @default(0)
   // 保存作答當下的題目快照（避免題目修改影響歷史紀錄）
@@ -202,8 +236,8 @@ model Attempt {
   durationMs  Int      @default(0)
   createdAt   DateTime @default(now())
 
-  session  PracticeSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  question QuestionTemplate  @relation(fields: [questionId], references: [id])
+  session  PracticeSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question QuestionTemplate?   @relation(fields: [questionId], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, questionIndex]) // 防止同一題重複提交刷星星/掌握度
   @@index([sessionId])
@@ -259,11 +293,14 @@ model ChildBadge {
 // 用途：家長登入/忘記密碼的 Email OTP。以 identifier 為 key（通常是 userId）。
 // 冷卻與過期由 expiresAt / resentAt 欄位控制，verifyOtp 成功後刪除（一次性）。
 model OtpCode {
-  id         String   @id @default(cuid())
-  identifier String   // 通常是 userId，忘記密碼場景也用 userId
-  code       String   // OTP 的 HMAC-SHA256 hash（含 identifier），不存明文
-  expiresAt  DateTime // OTP 有效期限（產生後 5 分鐘）
-  resentAt   DateTime // 上次發送時間（用於 60 秒冷卻判斷）
+  id         String    @id @default(cuid())
+  identifier String    // 通常是 userId，忘記密碼場景也用 userId
+  code       String    // OTP 的 HMAC-SHA256 hash（含 identifier），不存明文
+  expiresAt  DateTime  // OTP 有效期限（產生後 5 分鐘）
+  resentAt   DateTime  // 上次發送時間（用於 60 秒冷卻判斷）
+  // P1-1：OTP 錯誤嘗試次數與鎖定時間
+  attemptCount Int      @default(0)
+  lockedAt     DateTime?
   createdAt  DateTime @default(now())
 
   @@index([identifier])

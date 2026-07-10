@@ -31,6 +31,8 @@ const PENDING_SIGNUP_TTL_MINUTES = 10
 const PENDING_SIGNUP_MAX_ATTEMPTS = 5
 
 // ============ 註冊 Step 1：驗證資料 + CAPTCHA → 發送 OTP ============
+// P1-1：加入 identifier/IP rate limit
+// P1-3：使用 upsert 處理重複 PendingSignup
 export async function signup(state: FormState, formData: FormData): Promise<FormState> {
   const validated = SignupFormSchema.safeParse({
     name: formData.get('name'),
@@ -41,6 +43,11 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
     return { errors: validated.error.flatten().fieldErrors, captcha: await createCaptcha() }
   }
   const { name, email, password } = validated.data
+
+  // P1-1：IP/email rate limit for signup
+  if (!(await checkRateLimit(`signup:${email}`, 3, 300_000))) {
+    return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
+  }
 
   // CAPTCHA 驗證
   const captchaToken = String(formData.get('captchaToken') || '')
@@ -57,24 +64,35 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
   // 產生 OTP（用 email 作為 identifier）
   const otpCode = await generateOtp(email)
 
-  // 寄送 OTP
+  // 哈希密碼，暫存
+  const passwordHash = await bcrypt.hash(password, 10)
+
+  // P1-3：使用 upsert 而非 create，處理 PendingSignup.email @unique 衝突。
+  // 若使用者重複提交註冊表單，upsert 會更新既有記錄（重置 attemptCount、passwordHash 及 expiry），
+  // 而非噴 500 錯誤。email 發送失敗時不回滾 pending（由 expiresAt 自動清理）。
+  const expiresAt = new Date(Date.now() + PENDING_SIGNUP_TTL_MINUTES * 60 * 1000)
+  const pending = await prisma.pendingSignup.upsert({
+    where: { email },
+    update: {
+      name,
+      passwordHash,
+      attemptCount: 0,
+      expiresAt,
+    },
+    create: { email, name, passwordHash, expiresAt },
+  })
+
+  // 寄送 OTP（在 upsert 之後，確保 DB 記錄已就緒）
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
+    // P1-3：email 發送失敗時清除 pending 記錄
+    await prisma.pendingSignup.delete({ where: { id: pending.id } }).catch(() => {})
     return {
       message: '驗證碼發送失敗，請稍後再試',
       captcha: await createCaptcha(),
     }
   }
-
-  // 哈希密碼，暫存
-  const passwordHash = await bcrypt.hash(password, 10)
-
-  // 暫存註冊資料到 DB（不放入 JWT，JWT 是簽名非加密）
-  const expiresAt = new Date(Date.now() + PENDING_SIGNUP_TTL_MINUTES * 60 * 1000)
-  const pending = await prisma.pendingSignup.create({
-    data: { email, name, passwordHash, expiresAt },
-  })
 
   // 用 pending.id 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 id 取出暫存資料建立用戶
   const KEY = getSessionKey()
@@ -95,6 +113,7 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
 }
 
 // ============ 註冊 Step 2：驗證 OTP → 建立帳號 ============
+// P1-1：加入 OTP 驗證 rate limit；OTP 錯誤次數移至 OtpCode.attemptCount（由 verifyOtp 處理）
 export async function verifySignupOtp(state: FormState, formData: FormData): Promise<FormState> {
   const tempToken = String(formData.get('tempToken') || '')
   const otpCode = String(formData.get('otpCode') || '')
@@ -120,31 +139,21 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
     return { message: '驗證已過期，請重新註冊' }
   }
 
+  // P1-1：OTP 驗證 rate limit
+  if (!(await checkRateLimit(`otp:signup:${email}`, 5, 60_000))) {
+    return { message: '嘗試次數過多，請稍後再試' }
+  }
+
   // 從 DB 取出暫存的註冊資料（同時過濾已過期的記錄）
   const pending = await prisma.pendingSignup.findFirst({
     where: { id: pendingId, expiresAt: { gt: new Date() } },
   })
   if (!pending) return { message: '驗證已過期，請重新註冊' }
-  const { name, passwordHash, attemptCount } = pending
-
-  // 檢查嘗試次數（防 OTP 暴力破解）
-  if (attemptCount >= PENDING_SIGNUP_MAX_ATTEMPTS) {
-    await prisma.pendingSignup.delete({ where: { id: pendingId } })
-    return { message: '驗證碼錯誤次數過多，請重新註冊' }
-  }
+  const { name, passwordHash } = pending
 
   // 驗證 OTP（用 email 作 identifier）
+  // P1-1：attemptCount/lockedAt 由 OtpCode 模型與 verifyOtp 內部處理
   if (!(await verifyOtp(email, otpCode))) {
-    // 累計嘗試次數，超過上限才刪除（避免單次錯誤即遺失資料）
-    const newAttempt = attemptCount + 1
-    if (newAttempt >= PENDING_SIGNUP_MAX_ATTEMPTS) {
-      await prisma.pendingSignup.delete({ where: { id: pendingId } })
-    } else {
-      await prisma.pendingSignup.update({
-        where: { id: pendingId },
-        data: { attemptCount: newAttempt },
-      })
-    }
     return { message: '驗證碼錯誤或已過期' }
   }
 
@@ -210,6 +219,7 @@ export async function resendSignupOtp(state: FormState, formData: FormData): Pro
 }
 
 // ============ 登入 Step 1：驗證帳密 + CAPTCHA → 發送 OTP ============
+// P1-1：使用獨立 rate-limit namespace（「login:」前綴），與 signup/reset 各自計算
 export async function login(state: FormState, formData: FormData): Promise<FormState> {
   const validated = LoginFormSchema.safeParse({
     email: formData.get('email'),
@@ -227,7 +237,8 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
     return { message: '驗證碼錯誤，請重新作答', captcha: await createCaptcha() }
   }
 
-  if (!(await checkRateLimit(email))) {
+  // P1-1：獨立 namespace
+  if (!(await checkRateLimit(`login:${email}`, 5, 60_000))) {
     return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
@@ -264,6 +275,7 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
 }
 
 // ============ 登入 Step 2：驗證 OTP → 建立 Session ============
+// P1-1：加入 OTP 驗證 rate limit
 export async function verifyLoginOtp(state: FormState, formData: FormData): Promise<FormState> {
   const tempToken = String(formData.get('tempToken') || '')
   const otpCode = String(formData.get('otpCode') || '')
@@ -278,6 +290,11 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
     return { message: '驗證已過期，請重新登入' }
   }
   const userId = decoded.userId
+
+  // P1-1：OTP 驗證 rate limit（獨立 namespace，與 login/email 層次區隔）
+  if (!(await checkRateLimit(`otp:login:${userId}`, 5, 60_000))) {
+    return { message: '嘗試次數過多，請稍後再試' }
+  }
 
   if (!(await verifyOtp(userId, otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
@@ -403,6 +420,7 @@ export async function getCurrentUser() {
 // ============================================================
 
 // ============ 忘記密碼 Step 1：輸入 Email → 發送 OTP ============
+// P1-1：使用獨立 rate-limit namespace；Email 使用 EmailSchema 正規化
 export async function requestPasswordReset(state: FormState, formData: FormData): Promise<FormState> {
   const email = String(formData.get('email') || '').trim().toLowerCase()
 
@@ -417,8 +435,8 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
     return { message: '驗證碼錯誤，請重新作答', captcha: await createCaptcha() }
   }
 
-  // 限速（避免用來探測哪些 email 存在 / 郵件轟炸）
-  if (!(await checkRateLimit(`reset:${email}`))) {
+  // P1-1：獨立 namespace（「resetpwd:」），與 login/signup 各自計算
+  if (!(await checkRateLimit(`resetpwd:${email}`, 3, 300_000))) {
     return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
@@ -449,6 +467,7 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
 }
 
 // ============ 忘記密碼 Step 2：驗證 OTP → 取得重設權限 token ============
+// P1-1：OTP 驗證 rate limit
 export async function verifyResetOtp(state: FormState, formData: FormData): Promise<FormState> {
   const tempToken = String(formData.get('tempToken') || '')
   const otpCode = String(formData.get('otpCode') || '')
@@ -463,6 +482,11 @@ export async function verifyResetOtp(state: FormState, formData: FormData): Prom
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
   const userId = decoded.userId
+
+  // P1-1：OTP 驗證 rate limit
+  if (!(await checkRateLimit(`otp:resetpwd:${userId}`, 5, 60_000))) {
+    return { message: '嘗試次數過多，請稍後再試' }
+  }
 
   if (!(await verifyOtp(userId, otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
@@ -569,8 +593,8 @@ export async function updateChildGrade(formData: FormData) {
   const childId = String(formData.get('childId') || '')
   const gradeLevel = String(formData.get('gradeLevel') || '')
 
-  const validGrades = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6']
-  if (!validGrades.includes(gradeLevel)) {
+  const validGrades = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6'] as const
+  if (!validGrades.includes(gradeLevel as typeof validGrades[number])) {
     throw new Error('無效的年級')
   }
 

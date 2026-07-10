@@ -63,6 +63,7 @@ type BadgeCheckContext = {
   isPromotion?: boolean // 是否為升學測試
   passedPromotion?: boolean // 升學測試是否通過
   isChallenge?: boolean // 是否為提升練習
+  kind?: string // P1-4：session kind（NORMAL/PROMOTION/CHALLENGE）
 }
 
 // 連擊計算（純記憶體）：從最新一筆往回數連續答對且非協助的題數，遇錯/協助即中斷
@@ -101,7 +102,7 @@ export async function checkBadges(ctx: BadgeCheckContext) {
       sessions: {
         orderBy: { startedAt: 'desc' },
         take: 1,
-        where: { completedAt: { not: null } },
+        where: { status: 'COMPLETED' },
       },
     },
   })
@@ -116,7 +117,7 @@ export async function checkBadges(ctx: BadgeCheckContext) {
   // ============ 批量預查詢（一次查齊所有徽章判定所需的資料）============
   // 1. 完成練習數（first-practice / persistent-5 共用）
   const completedSessionCount = await prisma.practiceSession.count({
-    where: { childId, completedAt: { not: null } },
+    where: { childId, status: 'COMPLETED' },
   })
 
   // 2. 近期作答（帶 question.skill 關聯）：一次查 60 筆，供以下共用——
@@ -155,7 +156,9 @@ export async function checkBadges(ctx: BadgeCheckContext) {
     distinct: ['questionId'],
     select: { question: { select: { skillId: true } } },
   })
-  const practicedSkillIds = new Set(practicedSkillRows.map((a) => a.question.skillId))
+  const practicedSkillIds = new Set(
+    practicedSkillRows.filter((a) => a.question).map((a) => a.question!.skillId)
+  )
 
   // P2-6：加/減法達人直接查 DB 取最近 20 題，不依賴 60 筆的快取視窗
   // 加法技能 ID 查詢
