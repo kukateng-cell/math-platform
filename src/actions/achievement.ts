@@ -101,20 +101,22 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
       },
     }),
     prisma.practiceSession.count({
-      where: { childId, status: 'COMPLETED' },
+      where: { childId, status: 'COMPLETED', kind: 'NORMAL' },
     }),
     prisma.skill.count({
       where: { isActive: true, gradeLevel: { in: reachableGrades } },
     }),
     // 練習過的技能數（限定可接觸年級，與門檻一致）
+    // P2-9：只取 COMPLETED + NORMAL session
     prisma.attempt.findMany({
-      where: { session: { childId }, question: { skill: { gradeLevel: { in: reachableGrades } } } },
+      where: { session: { childId, status: 'COMPLETED', kind: 'NORMAL' }, question: { skill: { gradeLevel: { in: reachableGrades } } } },
       include: { question: { select: { skillId: true } } },
       distinct: ['questionId'],
     }),
     // 近期作答（含 question.skillId 關聯，供加/減法達人正確過濾）
+    // P2-9：只取 COMPLETED + NORMAL session
     prisma.attempt.findMany({
-      where: { session: { childId }, assisted: false },
+      where: { session: { childId, status: 'COMPLETED', kind: 'NORMAL' }, assisted: false },
       include: { question: { select: { skillId: true } } },
       orderBy: { createdAt: 'desc' },
       take: 200,
@@ -130,8 +132,9 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
       select: { id: true },
     }),
     // 連擊 / 速度：需要含 assisted 的完整序列（從最新往回數）
+    // P2-9：只取 COMPLETED + NORMAL session 的作答
     prisma.attempt.findMany({
-      where: { session: { childId } },
+      where: { session: { childId, status: 'COMPLETED', kind: 'NORMAL' } },
       orderBy: { createdAt: 'desc' },
       select: { isCorrect: true, assisted: true, durationMs: true },
       take: 60,

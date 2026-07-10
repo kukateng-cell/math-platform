@@ -43,10 +43,11 @@ export default async function DashboardPage() {
         sessions: {
           orderBy: { startedAt: 'desc' },
           take: 5,
-          where: { completedAt: { not: null } },
+          // P2-9：只統計 COMPLETED + NORMAL 練習
+          where: { status: 'COMPLETED', kind: 'NORMAL' },
         },
         masterySnapshots: true,
-        _count: { select: { sessions: { where: { completedAt: { not: null } } } } },
+        _count: { select: { sessions: { where: { status: 'COMPLETED', kind: 'NORMAL' } } } },
       },
     }),
     // 待家長確認的綁定請求（學生主動綁定）

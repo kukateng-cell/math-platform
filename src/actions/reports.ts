@@ -64,6 +64,8 @@ export type PracticeHistoryItem = {
   correctCount: number
   /** P2-4：非 assisted 的題數（正確率分母用） */
   gradedQuestionCount: number
+  /** P2-9：session 種類（NORMAL/PROMOTION/CHALLENGE） */
+  kind: 'NORMAL' | 'PROMOTION' | 'CHALLENGE'
   /** 平均每題用時（秒） */
   avgDurationSec: number
   /** 逐題詳情 */
@@ -185,6 +187,7 @@ export async function getPracticeHistory(
       totalQuestions: s.totalQuestions,
       correctCount: s.correctCount,
       gradedQuestionCount: s.gradedQuestionCount,
+      kind: s.kind as 'NORMAL' | 'PROMOTION' | 'CHALLENGE',
       avgDurationSec,
       attempts: s.attempts,
     }
@@ -206,12 +209,13 @@ export async function getWrongQuestions(
   const auth = await getPracticeAuth()
   if (!auth || !(await canAccessChild(childId))) return null
 
-  // 取得所有錯題（非 assisted），含所屬技能
+  // 取得所有錯題（非 assisted）
+  // P2-9：只取 COMPLETED + NORMAL session，排除 PROMOTION/CHALLENGE/ABANDONED
   const wrongAttempts = await prisma.attempt.findMany({
     where: {
       isCorrect: false,
       assisted: false,
-      session: { childId },
+      session: { childId, status: 'COMPLETED', kind: 'NORMAL' },
     },
     orderBy: { createdAt: 'desc' },
     take: 500, // 上限保護，避免一次撈太多
@@ -312,9 +316,9 @@ export async function getGrowthReport(
   since.setDate(since.getDate() - safeDays)
   since.setHours(0, 0, 0, 0)
 
-  // 區間內完成的練習（含 attempts）
+  // 區間內完成的「一般練習」（P2-9：排除 PROMOTION/CHALLENGE）
   const sessions = await prisma.practiceSession.findMany({
-    where: { childId, completedAt: { gte: since } },
+    where: { childId, completedAt: { gte: since }, status: 'COMPLETED', kind: 'NORMAL' },
     orderBy: { startedAt: 'asc' },
     include: {
       skill: { select: { id: true, name: true, gradeLevel: true } },

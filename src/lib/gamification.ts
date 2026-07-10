@@ -104,7 +104,8 @@ export async function checkBadges(ctx: BadgeCheckContext) {
       sessions: {
         orderBy: { startedAt: 'desc' },
         take: 1,
-        where: { status: 'COMPLETED' },
+        // P2-9：只計 COMPLETED + NORMAL 練習
+        where: { status: 'COMPLETED', kind: 'NORMAL' },
       },
     },
   })
@@ -121,16 +122,18 @@ export async function checkBadges(ctx: BadgeCheckContext) {
 
   // ============ 批量預查詢（一次查齊所有徽章判定所需的資料）============
   // 1. 完成練習數（first-practice / persistent-5 共用）
+  // P2-9：只計 NORMAL 練習
   const completedSessionCount = await prisma.practiceSession.count({
-    where: { childId, status: 'COMPLETED' },
+    where: { childId, status: 'COMPLETED', kind: 'NORMAL' },
   })
 
   // 2. 近期作答（帶 question.skill 關聯）：一次查 60 筆，供以下共用——
   //    - 連擊 / 速度連段（取前 60 筆按時間倒序，連擊上限 25 綽綽有餘）
   //    - 加/減法達人（從 skill.code 過濾，避免額外查 skill id）
   //    - all-skills（用 question.skillId 收集已練過的技能）
+  // P2-9：只取 COMPLETED + NORMAL session 的作答
   const recentAttemptsRaw = await prisma.attempt.findMany({
-    where: { session: { childId } },
+    where: { session: { childId, status: 'COMPLETED', kind: 'NORMAL' } },
     orderBy: { createdAt: 'desc' },
     take: 60,
     include: { question: { select: { skillId: true, skill: { select: { code: true, gradeLevel: true } } } } },
@@ -153,9 +156,10 @@ export async function checkBadges(ctx: BadgeCheckContext) {
 
   // all-skills：已練過的技能數（使用 DB distinct skillId，而非僅最近 60 筆）
   // P2-5：以 DB 查詢結果為準，避免較早練習的技能因超過 60 筆視窗而從集合中消失
+  // P2-9：只取 COMPLETED + NORMAL session
   const practicedSkillRows = await prisma.attempt.findMany({
     where: {
-      session: { childId },
+      session: { childId, status: 'COMPLETED', kind: 'NORMAL' },
       question: { skill: { gradeLevel: { in: reachableGrades } } },
     },
     distinct: ['questionId'],
@@ -173,7 +177,7 @@ export async function checkBadges(ctx: BadgeCheckContext) {
   })
   const addSkillIds = addSkillRows.map((s) => s.id)
   const addAttempts = addSkillIds.length > 0 ? await prisma.attempt.findMany({
-    where: { session: { childId }, question: { skillId: { in: addSkillIds } }, assisted: false },
+    where: { session: { childId, status: 'COMPLETED', kind: 'NORMAL' }, question: { skillId: { in: addSkillIds } }, assisted: false },
     orderBy: { createdAt: 'desc' },
     take: 20,
     select: { isCorrect: true },
@@ -190,7 +194,7 @@ export async function checkBadges(ctx: BadgeCheckContext) {
   })
   const subSkillIds = subSkillRows.map((s) => s.id)
   const subAttempts = subSkillIds.length > 0 ? await prisma.attempt.findMany({
-    where: { session: { childId }, question: { skillId: { in: subSkillIds } }, assisted: false },
+    where: { session: { childId, status: 'COMPLETED', kind: 'NORMAL' }, question: { skillId: { in: subSkillIds } }, assisted: false },
     orderBy: { createdAt: 'desc' },
     take: 20,
     select: { isCorrect: true },

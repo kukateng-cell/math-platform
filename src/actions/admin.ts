@@ -532,7 +532,8 @@ export async function getAllChildrenStats() {
     include: {
       parent: { select: { name: true, email: true } },
       sessions: {
-        where: { status: 'COMPLETED' },
+        // P2-9：只統計 COMPLETED + NORMAL 練習
+        where: { status: 'COMPLETED', kind: 'NORMAL' },
         orderBy: { startedAt: 'desc' },
         take: 5,
         select: { correctCount: true, totalQuestions: true, gradedQuestionCount: true, startedAt: true },
@@ -542,7 +543,7 @@ export async function getAllChildrenStats() {
       },
       _count: {
         select: {
-          sessions: { where: { status: 'COMPLETED' } },
+          sessions: { where: { status: 'COMPLETED', kind: 'NORMAL' } },
         },
       },
     },
