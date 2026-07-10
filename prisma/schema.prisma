@@ -27,6 +27,8 @@ model User {
   childProfiles ChildProfile[]
   childLinks    ParentChild[]  @relation("ParentLinks")
   sessions      PracticeSession[]
+  // 密碼重設授權（OTP 通過後簽發，一次性，綁定 tokenVersion 防重放）
+  passwordResetGrants PasswordResetGrant[]
 
   @@index([email])
 }
@@ -310,42 +312,28 @@ model OtpCode {
   @@index([expiresAt])
 }
 
-// ============ 註冊暫存（替代記憶體 Map，serverless 可靠）============
-// 用途：家長註冊 Step 1（填寫資料）→ Step 2（驗證 OTP）之間的資料暫存。
-// 用 JWT tempToken 攜帶 pendingSignupId，避免在多個 serverless instance 間共享。
-// OTP 驗證成功後自動刪除，或由 expiresAt 定期清理。
-model PendingSignup {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  // 嘗試次數：超過 maxAttempts 後自動刪除（防暴力破解 OTP）
-  attemptCount Int      @default(0)
-  expiresAt    DateTime // 有效期限（產生後 10 分鐘）
-  createdAt    DateTime @default(now())
-
-  @@index([expiresAt])
-}
-
-// ============ 密碼重設授權（一次性 grant，防 token 重放）============
-// 用途：忘記密碼 OTP 驗證通過後，產生一筆 grant（帶 jti）存入 DB，
-// 並簽發帶相同 jti 的 PASSWORD_RESET_VERIFIED token。
-// resetPassword 必須在 transaction 中「消耗」此 grant（consumedAt 從 null 設為時間戳），
-// 確保即使 token 被 replay，也只有第一次能成功。consumedAt IS NULL 的條件式
-// updateMany 即為 idempotency gate。
+// ============ 密碼重設授權（PasswordResetGrant）============
+// 用途：忘記密碼 OTP 驗證通過後簽發的「可重設密碼」授權紀錄。
+// 安全：
+//   1. 一次性（consumedAt）：resetPassword 成功後標記為已消耗，
+//      同一 token 無法再次使用（防重放）。
+//   2. tokenVersion 比對：grant 建立時快照 user.tokenVersion，
+//      resetPassword 時若 user.tokenVersion 已變動（如另一次重設、
+//      角色變更）則此 grant 視為過期，必須重新驗證 OTP。
+//   3. 一次重設作廢所有 outstanding grants：成功重設後以 updateMany
+//      將該 user 所有 consumedAt=null 的 grant 一次標記為已消耗，
+//      防止「先後兩次 OTP → 兩個 grant → 第一個用完第二個還能用」。
 model PasswordResetGrant {
-  id         String    @id @default(cuid())
-  userId     String
-  // JWT ID：與 PASSWORD_RESET_VERIFIED token 內的 jti 對應，一次性消耗
-  jti        String    @unique
-  // null = 尚未使用；resetPassword 成功時設為時間戳
-  consumedAt DateTime?
-  // 與 token 同步過期（產生後 10 分鐘），過期的 grant 可定期清理
-  expiresAt  DateTime
-  createdAt  DateTime  @default(now())
+  id           String    @id @default(cuid())
+  userId       String
+  tokenVersion Int       // 簽發當下 User.tokenVersion 的快照
+  consumedAt   DateTime? // null = 尚未使用；重設成功後填入時間
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([expiresAt])
+  @@index([consumedAt])
 }
 
 // ============ 登入/操作限速（替代記憶體 Map，serverless 可靠）============
@@ -359,4 +347,19 @@ model RateLimit {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+// ============ 註冊暫存（PendingSignup）============
+// 用途：家長註冊流程中，CAPTCHA + OTP 驗證期間暫存註冊資料。
+// OTP 驗證通過後建立 User，並刪除此暫存記錄。自動過期（expiresAt）。
+model PendingSignup {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  attemptCount Int      @default(0)
+  expiresAt    DateTime // 建立後 10 分鐘自動過期
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
 }

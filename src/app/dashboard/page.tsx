@@ -8,6 +8,8 @@ import DeleteChildButton from '@/components/delete-child-button'
 import PendingLinkRequests from '@/components/pending-link-requests'
 import { Icon } from '@/components/icon'
 
+export const dynamic = 'force-dynamic'
+
 // 相對時間
 function relativeTime(date: Date): string {
   const diff = Date.now() - date.getTime()

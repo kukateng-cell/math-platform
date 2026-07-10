@@ -245,6 +245,40 @@ export async function verifyTempToken(
 }
 
 // ====================================================================
+// 密碼重設授權 token（綁定 PasswordResetGrant，含 tokenVersion 防重放）
+// --------------------------------------------------------------------
+// 與一般 tempToken 的差異：
+//   - 夾帶 jti（= PasswordResetGrant.id）與 tokenVersion（簽發當下快照）。
+//   - resetPassword 驗證時會比對 DB grant 是否未消耗、tokenVersion 是否一致。
+//   - purpose='reset' 防止與其他用途的 token 互換。
+// ====================================================================
+export type PasswordResetTokenPayload = {
+  userId: string
+  jti: string // 對應 PasswordResetGrant.id
+  tokenVersion: number
+}
+
+export async function createPasswordResetToken(payload: PasswordResetTokenPayload): Promise<string> {
+  return new SignJWT({ ...payload, purpose: 'reset' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('10m')
+    .sign(KEY)
+}
+
+export async function verifyPasswordResetToken(token: string): Promise<PasswordResetTokenPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, KEY, { algorithms: ['HS256'] })
+    if ((payload as { purpose?: string }).purpose !== 'reset') return null
+    const p = payload as PasswordResetTokenPayload & { purpose: string }
+    if (!p.userId || !p.jti || typeof p.tokenVersion !== 'number') return null
+    return { userId: p.userId, jti: p.jti, tokenVersion: p.tokenVersion }
+  } catch {
+    return null
+  }
+}
+
+// ====================================================================
 // 註冊意圖 token（自主學習學生註冊用）
 // --------------------------------------------------------------------
 // 安全：自主註冊時「先建立帳號再驗 OTP」會留下大量未驗證的殭屍帳號，
