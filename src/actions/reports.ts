@@ -14,6 +14,7 @@
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { getChildSession } from '@/lib/child-session'
+import { calendarDayKey } from '@/lib/timezone'
 
 // ============ 練習授權輔助（與 practice.ts 同一套邏輯）============
 type PracticeAuth =
@@ -329,7 +330,7 @@ export async function getGrowthReport(
     correctCount += legit.filter((a) => a.isCorrect).length
     totalMs += legit.reduce((sum, a) => sum + a.durationMs, 0)
 
-    const dayKey = localDateKey(s.startedAt)
+    const dayKey = calendarDayKey(s.startedAt)
     const d = dailyMap.get(dayKey) ?? { sessions: 0, questions: 0, correct: 0, durationMs: 0 }
     d.sessions += 1
     d.questions += legit.length
@@ -344,7 +345,7 @@ export async function getGrowthReport(
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   while (cursor <= today) {
-    const key = localDateKey(cursor)
+    const key = calendarDayKey(cursor)
     const d = dailyMap.get(key)
     dailyTrend.push({
       date: key,
@@ -394,14 +395,4 @@ export async function getGrowthReport(
     dailyTrend,
     skillBreakdown,
   }
-}
-
-// ============ 共用工具 ============
-
-/** 把日期轉成當地時區的 YYYY-MM-DD（避免 UTC 偏差） */
-function localDateKey(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }

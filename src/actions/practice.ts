@@ -11,6 +11,7 @@ import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
 import { getNextGrade } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
 import { isAnswerCorrect } from '@/lib/answer-i18n'
+import { startOfToday } from '@/lib/timezone'
 
 const QUESTIONS_PER_SESSION = 10
 
@@ -255,7 +256,13 @@ export async function getSessionQuestions(
 
   // 記憶體內權限驗證（避免額外 DB 查詢）
   if (auth.type === 'child' && auth.childId !== practiceSession.childId) return null
-  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) return null
+  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) {
+    // P2-2：允許 linked parent（ACTIVE 綁定）存取 session
+    const link = await prisma.parentChild.findFirst({
+      where: { parentId: auth.userId, childId: practiceSession.childId, status: 'ACTIVE' },
+    })
+    if (!link) return null
+  }
 
   // 相容舊 session：若無 questionsJson，回傳空陣列讓前端顯示提示
   let questions: StoredQuestion[] = []
@@ -328,15 +335,14 @@ export async function getResumeableSessions(childId: string): Promise<Resumeable
   if (!auth) return []
   if (!(await canAccessChild(childId))) return []
 
-  // 今天的 00:00（本地時區）：用來過濾「僅當天」的未完成練習
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  // P2-10：用共用的 startOfToday（固定 Asia/Taipei 時區）
+  const todayStart = startOfToday()
 
   const sessions = await prisma.practiceSession.findMany({
     where: {
       childId,
       completedAt: null,
-      startedAt: { gte: startOfToday },
+      startedAt: { gte: todayStart },
       questionsJson: { not: null },
     },
     include: {
@@ -436,8 +442,13 @@ export async function submitAnswer(payload: {
   // 記憶體內權限驗證（避免額外 DB 查詢）
   if (auth.type === 'child' && auth.childId !== practiceSession.childId)
     throw new Error('無權存取此練習')
-  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId)
-    throw new Error('無權存取此練習')
+  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) {
+    // P2-2：允許 linked parent（ACTIVE 綁定）存取 session
+    const link = await prisma.parentChild.findFirst({
+      where: { parentId: auth.userId, childId: practiceSession.childId, status: 'ACTIVE' },
+    })
+    if (!link) throw new Error('無權存取此練習')
+  }
   // 已完成的練習不再接受作答（防重複提交）
   if (practiceSession.completedAt) {
     return {
@@ -818,10 +829,13 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
     throw new Error(`目前年級正確率 ${Math.round(passRate * 100)}% 未達 80%，無法升學`)
   }
 
-  // 升級 gradeLevel（這會「解鎖」下一年級的技能：accessibleGrades 會包含新年級）
+  // 升級 gradeLevel + 累計升學通過次數（這會「解鎖」下一年級的技能：accessibleGrades 會包含新年級）
   await prisma.childProfile.update({
     where: { id: childId },
-    data: { gradeLevel: targetGrade },
+    data: {
+      gradeLevel: targetGrade,
+      promotionCount: { increment: 1 },
+    },
   })
 
   // 升學確認獎勵：額外星星（與原答對星星等量，加倍鼓勵）
