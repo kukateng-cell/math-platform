@@ -110,12 +110,12 @@ export default async function DashboardPage() {
             const totalSkills = reachableSkills(child.gradeLevel)
             const skillPct = totalSkills > 0 ? Math.round((masteredSkills / totalSkills) * 100) : 0
 
-            // 最近 5 次練習的平均正確率
+            // 最近 5 次練習的平均正確率（P2-4：分母用 gradedQuestionCount，排除 assisted 題）
             const recentSessions = child.sessions.slice(0, 5)
             const avgAccuracy = recentSessions.length > 0
               ? Math.round(
                   (recentSessions.reduce(
-                    (sum, s) => sum + (s.totalQuestions > 0 ? s.correctCount / s.totalQuestions : 0),
+                    (sum, s) => sum + (s.gradedQuestionCount > 0 ? s.correctCount / s.gradedQuestionCount : 0),
                     0
                   ) / recentSessions.length) * 100
                 )
@@ -175,7 +175,7 @@ export default async function DashboardPage() {
                 {lastSession ? (
                   <div className="mb-3 space-y-0.5 text-xs text-neutral-500 dark:text-gray-400 sm:text-sm">
                     <p>
-                      上次練習：<span className="font-medium text-neutral-700 dark:text-gray-200">{lastSession.correctCount}/{lastSession.totalQuestions} 題正確</span>
+                      上次練習：<span className="font-medium text-neutral-700 dark:text-gray-200">{lastSession.correctCount}/{lastSession.gradedQuestionCount || lastSession.totalQuestions} 題正確</span>
                       <span className="ml-1 text-neutral-400 dark:text-gray-500">（{relativeTime(lastSession.startedAt)}）</span>
                     </p>
                     {avgAccuracy !== null && (

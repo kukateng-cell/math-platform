@@ -390,9 +390,11 @@ export default async function ChildOverviewPage({
               </thead>
               <tbody>
                 {child.sessions.map((s) => {
+                  // P2-4：分母用 gradedQuestionCount（排除 assisted 題）
+                  const graded = s.gradedQuestionCount || s.totalQuestions
                   const correctRate =
-                    s.totalQuestions > 0
-                      ? Math.round((s.correctCount / s.totalQuestions) * 100)
+                    graded > 0
+                      ? Math.round((s.correctCount / graded) * 100)
                       : 0
                   return (
                     <tr
@@ -405,7 +407,7 @@ export default async function ChildOverviewPage({
                       <td className="px-4 py-3 font-medium">{s.skill.name}</td>
                       <td className="px-4 py-3">
                         <span className="font-semibold text-neutral-800 dark:text-gray-100">
-                          {s.correctCount}/{s.totalQuestions}
+                          {s.correctCount}/{graded}
                         </span>
                         <span
                           className={`ml-1.5 text-xs ${
