@@ -152,20 +152,63 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
   return true
 }
 
-// 產生短期授權 token（密碼驗證通過後、OTP 完成前使用）
-export async function createTempToken(userId: string): Promise<string> {
-  return new SignJWT({ userId })
+// ====================================================================
+// 短期授權 token（OTP 驗證流程用）
+// --------------------------------------------------------------------
+// 安全：每張 token 都帶有明確的 purpose（用途），驗證時必須指定預期用途，
+// 不同流程的 token 無法互相冒用。例如：
+//   - login 發的 LOGIN_OTP_PENDING token 不能拿來重設密碼
+//   - OTP 驗證「前」的 *_OTP_PENDING token 不能用來執行需要 OTP 通過的操作
+//   - PASSWORD_RESET_VERIFIED 帶有 jti（一次性），搭配 DB grant 防止重放
+// ====================================================================
+export type TempTokenPurpose =
+  | 'LOGIN_OTP_PENDING'
+  | 'PASSWORD_RESET_OTP_PENDING'
+  | 'PASSWORD_RESET_VERIFIED'
+  | 'STUDENT_LOGIN_OTP_PENDING'
+
+export type VerifiedTempToken = {
+  userId: string
+  purpose: TempTokenPurpose
+  /** JWT ID：PASSWORD_RESET_VERIFIED 帶有 jti，用於 DB grant 一次性消耗 */
+  jti?: string
+  /** 密碼重設 grant 簽發時的 tokenVersion（防重放用） */
+  tokenVersion?: number
+}
+
+// 產生短期授權 token。必須指定 purpose；PASSWORD_RESET_VERIFIED 額外帶 jti
+export async function createTempToken(
+  userId: string,
+  purpose: TempTokenPurpose,
+  extra?: { jti?: string; tokenVersion?: number }
+): Promise<string> {
+  const payload: Record<string, unknown> = { userId, purpose }
+  if (extra?.jti) payload.jti = extra.jti
+  if (extra?.tokenVersion !== undefined) payload.tokenVersion = extra.tokenVersion
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('10m')
     .sign(KEY)
 }
 
-// 驗證並取出 userId
-export async function verifyTempToken(token: string): Promise<string | null> {
+// 驗證並取出完整 payload。必須指定 expectedPurpose，purpose 不符則回傳 null。
+// 回傳 null 的情況：簽章無效 / 已過期 / 缺 userId / purpose 不符。
+export async function verifyTempToken(
+  token: string,
+  expectedPurpose: TempTokenPurpose
+): Promise<VerifiedTempToken | null> {
   try {
     const { payload } = await jwtVerify(token, KEY, { algorithms: ['HS256'] })
-    return (payload as { userId: string }).userId ?? null
+    const p = payload as { userId?: string; purpose?: string; jti?: string; tokenVersion?: number }
+    if (!p.userId) return null
+    if (p.purpose !== expectedPurpose) return null
+    return {
+      userId: p.userId,
+      purpose: p.purpose as TempTokenPurpose,
+      jti: p.jti,
+      tokenVersion: p.tokenVersion,
+    }
   } catch {
     return null
   }
