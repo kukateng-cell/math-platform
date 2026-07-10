@@ -111,7 +111,10 @@ export async function checkBadges(ctx: BadgeCheckContext) {
   const earnedBadgeCodes = new Set(child.badges.map((b) => b.badgeId))
 
   // 取得所有徽章定義
-  const allBadges = await prisma.badge.findMany()
+  // P2-1：只查 active 的徽章，避免已停用的 badge 繼續頒發給新學生
+  const allBadges = await prisma.badge.findMany({
+    where: { isActive: true },
+  })
   const newlyEarned: { badgeId: string; name: string; icon: string }[] = []
 
   // ============ 批量預查詢（一次查齊所有徽章判定所需的資料）============

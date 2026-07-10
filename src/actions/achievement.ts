@@ -90,7 +90,15 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
     recentAttemptsAll,
     masteredCount,
   ] = await Promise.all([
-    prisma.badge.findMany(),
+    // P2-1：查所有 active badges + 孩子已獲得的 inactive badges（保留歷史）
+    prisma.badge.findMany({
+      where: {
+        OR: [
+          { isActive: true },
+          { childBadges: { some: { childId } } },
+        ],
+      },
+    }),
     prisma.practiceSession.count({
       where: { childId, status: 'COMPLETED' },
     }),

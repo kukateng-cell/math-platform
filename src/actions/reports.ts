@@ -61,6 +61,8 @@ export type PracticeHistoryItem = {
   completedAt: Date | null
   totalQuestions: number
   correctCount: number
+  /** P2-4：非 assisted 的題數（正確率分母用） */
+  gradedQuestionCount: number
   /** 平均每題用時（秒） */
   avgDurationSec: number
   /** 逐題詳情 */
@@ -181,6 +183,7 @@ export async function getPracticeHistory(
       completedAt: s.completedAt,
       totalQuestions: s.totalQuestions,
       correctCount: s.correctCount,
+      gradedQuestionCount: s.gradedQuestionCount,
       avgDurationSec,
       attempts: s.attempts,
     }
