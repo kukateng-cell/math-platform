@@ -65,16 +65,14 @@ enum LinkStatus {
 
 model ChildProfile {
   id        String   @id @default(cuid())
-  // 學生可以有自己的帳號密碼獨立登入
-  email        String?  @unique
-  passwordHash String?
-  pin          String?  // 4 位數 PIN 碼
-  nickname     String
-  gradeLevel   String   // K, G1, G2 ...
+  // 學生可以有自己的帳號獨立登入（Email OTP，免密碼）
+  email     String?  @unique
+  nickname  String
+  gradeLevel String  // K, G1, G2 ...
 
   // 可選：由家長建立時才有 parentId；學生自主註冊時為 null
   parentId  String?
-  // 學習模式：STANDARD(需 PIN,可綁家長) | SELF_STUDY(免 PIN,用驗證碼登入)
+  // 學習模式：STANDARD(可綁家長) | SELF_STUDY(用驗證碼登入,自主學習)
   mode      ChildMode @default(STANDARD)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -173,6 +171,10 @@ model PracticeSession {
   completedAt DateTime?
   totalQuestions Int    @default(0)
   correctCount   Int    @default(0)
+  // P2-4：非 assisted 的答題數（正確率分母用），避免 assisted 題被當成錯題
+  gradedQuestionCount Int @default(0)
+  // P2-4：assisted（家長協助）的答題數
+  assistedCount      Int @default(0)
   // 伺服器生成的題目快照（JSON），供 submitAnswer 驗證用，避免信任前端
   questionsJson String?
 
