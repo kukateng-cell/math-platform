@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { createBadge, updateBadge, deleteBadge, type BadgeFormState } from '@/actions/admin'
+import { createBadge, updateBadge, type BadgeFormState } from '@/actions/admin'
 
 type BaseBadge = { id: string; name: string; icon: string; condition: string }
 

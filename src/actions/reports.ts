@@ -14,6 +14,7 @@
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { getChildSession } from '@/lib/child-session'
+import { calendarDayKey } from '@/lib/timezone'
 
 // ============ 練習授權輔助（與 practice.ts 同一套邏輯）============
 type PracticeAuth =
@@ -60,6 +61,8 @@ export type PracticeHistoryItem = {
   completedAt: Date | null
   totalQuestions: number
   correctCount: number
+  /** P2-4：非 assisted 的題數（正確率分母用） */
+  gradedQuestionCount: number
   /** 平均每題用時（秒） */
   avgDurationSec: number
   /** 逐題詳情 */
@@ -144,10 +147,13 @@ export async function getPracticeHistory(
   const auth = await getPracticeAuth()
   if (!auth || !(await canAccessChild(childId))) return null
 
+  // 防濫用：限制查詢範圍
+  const safeLimit = Math.min(Math.max(limit, 1), 100)
+
   const sessions = await prisma.practiceSession.findMany({
-    where: { childId, completedAt: { not: null } },
+    where: { childId, status: 'COMPLETED' },
     orderBy: { startedAt: 'desc' },
-    take: limit,
+    take: safeLimit,
     include: {
       skill: { select: { id: true, name: true } },
       attempts: {
@@ -177,6 +183,7 @@ export async function getPracticeHistory(
       completedAt: s.completedAt,
       totalQuestions: s.totalQuestions,
       correctCount: s.correctCount,
+      gradedQuestionCount: s.gradedQuestionCount,
       avgDurationSec,
       attempts: s.attempts,
     }
@@ -297,8 +304,11 @@ export async function getGrowthReport(
   })
   if (!child) return null
 
+  // 防濫用：限制查詢範圍
+  const safeDays = Math.min(Math.max(days, 1), 365)
+
   const since = new Date()
-  since.setDate(since.getDate() - days)
+  since.setDate(since.getDate() - safeDays)
   since.setHours(0, 0, 0, 0)
 
   // 區間內完成的練習（含 attempts）
@@ -323,7 +333,7 @@ export async function getGrowthReport(
     correctCount += legit.filter((a) => a.isCorrect).length
     totalMs += legit.reduce((sum, a) => sum + a.durationMs, 0)
 
-    const dayKey = localDateKey(s.startedAt)
+    const dayKey = calendarDayKey(s.startedAt)
     const d = dailyMap.get(dayKey) ?? { sessions: 0, questions: 0, correct: 0, durationMs: 0 }
     d.sessions += 1
     d.questions += legit.length
@@ -338,7 +348,7 @@ export async function getGrowthReport(
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   while (cursor <= today) {
-    const key = localDateKey(cursor)
+    const key = calendarDayKey(cursor)
     const d = dailyMap.get(key)
     dailyTrend.push({
       date: key,
@@ -388,14 +398,4 @@ export async function getGrowthReport(
     dailyTrend,
     skillBreakdown,
   }
-}
-
-// ============ 共用工具 ============
-
-/** 把日期轉成當地時區的 YYYY-MM-DD（避免 UTC 偏差） */
-function localDateKey(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }

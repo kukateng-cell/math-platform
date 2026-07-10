@@ -27,6 +27,7 @@ export default function LoginForm({ initialCaptcha }: Props) {
   // OTP 模式啟動時開始倒數
   useEffect(() => {
     if (isOtpMode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCountdown(60)
       timerRef.current = setInterval(() => {
         setCountdown((prev) => {
@@ -46,6 +47,7 @@ export default function LoginForm({ initialCaptcha }: Props) {
   // 重新發送後重設計時器
   useEffect(() => {
     if (resendState?.otpRequired) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCountdown(60)
       if (timerRef.current) clearInterval(timerRef.current)
       timerRef.current = setInterval(() => {

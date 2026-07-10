@@ -46,6 +46,7 @@ export default function ForgotPasswordForm({ initialCaptcha }: Props) {
 
   useEffect(() => {
     if (isOtpMode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCountdown(60)
       timerRef.current = setInterval(() => {
         setCountdown((prev) => {

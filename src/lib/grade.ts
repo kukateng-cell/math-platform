@@ -7,25 +7,30 @@
 
 export const GRADE_ORDER = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6'] as const
 
-// 年級轉數值等級（K=0, G1=1, ...）；未知年級回傳較大值（排在最後）
+// P1-10：未知年級 fail-closed（回傳 -1 / 空陣列），
+// 避免 typo / 舊資料解鎖全部年級。
 export function gradeRank(level: string): number {
   const idx = GRADE_ORDER.indexOf(level as (typeof GRADE_ORDER)[number])
-  return idx === -1 ? 999 : idx
+  return idx === -1 ? -1 : idx
 }
 
 // 孩子是否可看見 / 練習該年級的技能：
 // 高年級可往下複習低年級，低年級不可往上看高年級
+// 未知年級回傳 false（fail-closed，不允許存取任何技能）
 export function canAccessGrade(childGrade: string, skillGrade: string): boolean {
-  return gradeRank(skillGrade) <= gradeRank(childGrade)
+  const childRank = gradeRank(childGrade)
+  const skillRank = gradeRank(skillGrade)
+  if (childRank === -1 || skillRank === -1) return false
+  return skillRank <= childRank
 }
 
 // 列出某年級孩子可存取的所有年級代碼（含自身與以下）
 // 例：childGrade='G1' → ['K', 'G1']
 //     childGrade='K'  → ['K']
+// 未知年級回傳空陣列（fail-closed，不開放任何年級）
 export function accessibleGrades(childGrade: string): string[] {
   const rank = gradeRank(childGrade)
-  // 未知年級：放行全部（permissive fallback，實務上 child 年級有 zod 驗證）
-  if (rank >= GRADE_ORDER.length) return [...GRADE_ORDER]
+  if (rank < 0 || rank >= GRADE_ORDER.length) return []
   return GRADE_ORDER.slice(0, rank + 1)
 }
 

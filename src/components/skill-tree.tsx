@@ -209,6 +209,7 @@ export function SkillTree({
 
 // ============ 年級技能彈窗 ============
 function GradeModal({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   grade,
   cfg,
   skills,

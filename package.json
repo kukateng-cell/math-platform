@@ -12,7 +12,13 @@
     "test:watch": "vitest",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:status": "prisma migrate status",
+    "db:bootstrap": "ALLOW_DESTRUCTIVE_SEED=true node --experimental-strip-types prisma/seed.ts",
+    "db:content:sync": "node --experimental-strip-types prisma/seed.ts",
     "db:seed": "node --experimental-strip-types prisma/seed.ts",
+    "admin:bootstrap": "node --experimental-strip-types scripts/bootstrap-admin.ts",
     "db:seed:demo": "node --experimental-strip-types scripts/seed-demo.ts",
     "db:clean:demo": "node --experimental-strip-types scripts/clean-demo.ts",
     "db:seed:challenge": "node --experimental-strip-types scripts/seed-challenge.ts"
@@ -27,7 +33,6 @@
     "pg": "^8.13.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "resend": "^6.17.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

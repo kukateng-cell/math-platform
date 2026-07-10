@@ -90,9 +90,17 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
     recentAttemptsAll,
     masteredCount,
   ] = await Promise.all([
-    prisma.badge.findMany(),
+    // P2-1：查所有 active badges + 孩子已獲得的 inactive badges（保留歷史）
+    prisma.badge.findMany({
+      where: {
+        OR: [
+          { isActive: true },
+          { childBadges: { some: { childId } } },
+        ],
+      },
+    }),
     prisma.practiceSession.count({
-      where: { childId, completedAt: { not: null } },
+      where: { childId, status: 'COMPLETED' },
     }),
     prisma.skill.count({
       where: { isActive: true, gradeLevel: { in: reachableGrades } },
@@ -133,7 +141,7 @@ export async function getChildBadges(childId: string): Promise<BadgeWithProgress
     }),
   ])
 
-  const practicedSkillIds = new Set(attemptsByChild.map((a) => a.question.skillId))
+  const practicedSkillIds = new Set(attemptsByChild.filter((a) => a.question).map((a) => a.question!.skillId))
   const addSkillIds = addSkillRows.map((s) => s.id)
   const subSkillIds = subSkillRows.map((s) => s.id)
   const addAttempts = allAttempts.filter((a) => addSkillIds.includes(a.question?.skillId ?? ''))

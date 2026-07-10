@@ -63,6 +63,7 @@ function sessionsTable(
     completedAt: Date | null
     totalQuestions: number
     correctCount: number
+    gradedQuestionCount: number
   }[],
 ): CsvTable {
   return {
@@ -71,8 +72,9 @@ function sessionsTable(
       { key: 'completedAt', label: '完成時間' },
       { key: 'gradeLevel', label: '年級' },
       { key: 'skillName', label: '技能' },
-      { key: 'totalQuestions', label: '題數' },
+      { key: 'totalQuestions', label: '總題數' },
       { key: 'correctCount', label: '答對' },
+      { key: 'assisted', label: '家長協助' },
       { key: 'accuracy', label: '正確率' },
     ],
     rows: sessions.map((s) => ({
@@ -82,9 +84,11 @@ function sessionsTable(
       skillName: s.skillName,
       totalQuestions: s.totalQuestions,
       correctCount: s.correctCount,
+      assisted: s.totalQuestions - s.gradedQuestionCount,
+      // P2-4：使用 gradedQuestionCount 作為分母（排除 assisted 題）
       accuracy:
-        s.totalQuestions > 0
-          ? `${Math.round((s.correctCount / s.totalQuestions) * 100)}%`
+        s.gradedQuestionCount > 0
+          ? `${Math.round((s.correctCount / s.gradedQuestionCount) * 100)}%`
           : '-',
     })),
   }
@@ -174,6 +178,8 @@ function badgesTable(
 /**
  * 取得單一孩子的完整 CSV（4 個區塊：檔案 / 練習 / 作答 / 掌握度 / 徽章）。
  * 呼叫端須已確認身分可存取此 childId。
+ *
+ * 安全限制：最多匯出最近 500 筆 sessions，避免資料過多造成超時。
  */
 export async function buildChildCsv(childId: string): Promise<{ nickname: string; csv: string }> {
   const child = await prisma.childProfile.findUnique({
@@ -181,7 +187,9 @@ export async function buildChildCsv(childId: string): Promise<{ nickname: string
     include: {
       parent: { select: { email: true } },
       sessions: {
+        where: { status: 'COMPLETED' },
         orderBy: { startedAt: 'desc' },
+        take: 500, // 最多匯出 500 筆
         include: { skill: { select: { name: true, gradeLevel: true } } },
       },
       masterySnapshots: {
@@ -192,10 +200,11 @@ export async function buildChildCsv(childId: string): Promise<{ nickname: string
   })
   if (!child) throw new Error('找不到孩子檔案')
 
-  // 作答明細（跨所有 session）
+  // 作答明細（跨所有 session，最多 2000 筆避免超時）
   const attempts = await prisma.attempt.findMany({
     where: { session: { childId } },
     orderBy: { createdAt: 'desc' },
+    take: 2000,
     include: { session: { include: { skill: { select: { name: true } } } } },
   })
 
@@ -212,6 +221,7 @@ export async function buildChildCsv(childId: string): Promise<{ nickname: string
           completedAt: s.completedAt,
           totalQuestions: s.totalQuestions,
           correctCount: s.correctCount,
+          gradedQuestionCount: s.gradedQuestionCount,
         })),
       ),
     },
@@ -273,7 +283,7 @@ export async function buildAllChildrenCsv(): Promise<string> {
     include: {
       parent: { select: { email: true } },
       sessions: {
-        where: { completedAt: { not: null } },
+        where: { status: 'COMPLETED' },
         orderBy: { startedAt: 'desc' },
         include: { skill: { select: { name: true, gradeLevel: true } } },
       },
@@ -293,6 +303,7 @@ export async function buildAllChildrenCsv(): Promise<string> {
         skillName: '',
         totalQuestions: '',
         correctCount: '',
+        assisted: '',
         accuracy: '',
       })
       continue
@@ -308,9 +319,10 @@ export async function buildAllChildrenCsv(): Promise<string> {
         skillName: s.skill.name,
         totalQuestions: s.totalQuestions,
         correctCount: s.correctCount,
+        assisted: s.totalQuestions - s.gradedQuestionCount,
         accuracy:
-          s.totalQuestions > 0
-            ? `${Math.round((s.correctCount / s.totalQuestions) * 100)}%`
+          s.gradedQuestionCount > 0
+            ? `${Math.round((s.correctCount / s.gradedQuestionCount) * 100)}%`
             : '-',
       })
     }
@@ -325,8 +337,9 @@ export async function buildAllChildrenCsv(): Promise<string> {
       { key: 'startedAt', label: '開始時間' },
       { key: 'completedAt', label: '完成時間' },
       { key: 'skillName', label: '技能' },
-      { key: 'totalQuestions', label: '題數' },
+      { key: 'totalQuestions', label: '總題數' },
       { key: 'correctCount', label: '答對' },
+      { key: 'assisted', label: '家長協助' },
       { key: 'accuracy', label: '正確率' },
     ],
     rows,

@@ -11,9 +11,16 @@ const CHILD_ROUTES = ['/practice']
 const CHILD_OWN = ['/children']
 // 已登入者不該再看到：登入、註冊
 const AUTH_PAGES = ['/login', '/signup']
+// 不需要 JWT 驗證的公開頁面（跳過整個 JWT 解析，降低延遲與伺服器負擔）
+const PUBLIC = ['/login', '/signup', '/forgot-password', '/child-login', '/student/login', '/student/signup', '/achievements']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // 公開路由：直接放行，不執行任何 JWT 驗證
+  if (pathname === '/' || PUBLIC.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next()
+  }
   const token = request.cookies.get('math-session')?.value
   const childToken = request.cookies.get('math-child')?.value
 

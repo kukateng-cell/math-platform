@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   submitAnswer,
   startSession,
@@ -19,9 +19,11 @@ import type { Recommendation } from '@/lib/mastery'
 type QuestionItem = {
   templateId: string
   prompt: string
-  answer: string
+  // 注意：不含 answer 與 explanation 欄位。正確答案與完整算式只存在 server 端，
+  // 唯有透過 submitAnswer 提交後才會在回傳值（correctAnswer / explanation）中提供。
+  // hint 是作答前可安全顯示的提示文字（不含答案），查看後該題自動視為 assisted。
   options?: string[]
-  explanation?: string
+  hint?: string
   interaction?: string
   rangeMin?: number
   rangeMax?: number
@@ -54,6 +56,29 @@ function getEncouragement(rate: number): { icon: IconName; msg: string } {
   if (rate >= 60) return { icon: 'thumbs-up', msg: '不錯喔！再加油！' }
   return { icon: 'sprout', msg: '沒關係，多練習就會了！' }
 }
+
+// ============ 完成頁紙屑粒子 ============
+// 在「模組層級」產生一次隨機設定（不在元件 render 中呼叫 Math.random），
+// 滿足 React「render 必須純粹」的規則。每次完成頁共用同一組粒子，視覺上無差異。
+type ConfettiParticle = {
+  x: number
+  delay: number
+  color: string
+  shape: IconName
+  size: number
+  duration: number
+}
+
+const CONFETTI_COLORS = ['#facc15', '#f97316', '#ef4444', '#a855f7', '#3b82f6', '#22c55e', '#ec4899', '#06b6d4']
+const CONFETTI_SHAPES: IconName[] = ['star', 'sparkle', 'circle', 'gem']
+const CONFETTI_PARTICLES: ConfettiParticle[] = Array.from({ length: 40 }).map(() => ({
+  x: Math.random() * 100,
+  delay: Math.random() * 2.5,
+  color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+  shape: CONFETTI_SHAPES[Math.floor(Math.random() * CONFETTI_SHAPES.length)],
+  size: 0.5 + Math.random() * 1,
+  duration: 1.5 + Math.random() * 2,
+}))
 
 type Props = {
   questions: QuestionItem[]
@@ -117,35 +142,63 @@ export default function PracticeClient({
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showHint, setShowHint] = useState(false)
+  // P0-1：追蹤本題是否查看過 hint。查看 hint 的作答，提交時 hintUsed=true，
+  // 伺服器會強制視為 assisted（不計入掌握度/星星/徽章），不信任前端 assisted。
+  const [hintUsed, setHintUsed] = useState(false)
   const [showCelebration, setShowCelebration] = useState(true)
   /** 多設備情境：此練習已在其他裝置被完成，非本地答錯 */
   const [remoteFinished, setRemoteFinished] = useState(false)
-  const startTimeRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
-  const practiceStartRef = useRef<number>(typeof window !== 'undefined' ? Date.now() : 0)
+  const startTimeRef = useRef<number>(0)
+  const practiceStartRef = useRef<number>(0)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
   const completionLinkRef = useRef<HTMLAnchorElement | null>(null)
   // 答題回饋區塊：答完後自動滾動至此，避免使用者要手動往下滑找「下一題」
   const feedbackRef = useRef<HTMLDivElement | null>(null)
   const submittingRef = useRef(false)
 
+  // 計時基準時間：在 mount effect 中設定（不可在 render 期間呼叫 Date.now()）。
+  // startTimeRef 為「當前題目」起始時間（nextQuestion 中會重設）；practiceStartRef 為整個練習起始時間。
+  useEffect(() => {
+    const now = Date.now()
+    startTimeRef.current = now
+    practiceStartRef.current = now
+  }, [])
+
   const current = questions[index]
   const progress = Math.round((index / questions.length) * 100)
   const totalQuestions = questions.length
+
+  // 完成練習時 index 可能短暫越界（questions[index] 為 undefined），
+  // 此時 early return 會進入完成頁；為避免存取 undefined 的屬性而崩潰，加 fallback。
+  // 提前計算 interaction / currentAnswer，讓下方 effects 與事件處理可直接使用（避免使用前宣告）。
+  const interaction = current
+    ? (current.interaction || (!current.options || current.options.length === 0 ? 'fillin' : 'choice'))
+    : 'choice'
+
+  const currentAnswer = interaction === 'numberline'
+    ? lineValue !== null ? String(lineValue) : null
+    : interaction === 'fillin'
+    ? fillValue || null
+    : selected
 
   // ============ 「下一個練習」推薦 ============
   // 完成練習後查詢系統推薦的下一個技能，讓使用者可直接開始下一個練習
   // 型別直接引用 Recommendation 聯集，呼叫端可對 type 做 exhaustive 判斷
   const [nextRec, setNextRec] = useState<Recommendation | null>(null)
-  const [recLoading, setRecLoading] = useState(false)
+  // 推薦是否已取得結果（成功或失敗皆算完成）。所有 setState 都放在 promise 回呼中，
+  // 避免在 effect 主體內同步呼叫 setState（react-hooks/set-state-in-effect）。
+  const [recResolved, setRecResolved] = useState(false)
 
   const isFinished =
     index >= questions.length ||
     (lastResult?.finished && index === questions.length - 1)
 
+  // loading 改為「衍生值」：練習完成但推薦結果尚未取得時顯示載入骨架
+  const recLoading = isFinished && !recResolved
+
   useEffect(() => {
-    if (!isFinished) return
+    if (!isFinished || recResolved) return
     let cancelled = false
-    setRecLoading(true)
     getNextPractice(childId)
       .then((rec) => {
         if (!cancelled) setNextRec(rec)
@@ -154,12 +207,12 @@ export default function PracticeClient({
         if (!cancelled) setNextRec(null)
       })
       .finally(() => {
-        if (!cancelled) setRecLoading(false)
+        if (!cancelled) setRecResolved(true)
       })
     return () => {
       cancelled = true
     }
-  }, [isFinished, childId])
+  }, [isFinished, childId, recResolved])
 
   // 每題切換時自動聚焦：選擇題聚焦第一個選項，輸入題聚焦 NumberPad 內部的 input
   useEffect(() => {
@@ -175,7 +228,7 @@ export default function PracticeClient({
       input?.focus()
     })
     return () => cancelAnimationFrame(raf)
-  }, [index])
+  }, [index, interaction])
 
   useEffect(() => {
     if (index >= questions.length && completionLinkRef.current) {
@@ -212,18 +265,6 @@ export default function PracticeClient({
     return () => cancelAnimationFrame(raf)
   }, [lastResult])
 
-  // 完成練習時 index 可能短暫越界（questions[index] 為 undefined），
-  // 此時 early return 會進入完成頁；為避免存取 undefined 的屬性而崩潰，加 fallback。
-  const interaction = current
-    ? (current.interaction || (!current.options || current.options.length === 0 ? 'fillin' : 'choice'))
-    : 'choice'
-
-  const currentAnswer = interaction === 'numberline'
-    ? lineValue !== null ? String(lineValue) : null
-    : interaction === 'fillin'
-    ? fillValue || null
-    : selected
-
   // 使用 useRef 保存最新值，避免全局 keydown 監聽器因依賴變更而反覆註冊/卸載
   const lastResultRef = useRef(lastResult)
   const currentAnswerRef = useRef(currentAnswer)
@@ -232,13 +273,6 @@ export default function PracticeClient({
   const questionsLenRef = useRef(questions.length)
   const nextQuestionRef = useRef<() => void>(() => {})
   const handleSubmitRef = useRef<() => Promise<void>>(async () => {})
-
-  // 在 render 期間同步 ref（不能在 effect 中做，否則 effect 執行前事件監聽可能讀到舊值）
-  lastResultRef.current = lastResult
-  currentAnswerRef.current = currentAnswer
-  submittingRef_forListener.current = submitting
-  indexRef.current = index
-  questionsLenRef.current = questions.length
 
   function handleKeyDown(e: React.KeyboardEvent) {
     // 中文輸入法（IME）組字中不攔截按鍵（Enter 是確認候選字）
@@ -318,10 +352,14 @@ export default function PracticeClient({
         userAnswer: currentAnswer,
         assisted,
         durationMs,
+        // P0-1：傳送 hintUsed 給伺服器。伺服器會強制 assisted=true（不信任前端），
+        // 確保查看 hint 的作答不計入掌握度/星星/徽章。
+        hintUsed,
       })
 
       setLastResult(result)
-      if (result.correct && !assisted) setCorrectCount((c) => c + 1)
+      // P0-1：若伺服器端因 hintUsed 強制 assisted，前端 correctCount 也不計入
+      if (result.correct && !assisted && !hintUsed) setCorrectCount((c) => c + 1)
 
       // 多設備情境：另一裝置已完成此練習 → 不顯示答錯動畫，直接跳完成頁
       const alreadyFinished = result.finished && !result.correct && result.correctAnswer === ''
@@ -358,9 +396,6 @@ export default function PracticeClient({
       submittingRef.current = false
     }
   }
-  // 同步 ref 供全局 keydown 監聽器使用（ref 不會觸發 re-render）
-  handleSubmitRef.current = handleSubmit as () => Promise<void>
-
   function nextQuestion() {
     setSelected(null)
     setFillValue('')
@@ -368,13 +403,26 @@ export default function PracticeClient({
     setLastResult(null)
     setAssisted(false)
     setShowHint(false)
+    setHintUsed(false)
     setFeedback(null)
     setRevealCorrect(false)
     setBgFlash(null)
     startTimeRef.current = Date.now()
     setIndex((i) => i + 1)
   }
-  nextQuestionRef.current = nextQuestion
+
+  // 同步最新狀態到 ref，供「只在 mount 時註冊一次」的全域 keydown 監聽器讀取。
+  // 必須在 effect 中寫 ref（而非 render 期間），符合 React 19「不可在 render 中改 ref」的規則。
+  // 此 effect 不含依賴陣列，每次 render 後都會執行以保持 ref 為最新值。
+  useEffect(() => {
+    lastResultRef.current = lastResult
+    currentAnswerRef.current = currentAnswer
+    submittingRef_forListener.current = submitting
+    indexRef.current = index
+    questionsLenRef.current = questions.length
+    handleSubmitRef.current = handleSubmit
+    nextQuestionRef.current = nextQuestion
+  })
 
   if (index >= questions.length || (lastResult?.finished && index === questions.length - 1)) {
     // 多設備情境：另一裝置已完成了此練習，顯示專用提示
@@ -401,21 +449,16 @@ export default function PracticeClient({
     }
 
     const starsEarned = correctCount
-    const accuracy = Math.round((correctCount / questions.length) * 100)
+    // P2-4：正確率分母用 gradedQuestionCount（排除 assisted 題），不把家長協助題當成錯題
+    const gradedQuestionCount = questionResults.filter((r) => r && !r.assisted).length
+    const assistedCount = questionResults.filter((r) => r && r.assisted).length
+    const accuracy = gradedQuestionCount > 0
+      ? Math.round((correctCount / gradedQuestionCount) * 100)
+      : Math.round((correctCount / questions.length) * 100)
     const encouragement = getEncouragement(accuracy)
-    const totalTime = finalTotalMs != null ? finalTotalMs : Date.now() - practiceStartRef.current
-
-    // 紙屑粒子配置（僅在客戶端渲染，Math.random 安全）
-    const confettiColors = ['#facc15', '#f97316', '#ef4444', '#a855f7', '#3b82f6', '#22c55e', '#ec4899', '#06b6d4']
-    const confettiShapes: IconName[] = ['star', 'sparkle', 'circle', 'gem']
-    const confettiParticles = Array.from({ length: 40 }).map(() => ({
-      x: Math.random() * 100,
-      delay: Math.random() * 2.5,
-      color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
-      shape: confettiShapes[Math.floor(Math.random() * confettiShapes.length)],
-      size: 0.5 + Math.random() * 1,
-      duration: 1.5 + Math.random() * 2,
-    }))
+    // totalTime 取自 finalTotalMs（練習完成時已於 handleSubmit / remoteFinished 路徑寫入）。
+    // 不在 render 中呼叫 Date.now() 或讀 ref，符合純粹性規則。
+    const totalTime = finalTotalMs ?? 0
 
     return (
       <div className="relative">
@@ -424,7 +467,7 @@ export default function PracticeClient({
           <div className="fixed inset-0 z-50 flex items-center justify-center animate-overlay-fade-in" style={{ background: 'rgba(0,0,0,0.65)' }}>
             {/* 紙屑粒子 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {confettiParticles.map((p, i) => (
+              {CONFETTI_PARTICLES.map((p, i) => (
                 <div
                   key={i}
                   className="absolute animate-confetti-fall"
@@ -490,8 +533,13 @@ export default function PracticeClient({
         {/* 答對題數 + 總花費時間 */}
         <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
           <p className="text-lg text-neutral-700 dark:text-gray-200">
-            答對 <span className="font-bold text-green-600 dark:text-green-400">{correctCount}</span> / {questions.length} 題
+            獨立作答 <span className="font-bold text-green-600 dark:text-green-400">{correctCount}</span> / {gradedQuestionCount || questions.length} 題
           </p>
+          {assistedCount > 0 && (
+            <p className="text-lg text-neutral-700 dark:text-gray-200">
+              家長協助 <span className="font-bold text-amber-600 dark:text-amber-400">{assistedCount}</span> 題
+            </p>
+          )}
           <p className="text-lg text-neutral-700 dark:text-gray-200">
             共花費 <span className="inline-flex items-center gap-1 font-mono font-bold text-blue-600 dark:text-blue-400"><Icon name="stopwatch" className="h-5 w-5" /> {formatDuration(totalTime)}</span>
           </p>
@@ -764,12 +812,17 @@ export default function PracticeClient({
         </p>
       </div>
 
-      {/* 💡 提示按鈕 — 作答前可預先查看解題提示 */}
-      {current.explanation && !lastResult && (
+      {/* 💡 提示按鈕 — 作答前可預先查看解題提示（不含答案） */}
+      {/* P0-1：只顯示 hint（不含答案）；查看後標記 hintUsed，提交時伺服器強制 assisted */}
+      {current.hint && !lastResult && (
         <div className="text-center">
           <button
             type="button"
-            onClick={() => setShowHint(!showHint)}
+            onClick={() => {
+              setShowHint(!showHint)
+              // 第一次展開 hint 時標記本題已使用提示（提交時 hintUsed=true）
+              if (!showHint) setHintUsed(true)
+            }}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
           >
             <span className="text-base">{showHint ? '隱藏提示' : '顯示提示'}</span>
@@ -778,7 +831,7 @@ export default function PracticeClient({
           </button>
           {showHint && (
             <div className="mx-auto mt-2 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-800 animate-fade-in-up dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              <span className="inline-flex items-start gap-1.5 align-top"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{renderTextWithShapes(current.explanation ?? '', 'sm')}</span>
+              <span className="inline-flex items-start gap-1.5 align-top"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{renderTextWithShapes(current.hint ?? '', 'sm')}</span>
             </div>
           )}
         </div>
@@ -790,18 +843,21 @@ export default function PracticeClient({
             let cls = 'border-2 border-neutral-300 bg-white shadow-sm hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:hover:border-blue-400 dark:hover:bg-gray-800 transition-all duration-150'
             if (selected === opt) cls = 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950'
             if (lastResult && feedback) {
+              // 用 server 回傳的 lastResult.correctAnswer 來判斷哪個選項是正確的，
+              // 不使用題目本身的 answer（答案不會送到 client，P0-2）。
+              const correctAnswer = lastResult.correctAnswer
               if (feedback === 'correct' && selected === opt) {
                 cls = 'border-green-500 bg-green-100 animate-pop animate-ripple dark:border-green-600 dark:bg-green-950'
               } else if (feedback === 'incorrect') {
                 if (selected === opt) {
                   cls = 'border-red-400 bg-red-100 animate-shake dark:border-red-800 dark:bg-red-950'
-                } else if (opt === current.answer && revealCorrect) {
+                } else if (opt === correctAnswer && revealCorrect) {
                   cls = 'border-green-500 bg-green-50 animate-fade-in-up dark:border-green-600 dark:bg-green-950'
                 } else {
                   cls = 'border-neutral-200 bg-white opacity-60 dark:border-gray-700 dark:bg-gray-900'
                 }
               } else if (feedback === 'correct') {
-                if (opt === current.answer) {
+                if (opt === correctAnswer) {
                   cls = 'border-green-500 bg-green-50 dark:border-green-600 dark:bg-green-950'
                 } else {
                   cls = 'border-neutral-200 bg-white opacity-60 dark:border-gray-700 dark:bg-gray-900'
@@ -853,11 +909,11 @@ export default function PracticeClient({
           onSubmit={handleSubmit}
           disabled={!!lastResult}
           index={index}
-          // 自動判斷輸入模式：
-          // - inputMode 明確設為 'text' → 文字模式（鍵盤輸入中文/英文）
-          // - inputMode 明確設為 'numeric' → 數字鍵盤
-          // - 未設定時，依答案內容自動偵測：非純數字答案（含中文/單位）→ 文字模式
-          mode={current.inputMode === 'text' || (current.inputMode !== 'numeric' && current.answer && !/^-?\d+(\.\d+)?$/.test(current.answer)) ? 'text' : 'numeric'}
+          // 自動判斷輸入模式：inputMode 由 server 端根據答案決定後送出，
+          // client 端不再檢查答案內容（答案不會送到 client，P0-2）。
+          // - inputMode='text' → 文字模式（鍵盤輸入中文/英文）
+          // - inputMode='numeric' 或未設定 → 數字鍵盤（預設）
+          mode={current.inputMode === 'text' ? 'text' : 'numeric'}
           maxLength={current.maxLength}
           placeholder={current.placeholder}
         />

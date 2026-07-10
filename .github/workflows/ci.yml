@@ -56,10 +56,6 @@ jobs:
         run: npm ci
 
       - name: ESLint
-        # 既有程式碼仍有少數 lint 違規（主要為 React hooks 規則），
-        # 暫以非阻塞方式執行，輸出仍會顯示在 CI 記錄供逐步清理。
-        # 待既有違規清理完畢後，可移除 continue-on-error 改為強制阻塞。
-        continue-on-error: true
         run: npm run lint
 
       - name: TypeScript 型別檢查

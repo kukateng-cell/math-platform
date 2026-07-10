@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { gradeRank } from '@/lib/grade'
 
 // ============ 掌握度快照更新 ============
 // 每次練習結束後，依最近 N 題（不計 assisted）重算掌握度
@@ -11,6 +10,9 @@ export async function updateMastery(sessionId: string) {
     include: { child: true },
   })
   if (!practiceSession) return
+
+  // P1-6：Challenge/Promotion session 不更新掌握度
+  if (practiceSession.kind !== 'NORMAL') return
 
   const { childId, skillId } = practiceSession
 
@@ -64,11 +66,13 @@ export function getRecommendation(
     }
   }
 
-  // 找出「當前正在練」的技能：最近有作答紀錄、且正確率未達掌握門檻的最低順序技能
-  // 如果所有技能都已掌握 → ALL_DONE
+  // 找出「當前正在練的技能」：最近有作答紀錄的技能
+  // P2-14：不再跳過已掌握的技能（避免 ADVANCE 分支無法到達）。
+  // 從已練習過的技能中，依 order 找出練習進度中最前面的未完全掌握技能。
   let allMastered = true
   let currentSkill: (typeof skills)[0] | null = null
   let currentMastery: (typeof mastery)[0] | null = null
+  let needCheckAdvance = false // 當前技能已掌握，需檢查是否可晉級
 
   for (const skill of skills) {
     const m = mastery.find((x) => x.skillId === skill.id)
@@ -84,13 +88,21 @@ export function getRecommendation(
 
     const rate = m.recentCorrect / m.recentTotal
 
-    // 正確率 >= 95% 視為掌握
-    if (rate >= 0.95) continue
+    if (rate >= 0.95) {
+      // 已掌握 → 記錄起來，繼續檢查後續技能
+      // 但不跳過：若下個技能尚未練習，則此為「可晉級」狀態
+      allMastered = true
+      currentSkill = skill
+      currentMastery = m
+      needCheckAdvance = true
+      continue
+    }
 
     // 正確率 < 95% → 這是當前需要練習的技能
     allMastered = false
     currentSkill = skill
     currentMastery = m
+    needCheckAdvance = false
     break
   }
 
@@ -116,7 +128,7 @@ export function getRecommendation(
     : 0
 
   // 規則 1：正確率過低（< 40%）且有足夠樣本數 → 回前置技能
-  if (currentMastery.recentTotal >= 5 && rate < 0.4 && currentSkill.prerequisiteId) {
+  if (!needCheckAdvance && currentMastery.recentTotal >= 5 && rate < 0.4 && currentSkill.prerequisiteId) {
     const prereq = skills.find((s) => s.id === currentSkill.prerequisiteId)
     return {
       type: 'PRACTICE_PREREQ',
@@ -127,8 +139,9 @@ export function getRecommendation(
   }
 
   // 規則 2：掌握（rate >= 95%）且樣本夠 → 晉級下一個技能
-  if (currentMastery.recentTotal >= 5 && rate >= 0.95) {
-    const next = skills.find((s) => s.prerequisiteId === currentSkill!.id)
+  // P2-14 修復：needCheckAdvance 在 loop 中正確設為 true 而非被跳過
+  if (needCheckAdvance && currentMastery.recentTotal >= 5 && rate >= 0.95) {
+    const next = skills.find((s) => s.prerequisiteId === currentSkill.id)
     if (next) {
       return {
         type: 'ADVANCE',

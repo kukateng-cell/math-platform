@@ -2,6 +2,7 @@ import 'server-only'
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+import { getSessionKey } from '@/lib/secret'
 
 // session payload
 export type SessionPayload = {
@@ -13,25 +14,23 @@ export type SessionPayload = {
 }
 
 const COOKIE_NAME = 'math-session'
-const secretKey = process.env.SESSION_SECRET
-if (!secretKey) {
-  throw new Error('SESSION_SECRET is not set. Add it to .env (use: openssl rand -base64 32)')
-}
-const encodedKey = new TextEncoder().encode(secretKey)
 
 // 加密產生 JWT
+// 簽章金鑰由 getSessionKey()（@/lib/secret）統一管理並帶 fail-fast 檢查，
+// 此處不再於模組頂層拋錯，避免 SESSION_SECRET 未設定時整個應用啟動即崩潰，
+// 無法提供任何頁面（連登入頁都打不開）。改為呼叫時才檢查，做到優雅降級。
 export async function encrypt(payload: SessionPayload) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(encodedKey)
+    .sign(getSessionKey())
 }
 
 // 解密驗證 JWT
 export async function decrypt(token: string | undefined = ''): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, encodedKey, {
+    const { payload } = await jwtVerify(token, getSessionKey(), {
       algorithms: ['HS256'],
     })
     return payload as unknown as SessionPayload
@@ -55,14 +54,26 @@ export async function createSession(payload: SessionPayload) {
   })
 }
 
-// 驗證型 session：查 DB 確認 role 與 tokenVersion 仍有效。
-// 用於 admin 等敏感操作——純 JWT 的 getSession() 只適合低風險的快速驗證，
-// 因為降級/刪除帳號後舊 JWT 在過期前仍然有效（最多 7 天）。
-// getVerifiedSession() 會比對 DB 的最新 role 和 tokenVersion，
-// 只要兩者任一不符就回傳 null（視為未登入）。
-// 若 tokenVersion 欄位尚不存在（DB 尚未 migration），則只驗證 role。
+// getVerifiedSession() 為 getSession() 的別名（兩者行為相同）。
+// 保留此名稱是為了與既有呼叫端（admin.ts、匯出 route）相容。
+// 兩者都會查 DB 比對 role 與 tokenVersion，確保舊 session 在撤銷後立即失效。
 export async function getVerifiedSession(): Promise<SessionPayload | null> {
-  const session = await getSession()
+  return getSession()
+}
+
+// 取得當前 session（供 server component / server action 驗證用）。
+//
+// ⚠️ 安全說明（P0-3）：此函式會查 DB 比對 tokenVersion 與 role，
+// 確保密碼重設 / 角色變更後，舊 JWT 立即失效。這是所有家長功能
+// （Server Actions / Route Handlers / 受保護 Server Components）的
+// 預設 session getter，務必使用此函式而非純 JWT 版本。
+//
+// 若 DB 查詢失敗（連線錯誤等），一律回傳 null（fail-closed），
+// 避免 DB 異常時降級成不比對版本而讓舊 session 復活。
+export async function getSession(): Promise<SessionPayload | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(COOKIE_NAME)?.value
+  const session = await decrypt(token)
   if (!session) return null
 
   try {
@@ -72,10 +83,7 @@ export async function getVerifiedSession(): Promise<SessionPayload | null> {
     })
     if (!user) return null
 
-    // tokenVersion 不比對的兩種情況：
-    // 1. 舊 JWT 中沒有 tokenVersion（DB migration 前簽發的 session）
-    // 2. DB 已補上 tokenVersion 但 JWT 尚未更新
-    // 這兩種情況下只驗證 role，不把舊 session 視為無效
+    // tokenVersion 不符 → session 已被撤銷（密碼重設 / 角色變更），視為未登入
     if (session.tokenVersion !== undefined && session.tokenVersion !== user.tokenVersion) {
       return null
     }
@@ -88,14 +96,17 @@ export async function getVerifiedSession(): Promise<SessionPayload | null> {
       tokenVersion: user.tokenVersion,
     }
   } catch {
-    // tokenVersion 欄位不存在（DB 尚未 migration）→ 只驗證 role
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { id: true, email: true, role: true },
-    })
-    if (!user) return null
-    return { userId: user.id, email: user.email, role: user.role }
+    // DB 查詢失敗（連線異常等）→ fail-closed，不降級成純 JWT
+    return null
   }
+}
+
+// 純 JWT 驗證（不查 DB）。僅供需要極低延遲且可接受「舊 session 在撤銷後仍短暫有效」
+// 的場景使用，例如 proxy 的快速導流。所有寫入 / 敏感操作請改用 getSession()。
+export async function getUnverifiedSession(): Promise<SessionPayload | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(COOKIE_NAME)?.value
+  return decrypt(token)
 }
 
 // 撤銷某使用者的所有 session（遞增 tokenVersion）。
@@ -116,13 +127,6 @@ export async function revokeAllSessions(userId: string): Promise<void> {
 export async function deleteSession() {
   const cookieStore = await cookies()
   cookieStore.delete(COOKIE_NAME)
-}
-
-// 取得當前 session（供 server component / server action 驗證用）
-export async function getSession(): Promise<SessionPayload | null> {
-  const cookieStore = await cookies()
-  const token = cookieStore.get(COOKIE_NAME)?.value
-  return decrypt(token)
 }
 
 export const SESSION_COOKIE = COOKIE_NAME

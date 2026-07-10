@@ -12,10 +12,10 @@ export default async function PracticeSelectPage({
   searchParams,
 }: {
   params: Promise<{ childId: string }>
-  searchParams?: Promise<{ error?: string; info?: string }>
+  searchParams?: Promise<{ error?: string; info?: string; promoted?: string }>
 }) {
   const { childId } = await params
-  const { error, info } = (await searchParams) ?? {}
+  const { error, info, promoted } = (await searchParams) ?? {}
   // 練習路由支援家長 session 或孩子 session（proxy.ts middleware 已先攔檢，此處為雙重確認）
   const hasAccess = await hasPracticeAccess()
   if (!hasAccess) redirect('/student/login')
@@ -35,6 +35,14 @@ export default async function PracticeSelectPage({
 
   const { child, skills, recommendation } = data
 
+  // 升學慶祝：找出剛解鎖年級的第一個可練習技能，供橫幅提供「立即開始」捷徑
+  const unlockedGrade = promoted || null
+  const unlockedFirstSkill = unlockedGrade
+    ? skills.find((s) => s.gradeLevel === unlockedGrade && s.questionCount > 0)
+    : undefined
+  const gradeLabel = (g: string) =>
+    g === 'K' ? '幼兒園' : `${g.replace('G', '')} 年級`
+
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 lg:max-w-4xl">
       <div className="mb-6">
@@ -53,6 +61,38 @@ export default async function PracticeSelectPage({
           {child.nickname} 的練習選單
         </h1>
       </div>
+
+      {/* 🎉 升學成功 — 新年級已解鎖橫幅 */}
+      {unlockedGrade && (
+        <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-green-500 to-emerald-500 p-5 text-white shadow-lg">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-2xl">🎉</span>
+                <span className="text-sm font-medium uppercase tracking-wide opacity-90">新年級已解鎖</span>
+              </div>
+              <p className="font-bold">
+                恭喜晉升至 {gradeLabel(unlockedGrade)}！<br />
+                <span className="text-sm font-normal opacity-90">可以開始練習 {gradeLabel(unlockedGrade)} 的內容了</span>
+              </p>
+            </div>
+            {unlockedFirstSkill ? (
+              <form action={startSession.bind(null, childId, unlockedFirstSkill.id)}>
+                <button
+                  type="submit"
+                  className="whitespace-nowrap rounded-xl bg-white/20 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:bg-white/30"
+                >
+                  開始新練習 →
+                </button>
+              </form>
+            ) : (
+              <span className="whitespace-nowrap rounded-xl bg-white/20 px-5 py-2.5 text-sm font-semibold backdrop-blur">
+                向下捲動查看 🌳
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 升學測試提示 */}
       {promotion.eligible && promotion.nextGrade && (

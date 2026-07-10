@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession, deleteSession, getSession } from '@/lib/session'
@@ -17,17 +18,20 @@ import { getSessionKey } from '@/lib/secret'
 // 回傳新的 { question, token }，token 為新簽名的 JWT（5 分鐘有效）
 // 使用 useActionState 相容簽名，避免 server action 直接呼叫失效問題
 export async function refreshCaptchaAction(
-  prevState: { question: string; token: string } | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prevState: { question: string; token: string } | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _formData: FormData
 ): Promise<{ question: string; token: string }> {
   return createCaptcha()
 }
 
-// 暫存註冊資料（記憶體，僅在 OTP 驗證前有效）
-// key: tempToken（JWT）, value: { name, email, passwordHash }
-const pendingSignups = new Map<string, { name: string; email: string; passwordHash: string }>()
+// PendingSignup 暫存時間（超過此時間的記錄在查詢時自動忽略）
+const PENDING_SIGNUP_TTL_MINUTES = 10
 
 // ============ 註冊 Step 1：驗證資料 + CAPTCHA → 發送 OTP ============
+// P1-1：加入 identifier/IP rate limit
+// P1-3：使用 upsert 處理重複 PendingSignup
 export async function signup(state: FormState, formData: FormData): Promise<FormState> {
   const validated = SignupFormSchema.safeParse({
     name: formData.get('name'),
@@ -38,6 +42,11 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
     return { errors: validated.error.flatten().fieldErrors, captcha: await createCaptcha() }
   }
   const { name, email, password } = validated.data
+
+  // P1-1：IP/email rate limit for signup
+  if (!(await checkRateLimit(`signup:${email}`, 3, 300_000))) {
+    return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
+  }
 
   // CAPTCHA 驗證
   const captchaToken = String(formData.get('captchaToken') || '')
@@ -54,22 +63,39 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
   // 產生 OTP（用 email 作為 identifier）
   const otpCode = await generateOtp(email)
 
-  // 寄送 OTP
-  const emailResult = await sendOtpEmail(email, otpCode)
-  if (!emailResult.success) {
-    console.error('[EMAIL FAILED]', emailResult.error)
-  }
-
   // 哈希密碼，暫存
   const passwordHash = await bcrypt.hash(password, 10)
 
-  // 暫存註冊資料（不放入 JWT，JWT 是簽名非加密）
-  const pendingKey = crypto.randomUUID()
-  pendingSignups.set(pendingKey, { name, email, passwordHash })
+  // P1-3：使用 upsert 而非 create，處理 PendingSignup.email @unique 衝突。
+  // 若使用者重複提交註冊表單，upsert 會更新既有記錄（重置 attemptCount、passwordHash 及 expiry），
+  // 而非噴 500 錯誤。email 發送失敗時不回滾 pending（由 expiresAt 自動清理）。
+  const expiresAt = new Date(Date.now() + PENDING_SIGNUP_TTL_MINUTES * 60 * 1000)
+  const pending = await prisma.pendingSignup.upsert({
+    where: { email },
+    update: {
+      name,
+      passwordHash,
+      attemptCount: 0,
+      expiresAt,
+    },
+    create: { email, name, passwordHash, expiresAt },
+  })
 
-  // 用 pendingKey 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 key 取出暫存資料建立用戶
+  // 寄送 OTP（在 upsert 之後，確保 DB 記錄已就緒）
+  const emailResult = await sendOtpEmail(email, otpCode)
+  if (!emailResult.success) {
+    console.error('[EMAIL FAILED]', emailResult.error)
+    // P1-3：email 發送失敗時清除 pending 記錄
+    await prisma.pendingSignup.delete({ where: { id: pending.id } }).catch(() => {})
+    return {
+      message: '驗證碼發送失敗，請稍後再試',
+      captcha: await createCaptcha(),
+    }
+  }
+
+  // 用 pending.id 簽發 tempToken（JWT 10 分鐘有效），驗證 OTP 後用此 id 取出暫存資料建立用戶
   const KEY = getSessionKey()
-  const tempToken = await new SignJWT({ email, pendingKey })
+  const tempToken = await new SignJWT({ email, pendingId: pending.id })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('10m')
@@ -86,6 +112,7 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
 }
 
 // ============ 註冊 Step 2：驗證 OTP → 建立帳號 ============
+// P1-1：加入 OTP 驗證 rate limit；OTP 錯誤次數移至 OtpCode.attemptCount（由 verifyOtp 處理）
 export async function verifySignupOtp(state: FormState, formData: FormData): Promise<FormState> {
   const tempToken = String(formData.get('tempToken') || '')
   const otpCode = String(formData.get('otpCode') || '')
@@ -94,9 +121,9 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
     return { message: '缺少必要參數' }
   }
 
-  // 解碼 tempToken 取出 pendingKey
+  // 解碼 tempToken 取出 pendingId
   let email: string
-  let pendingKey: string
+  let pendingId: string
   try {
     const KEY = getSessionKey()
     const { payload: decoded } = await jwtVerify(
@@ -104,34 +131,42 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
       KEY,
       { algorithms: ['HS256'] }
     )
-    const p = decoded as { email: string; pendingKey: string }
+    const p = decoded as { email: string; pendingId: string }
     email = p.email
-    pendingKey = p.pendingKey
+    pendingId = p.pendingId
   } catch {
     return { message: '驗證已過期，請重新註冊' }
   }
 
-  const pending = pendingSignups.get(pendingKey)
+  // P1-1：OTP 驗證 rate limit
+  if (!(await checkRateLimit(`otp:signup:${email}`, 5, 60_000))) {
+    return { message: '嘗試次數過多，請稍後再試' }
+  }
+
+  // 從 DB 取出暫存的註冊資料（同時過濾已過期的記錄）
+  const pending = await prisma.pendingSignup.findFirst({
+    where: { id: pendingId, expiresAt: { gt: new Date() } },
+  })
   if (!pending) return { message: '驗證已過期，請重新註冊' }
   const { name, passwordHash } = pending
 
   // 驗證 OTP（用 email 作 identifier）
+  // P1-1：attemptCount/lockedAt 由 OtpCode 模型與 verifyOtp 內部處理
   if (!(await verifyOtp(email, otpCode))) {
-    pendingSignups.delete(pendingKey)
     return { message: '驗證碼錯誤或已過期' }
   }
 
   // 再次確認 email 未被註冊（可能在 OTP 等待期間被別人註冊）
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
-    pendingSignups.delete(pendingKey)
+    await prisma.pendingSignup.delete({ where: { id: pendingId } })
     return { message: '此 Email 已在 OTP 驗證期間被註冊' }
   }
 
   const user = await prisma.user.create({
     data: { name, email, passwordHash, role: 'PARENT' },
   })
-  pendingSignups.delete(pendingKey)
+  await prisma.pendingSignup.delete({ where: { id: pendingId } })
 
   // 帶入 user.tokenVersion，讓 getVerifiedSession 能比對版本實現角色變更即時失效
   await createSession({ userId: user.id, email: user.email, role: 'PARENT', tokenVersion: user.tokenVersion })
@@ -165,6 +200,11 @@ export async function resendSignupOtp(state: FormState, formData: FormData): Pro
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
+    return {
+      otpRequired: true,
+      tempToken,
+      message: '驗證碼發送失敗，請稍後再試',
+    }
   }
 
   const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
@@ -178,6 +218,7 @@ export async function resendSignupOtp(state: FormState, formData: FormData): Pro
 }
 
 // ============ 登入 Step 1：驗證帳密 + CAPTCHA → 發送 OTP ============
+// P1-1：使用獨立 rate-limit namespace（「login:」前綴），與 signup/reset 各自計算
 export async function login(state: FormState, formData: FormData): Promise<FormState> {
   const validated = LoginFormSchema.safeParse({
     email: formData.get('email'),
@@ -195,7 +236,8 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
     return { message: '驗證碼錯誤，請重新作答', captcha: await createCaptcha() }
   }
 
-  if (!(await checkRateLimit(email))) {
+  // P1-1：獨立 namespace
+  if (!(await checkRateLimit(`login:${email}`, 5, 60_000))) {
     return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
@@ -216,10 +258,12 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   }
 
   // 只有管理員在開發模式時才直接顯示 OTP（家長一律不顯示）
-  const showOtp = (process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true') && user.role === 'ADMIN'
+  const showOtp = process.env.NODE_ENV === 'development' && user.role === 'ADMIN'
   const devOtp = showOtp ? otpCode : undefined
 
-  const tempToken = await createTempToken(user.id)
+  // 簽發 LOGIN_OTP_PENDING token：僅供 verifyLoginOtp / resendOtp 使用，
+  // 不能用於重設密碼（resetPassword 只接受 PASSWORD_RESET_VERIFIED）
+  const tempToken = await createTempToken(user.id, 'LOGIN_OTP_PENDING')
 
   return {
     otpRequired: true,
@@ -230,6 +274,7 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
 }
 
 // ============ 登入 Step 2：驗證 OTP → 建立 Session ============
+// P1-1：加入 OTP 驗證 rate limit
 export async function verifyLoginOtp(state: FormState, formData: FormData): Promise<FormState> {
   const tempToken = String(formData.get('tempToken') || '')
   const otpCode = String(formData.get('otpCode') || '')
@@ -238,9 +283,16 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
     return { message: '缺少必要參數' }
   }
 
-  const userId = await verifyTempToken(tempToken)
-  if (!userId) {
+  // 只接受 LOGIN_OTP_PENDING token（拒絕來自其他流程的 token）
+  const decoded = await verifyTempToken(tempToken, 'LOGIN_OTP_PENDING')
+  if (!decoded) {
     return { message: '驗證已過期，請重新登入' }
+  }
+  const userId = decoded.userId
+
+  // P1-1：OTP 驗證 rate limit（獨立 namespace，與 login/email 層次區隔）
+  if (!(await checkRateLimit(`otp:login:${userId}`, 5, 60_000))) {
+    return { message: '嘗試次數過多，請稍後再試' }
   }
 
   if (!(await verifyOtp(userId, otpCode))) {
@@ -263,10 +315,12 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
     return { message: '階段已過期，請重新登入' }
   }
 
-  const userId = await verifyTempToken(tempToken)
-  if (!userId) {
+  // resendOtp 只接受 LOGIN_OTP_PENDING token（家長登入流程的重發）
+  const decoded = await verifyTempToken(tempToken, 'LOGIN_OTP_PENDING')
+  if (!decoded) {
     return { message: '階段已過期，請重新登入' }
   }
+  const userId = decoded.userId
 
   // 檢查冷卻時間
   if (!(await canResendOtp(userId))) {
@@ -297,7 +351,7 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
 
   // 只有管理員在開發模式時才直接顯示 OTP
   const isAdmin = user?.role === 'ADMIN'
-  const showOtp = (process.env.NODE_ENV === 'development' || process.env.SHOW_OTP_IN_UI === 'true') && isAdmin
+  const showOtp = process.env.NODE_ENV === 'development' && isAdmin
   const devOtp = showOtp ? otpCode : undefined
 
   return {
@@ -365,6 +419,7 @@ export async function getCurrentUser() {
 // ============================================================
 
 // ============ 忘記密碼 Step 1：輸入 Email → 發送 OTP ============
+// P1-1：使用獨立 rate-limit namespace；Email 使用 EmailSchema 正規化
 export async function requestPasswordReset(state: FormState, formData: FormData): Promise<FormState> {
   const email = String(formData.get('email') || '').trim().toLowerCase()
 
@@ -379,8 +434,8 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
     return { message: '驗證碼錯誤，請重新作答', captcha: await createCaptcha() }
   }
 
-  // 限速（避免用來探測哪些 email 存在 / 郵件轟炸）
-  if (!(await checkRateLimit(`reset:${email}`))) {
+  // P1-1：獨立 namespace（「resetpwd:」），與 login/signup 各自計算
+  if (!(await checkRateLimit(`resetpwd:${email}`, 3, 300_000))) {
     return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
@@ -395,8 +450,12 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
     const emailResult = await sendOtpEmail(user.email, otpCode)
     if (!emailResult.success) {
       console.error('[EMAIL FAILED]', emailResult.error)
+      return {
+        message: '驗證碼暫時無法發送，請稍後再試',
+        captcha: await createCaptcha(),
+      }
     }
-    tempToken = await createTempToken(user.id)
+    tempToken = await createTempToken(user.id, 'PASSWORD_RESET_OTP_PENDING')
   }
 
   return {
@@ -407,6 +466,7 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
 }
 
 // ============ 忘記密碼 Step 2：驗證 OTP → 取得重設權限 token ============
+// P1-1：OTP 驗證 rate limit
 export async function verifyResetOtp(state: FormState, formData: FormData): Promise<FormState> {
   const tempToken = String(formData.get('tempToken') || '')
   const otpCode = String(formData.get('otpCode') || '')
@@ -415,9 +475,16 @@ export async function verifyResetOtp(state: FormState, formData: FormData): Prom
     return { message: '缺少必要參數' }
   }
 
-  const userId = await verifyTempToken(tempToken)
-  if (!userId) {
+  // 只接受 PASSWORD_RESET_OTP_PENDING token（拒絕登入/其他流程的 token）
+  const decoded = await verifyTempToken(tempToken, 'PASSWORD_RESET_OTP_PENDING')
+  if (!decoded) {
     return { message: '驗證已過期，請重新申請重設密碼' }
+  }
+  const userId = decoded.userId
+
+  // P1-1：OTP 驗證 rate limit
+  if (!(await checkRateLimit(`otp:resetpwd:${userId}`, 5, 60_000))) {
+    return { message: '嘗試次數過多，請稍後再試' }
   }
 
   if (!(await verifyOtp(userId, otpCode))) {
@@ -462,6 +529,8 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
   if (!payload) {
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
+  const userId = decoded.userId
+  const jti = decoded.jti
 
   // 密碼規則沿用註冊的 SignupFormSchema（至少 8 碼、含字母與數字）
   const pwdCheck = SignupFormSchema.shape.password.safeParse(password)
@@ -506,7 +575,7 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
     }),
   ])
 
-  // 重設完成 → 引導回登入頁
+  // 重設完成 → 引導回登入頁（tokenVersion 已遞增，舊 session 全部失效）
   return { ok: true, message: '密碼已重設成功，請使用新密碼登入' }
 }
 
@@ -518,8 +587,8 @@ export async function updateChildGrade(formData: FormData) {
   const childId = String(formData.get('childId') || '')
   const gradeLevel = String(formData.get('gradeLevel') || '')
 
-  const validGrades = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6']
-  if (!validGrades.includes(gradeLevel)) {
+  const validGrades = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6'] as const
+  if (!validGrades.includes(gradeLevel as typeof validGrades[number])) {
     throw new Error('無效的年級')
   }
 

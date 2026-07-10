@@ -8,9 +8,10 @@ import { getChildSession } from '@/lib/child-session'
 import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation, isGradeAllMastered, type Recommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
-import { getNextGrade, gradeRank } from '@/lib/grade'
+import { getNextGrade } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
 import { isAnswerCorrect } from '@/lib/answer-i18n'
+import { startOfToday } from '@/lib/timezone'
 
 const QUESTIONS_PER_SESSION = 10
 
@@ -64,7 +65,10 @@ type StoredQuestion = {
   prompt: string
   answer: string
   options?: string[]
+  // 作答後顯示的完整解題說明（可能含答案，不可在作答前送到瀏覽器）
   explanation?: string
+  // 作答前可安全顯示的提示（不含答案）。查看後該題自動視為 assisted。
+  hint?: string
   /** 互動模式：choice (預設) / numberline / fillin */
   interaction?: string
   /** 數字線範圍 */
@@ -90,9 +94,10 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
   const child = await prisma.childProfile.findUnique({ where: { id: childId } })
   if (!child) throw new Error('找不到孩子檔案')
 
+  // P1-6：一般練習只取非 challenge 題（isChallenge: false）
   const skill = await prisma.skill.findUnique({
     where: { id: skillId },
-    include: { questions: { where: { isActive: true } } },
+    include: { questions: { where: { isActive: true, isChallenge: false } } },
   })
   if (!skill || !skill.isActive) throw new Error('技能不存在或已停用')
   // 年級權限：低年級不可練習高年級的技能（避免知道 ID 就能越級）
@@ -137,12 +142,20 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
       } catch { /* ignore */ }
     }
 
+    // 若 inputMode 未明確設定，依答案內容判斷：純數字→numeric，否則→text。
+    // 在 server 端根據答案決定（答案不會送到 client），確保 client 的 inputMode
+    // 始終權威，不需依賴答案內容來判斷輸入模式（P0-2：答案不可送到瀏覽器）。
+    if (!inputMode) {
+      inputMode = /^-?\d+(\.\d+)?$/.test(q.answer) ? 'numeric' : 'text'
+    }
+
     generated.push({
       templateId: q.templateId!,
       prompt: q.prompt,
       answer: q.answer,
       options: q.options,
       explanation: t.explanation ?? undefined,
+      hint: t.hint ?? undefined,
       interaction,
       rangeMin,
       rangeMax,
@@ -152,6 +165,46 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
     })
   }
 
+  // P1-4/P1-5：清理同一技能下「未完成」的一般練習 session（排除 PROMOTION/CHALLENGE 類型），
+  // 避免使用者多次開啟同一技能卻未完成，造成「繼續練習」清單出現重複技能。
+  // 現在使用 kind 欄位精確過濾，不再依賴 __isPromotion/__isChallenge 標記。
+  //
+  // ⚠️ 必須同時回填 correctCount / gradedQuestionCount / assistedCount（P2-4）：
+  const staleSessions = await prisma.practiceSession.findMany({
+    where: { childId, skillId, completedAt: null, kind: 'NORMAL' },
+    select: { id: true },
+  })
+  if (staleSessions.length > 0) {
+    const now = new Date()
+    await Promise.all(
+      staleSessions.map(async (s) => {
+        // 先算出該 session 的實際答對數（isCorrect 且非 assisted），再寫回
+        const [realCorrect, gradedCount, assistedCount] = await Promise.all([
+          prisma.attempt.count({
+            where: { sessionId: s.id, isCorrect: true, assisted: false },
+          }),
+          prisma.attempt.count({
+            where: { sessionId: s.id, assisted: false },
+          }),
+          prisma.attempt.count({
+            where: { sessionId: s.id, assisted: true },
+          }),
+        ])
+        return prisma.practiceSession.update({
+          where: { id: s.id },
+          data: {
+            completedAt: now,
+            correctCount: realCorrect,
+            status: 'ABANDONED',
+            abandonedAt: now,
+            gradedQuestionCount: gradedCount,
+            assistedCount,
+          },
+        })
+      })
+    )
+  }
+
   const practiceSession = await prisma.practiceSession.create({
     data: {
       childId,
@@ -159,6 +212,8 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
       parentId: auth.type === 'parent' ? auth.userId : child.parentId,
       totalQuestions: QUESTIONS_PER_SESSION,
       questionsJson: JSON.stringify(generated),
+      kind: 'NORMAL',
+      status: 'IN_PROGRESS',
     },
   })
 
@@ -171,12 +226,22 @@ export async function startSession(childId: string, skillId: string) {
   redirect(`/practice/${childId}/${skillId}/${sessionId}`)
 }
 
+// 公開題目型別：移除 answer 與 explanation，避免正確答案與完整算式被送到瀏覽器（P0-1/P0-2）。
+// answer 只存在於 server 端的 session snapshot（questionsJson），
+// explanation 可能包含答案或完整算式，唯有透過 submitAnswer 提交後才會在回傳值中提供。
+// hint 是「作答前可安全顯示」的提示文字，不含答案，可送到 client。
+export type PublicQuestion = Omit<StoredQuestion, 'answer' | 'explanation'>
+
 // 取得一次練習要做的題目（從 session 的伺服器快照讀取，確保與驗證一致）
 // 同時回傳「已作答進度」供斷點續做：已答題數、正確數、每題結果。
+//
+// 安全：回傳的 questions 已移除 answer 欄位，學生無法從 RSC payload /
+// network response / DevTools 讀出未作答題目的正確答案。只有提交後的
+// correctAnswer 才會由 submitAnswer 回傳。
 export async function getSessionQuestions(
   sessionId: string
 ): Promise<{
-  questions: (StoredQuestion & { interaction?: string; rangeMin?: number; rangeMax?: number })[]
+  questions: PublicQuestion[]
   skillName: string
   childNickname: string
   /** 已作答的題數（從 Attempt 推算，用來決定從第幾題開始） */
@@ -211,7 +276,13 @@ export async function getSessionQuestions(
 
   // 記憶體內權限驗證（避免額外 DB 查詢）
   if (auth.type === 'child' && auth.childId !== practiceSession.childId) return null
-  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) return null
+  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) {
+    // P2-2：允許 linked parent（ACTIVE 綁定）存取 session
+    const link = await prisma.parentChild.findFirst({
+      where: { parentId: auth.userId, childId: practiceSession.childId, status: 'ACTIVE' },
+    })
+    if (!link) return null
+  }
 
   // 相容舊 session：若無 questionsJson，回傳空陣列讓前端顯示提示
   let questions: StoredQuestion[] = []
@@ -237,13 +308,25 @@ export async function getSessionQuestions(
   })
   const correctCount = attempts.filter((a) => a.isCorrect && !a.assisted).length
 
+  // 移除 answer 與 explanation 欄位：正確答案與完整算式只留在 server 端，不可送到瀏覽器。
+  // 已答題的正確答案改由 answeredResults（來自 Attempt.correctAnswer）提供。
+  // explanation 改由 submitAnswer 回傳值提供（作答後才顯示）。
+  // hint 可安全送到 client（不含答案）。
+  const publicQuestions: PublicQuestion[] = questions.map((q) => {
+    // 解構出 answer / explanation 但不使用（void 標記為故意丟棄），確保它們不會出現在回傳值
+    const { answer, explanation, ...rest } = q
+    void answer
+    void explanation
+    return rest
+  })
+
   return {
-    questions,
+    questions: publicQuestions,
     skillName: practiceSession.skill.name,
     childNickname: practiceSession.child.nickname,
     answeredCount: attempts.length,
     correctCount,
-    completed: practiceSession.completedAt !== null,
+    completed: practiceSession.status !== 'IN_PROGRESS',
     answeredResults: attempts.map((a) => ({
       questionIndex: a.questionIndex,
       correct: a.isCorrect,
@@ -275,15 +358,15 @@ export async function getResumeableSessions(childId: string): Promise<Resumeable
   if (!auth) return []
   if (!(await canAccessChild(childId))) return []
 
-  // 今天的 00:00（本地時區）：用來過濾「僅當天」的未完成練習
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  // P2-10：用共用的 startOfToday（固定 Asia/Taipei 時區）
+  const todayStart = startOfToday()
 
+  // P1-4：使用 status 判斷，不再依賴 completedAt
   const sessions = await prisma.practiceSession.findMany({
     where: {
       childId,
-      completedAt: null,
-      startedAt: { gte: startOfToday },
+      status: 'IN_PROGRESS',
+      startedAt: { gte: todayStart },
       questionsJson: { not: null },
     },
     include: {
@@ -295,23 +378,47 @@ export async function getResumeableSessions(childId: string): Promise<Resumeable
 
   return sessions
     .filter((s) => s._count.attempts < s.totalQuestions) // 只保留「還沒做完」的
-    .filter((s) => {
-      // 過濾升學測試（__isPromotion）和提升練習（__isChallenge）
-      try {
-        const q = JSON.parse(s.questionsJson!)
-        const firstQ = Array.isArray(q) ? q[0] : null
-        return !firstQ?.__isPromotion && !firstQ?.__isChallenge
-      } catch { return true }
-    })
-    .map((s) => ({
-      sessionId: s.id,
-      skillId: s.skill.id,
-      skillName: s.skill.name,
-      totalQuestions: s.totalQuestions,
-      answeredCount: s._count.attempts,
-      remainingCount: s.totalQuestions - s._count.attempts,
-      startedAt: s.startedAt,
-    }))
+    .filter((s) => s.kind === 'NORMAL') // P1-5：只顯示一般練習
+    // 同一個技能只保留「進度最多」的一筆（進度相同則取最近建立的），
+    // 避免使用者多次開啟同一技能卻未完成，造成「繼續練習」清單出現重複技能。
+    .reduce<ResumeableSession[]>((acc, s) => {
+      const item: ResumeableSession = {
+        sessionId: s.id,
+        skillId: s.skill.id,
+        skillName: s.skill.name,
+        totalQuestions: s.totalQuestions,
+        answeredCount: s._count.attempts,
+        remainingCount: s.totalQuestions - s._count.attempts,
+        startedAt: s.startedAt,
+      }
+      const existing = acc.find((x) => x.skillId === item.skillId)
+      if (!existing) {
+        acc.push(item)
+      } else {
+        // 進度較多者勝出；進度相同則取最近建立的（sessions 已依 startedAt desc 排序）
+        const betterProgress = item.answeredCount > existing.answeredCount
+        const sameProgressMoreRecent =
+          item.answeredCount === existing.answeredCount &&
+          item.startedAt.getTime() > existing.startedAt.getTime()
+        if (betterProgress || sameProgressMoreRecent) {
+          Object.assign(existing, item)
+        }
+      }
+      return acc
+    }, [])
+}
+
+// 檢查指定技能是否有未完成的舊 session（供前端顯示確認對話框用）
+// 避免使用者沒注意到「已有進行中的練習」就直接被強制結束。
+export async function hasIncompleteSession(childId: string, skillId: string): Promise<boolean> {
+  const auth = await getPracticeAuth()
+  if (!auth) return false
+  if (!(await canAccessChild(childId))) return false
+
+  const count = await prisma.practiceSession.count({
+    where: { childId, skillId, status: 'IN_PROGRESS', kind: 'NORMAL' },
+  })
+  return count > 0
 }
 
 export type SubmitResult = {
@@ -333,12 +440,14 @@ export type SubmitResult = {
 }
 
 // 提交一題作答（伺服器從快照重算正確答案，不信任前端）
+// hintUsed：學生是否查看過提示。若為 true，伺服器端強制 assisted=true（不信任前端 assisted）
 export async function submitAnswer(payload: {
   sessionId: string
   questionIndex: number // 這題在 session 快照中的索引
   userAnswer: string
   assisted: boolean
   durationMs: number
+  hintUsed?: boolean
 }): Promise<SubmitResult> {
   const auth = await getPracticeAuth()
   if (!auth) throw new Error('未授權')
@@ -352,10 +461,15 @@ export async function submitAnswer(payload: {
   // 記憶體內權限驗證（避免額外 DB 查詢）
   if (auth.type === 'child' && auth.childId !== practiceSession.childId)
     throw new Error('無權存取此練習')
-  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId)
-    throw new Error('無權存取此練習')
-  // 已完成的練習不再接受作答（防重複提交）
-  if (practiceSession.completedAt) {
+  // P2-2：允許 linked parent（ACTIVE 綁定）存取 session
+  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) {
+    const link = await prisma.parentChild.findFirst({
+      where: { parentId: auth.userId, childId: practiceSession.childId, status: 'ACTIVE' },
+    })
+    if (!link) throw new Error('無權存取此練習')
+  }
+  // P1-4：已完成的練習不再接受作答（使用 status 而非 completedAt）
+  if (practiceSession.status !== 'IN_PROGRESS') {
     return {
       correct: false,
       correctAnswer: '',
@@ -374,11 +488,16 @@ export async function submitAnswer(payload: {
   // 安全檢查：templateId 必須存在於 QuestionTemplate 表，否則外鍵約束會噴 P2003
   const templateExists = await prisma.questionTemplate.findUnique({ where: { id: q.templateId }, select: { id: true } })
   if (!templateExists) {
+    // 題目模板已被刪除（例如管理員移除），但舊 session 快照仍保留題目內容與答案。
+    // 此情況下無法寫入 Attempt（questionId 外鍵失效），但題目本身仍可正常判分。
+    // 改為正常判分並回傳正確答案，避免使用者「明明答對卻被判錯」且看不到正確答案與提示。
+    const correct = isAnswerCorrect(payload.userAnswer, q.answer)
     return {
-      correct: false,
-      correctAnswer: '',
+      correct,
+      correctAnswer: q.answer,
       finished: false,
       sessionId: payload.sessionId,
+      explanation: q.explanation,
     }
   }
 
@@ -386,10 +505,31 @@ export async function submitAnswer(payload: {
   // 中英文等價驗證：例如「left」「左邊」都視為正確
   const correct = isAnswerCorrect(payload.userAnswer, correctAnswer)
 
+  // P0-1：伺服器端強制 assisted。若學生查看過 hint（hintUsed=true），
+  // 無視前端傳入的 assisted 值，一律視為 assisted（不計入掌握度/星星/徽章）。
+  // 這確保即使前端偽造 assisted=false，查看 hint 的作答也不會污染正確率。
+  const serverAssisted = payload.assisted || payload.hintUsed === true
+
   // durationMs 伺服器驗證：下限 1 秒、上限 5 分鐘，防止前端偽造速度類徽章。
   // 下限設為 1000ms 而非 0ms：人類不可能在 1 秒內讀題並作答，
   // 若允許 0ms 會被偽造為 1ms 而通過速度徽章的 durationMs > 0 檢查。
-  const validatedDurationMs = Math.max(1000, Math.min(payload.durationMs, 300_000))
+  // P2-9：同時檢查累計時間是否超過 session 開始以來的實際經過時間，
+  // 防止前端一次性提交大量「1 秒」作答（server 端 elapsed 會戳破謊言）。
+  let validatedDurationMs = Math.max(1000, Math.min(payload.durationMs, 300_000))
+  // Server 端 elapsed：從 session 建立到現在的毫秒數
+  const serverElapsedMs = Date.now() - practiceSession.startedAt.getTime()
+  // 查詢已累計的 durationMs（不含本次提交）
+  if (practiceSession.completedAt === null) {
+    const existingDurations = await prisma.attempt.aggregate({
+      where: { sessionId: payload.sessionId },
+      _sum: { durationMs: true },
+    })
+    const cumulativeClientMs = (existingDurations._sum.durationMs ?? 0) + validatedDurationMs
+    // 若客戶端累計時間遠超 server 經過時間（允許 5 秒緩衝），則強制 clamp
+    if (cumulativeClientMs > serverElapsedMs + 5000) {
+      validatedDurationMs = Math.max(1000, Math.floor(Math.max(1, serverElapsedMs - (existingDurations._sum.durationMs ?? 0))))
+    }
+  }
 
   // 防止重複提交同一題（attempt 表有 @@unique([sessionId, questionIndex])，
   // 捕捉 Prisma P2002 錯誤並優雅回退，避免刷高星星與掌握度）
@@ -409,7 +549,7 @@ export async function submitAnswer(payload: {
           userAnswer: payload.userAnswer,
           correctAnswer,
           isCorrect: correct,
-          assisted: payload.assisted,
+          assisted: serverAssisted,
           durationMs: validatedDurationMs,
         },
       })
@@ -420,48 +560,76 @@ export async function submitAnswer(payload: {
       return answeredCount >= practiceSession.totalQuestions
     })
   } catch (e: unknown) {
-    // P2002 = unique constraint violation → 代表此題已提交過
+    // P2002 = unique constraint violation → 代表此題已提交過。
+    // 常見於多設備/多分頁同時作答，或網路重試導致同一題被提交兩次。
+    // 先前的實作回傳空白的 correctAnswer，會讓前端顯示「答錯且無正確答案」——
+    // 也就是使用者明明答對了（第一次提交已記錄為正確），第二次的空結果卻覆蓋顯示為錯，
+    // 同時也不會顯示該如何解題。這正是「明明答對卻被判錯 + 沒有錯誤提示」的原因。
+    // 修正：查詢已存在的作答紀錄，回傳真實的對錯與正確答案。
     if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'P2002') {
+      const existing = await prisma.attempt.findUnique({
+        where: { sessionId_questionIndex: { sessionId: payload.sessionId, questionIndex: payload.questionIndex } },
+        select: { isCorrect: true, correctAnswer: true },
+      })
+      if (existing) {
+        return {
+          correct: existing.isCorrect,
+          correctAnswer: existing.correctAnswer,
+          finished: practiceSession.completedAt !== null,
+          sessionId: payload.sessionId,
+          explanation: q.explanation,
+        }
+      }
+      // 理論上 P2002 必有已存在紀錄；以防萬一，用快照答案回傳，確保前端看得到正確答案
       return {
-        correct: false,
-        correctAnswer: '',
-        finished: false,
+        correct: isAnswerCorrect(payload.userAnswer, q.answer),
+        correctAnswer: q.answer,
+        finished: practiceSession.completedAt !== null,
         sessionId: payload.sessionId,
+        explanation: q.explanation,
       }
     }
     throw e
   }
 
-  // 判斷是否為提升練習或升學測試（從 questionsJson 的第一題標記判斷）
-  // 升學測試混合了多個技能及下一年級的題目，所有作答都歸到第一個技能 ID，
-  // 若執行 updateMastery 會嚴重污染掌握度，導致推薦系統把用戶引回舊技能。
-  // 因此特殊 session（提升練習/升學測試）一律不更新掌握度。
-  let isSpecialSession = false
-  let isChallengeSession = false
+  // P1-4：使用 session.kind 判斷練習類型，不再依賴 questionsJson 標記
+  const isSpecialSession = practiceSession.kind !== 'NORMAL'
+  const isChallengeSession = practiceSession.kind === 'CHALLENGE'
+  const isPromotionTest = practiceSession.kind === 'PROMOTION'
   let qualifyPromotion = false  // 升學測試達標標記，供完成後的回傳值使用
-  try {
-    const storedQ = practiceSession.questionsJson ? JSON.parse(practiceSession.questionsJson) : []
-    if (Array.isArray(storedQ) && storedQ[0]) {
-      if (storedQ[0].__isChallenge) { isSpecialSession = true; isChallengeSession = true }
-      if (storedQ[0].__isPromotion) isSpecialSession = true
-    }
-  } catch { /* ignore */ }
 
   if (finished) {
     const childId = practiceSession.childId
 
-    // 平行化完成時的 DB 操作：完成時間 + 掌握度（非特殊 session）可同時進行
-    // 特殊 session（提升練習/升學測試）不更新掌握度
+    // ============ idempotency gate：用 updateMany + status:IN_PROGRESS 條件式更新 ============
+    // P1-4：改用 status 而非 completedAt 判斷完成狀態。
+    // 多題併發提交時，只有第一個請求能成功將 status 從 IN_PROGRESS 改為 COMPLETED，
+    // 後續請求的 completed.count === 0，就不會重複發放星星/streak/badge。
+    // 此 gate 必須在掌握度/遊戲化之前執行，確保冪等性。
+    const completed = await prisma.practiceSession.updateMany({
+      where: { id: payload.sessionId, status: 'IN_PROGRESS' },
+      data: { status: 'COMPLETED', completedAt: new Date() },
+    })
+
+    if (completed.count === 0) {
+      // 已有其他併發請求完成了此 session → 不重複發獎勵
+      return {
+        correct,
+        correctAnswer,
+        finished: true,
+        sessionId: payload.sessionId,
+        explanation: q.explanation,
+        promotion: null,
+      }
+    }
+
+    // 平行化掌握度更新（特殊 session 不更新掌握度）
     const masteryPromise = isSpecialSession
       ? Promise.resolve()
       : updateMastery(payload.sessionId)
 
     const [sessionAttempts] = await Promise.all([
       prisma.attempt.findMany({ where: { sessionId: payload.sessionId } }),
-      prisma.practiceSession.update({
-        where: { id: payload.sessionId },
-        data: { completedAt: new Date() },
-      }),
       masteryPromise,
     ])
 
@@ -473,41 +641,55 @@ export async function submitAnswer(payload: {
       (a) => a.isCorrect
     )
 
-    // 平行寫入 correctCount、星星、連續天數
+    // P2-4：計算分欄位，確保各頁面正確率口徑一致
+    const gradedCount = sessionAttempts.filter((a) => !a.assisted).length
+    const assistedCount = sessionAttempts.filter((a) => a.assisted).length
+
+    // 平行寫入 correctCount、gradedQuestionCount、assistedCount、星星、連續天數
     await Promise.all([
       prisma.practiceSession.update({
         where: { id: payload.sessionId },
-        data: { correctCount: starsEarned },
+        data: {
+          correctCount: starsEarned,
+          gradedQuestionCount: gradedCount,
+          assistedCount,
+        },
       }),
       updateStars(childId, starsEarned),
       updateStreak(childId),
     ])
 
     // ============ 升學測試處理（需在徽章檢查之前判定）============
-    let isPromotionTest = false
     let passedPromotion = false
-    // qualifyPromotion 已在外部定義（供完成後的回傳值使用）
+    // qualifyPromotion 已在外部定義
     let targetGrade: string | null = null
-    try {
-      const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
-      if (Array.isArray(storedQuestions) && storedQuestions[0]?.__isPromotion) {
-        isPromotionTest = true
-        targetGrade = storedQuestions[0].__targetGrade as string
-        // 正確率 ≥ 80%（不計 assisted）即達到升學門檻
+    if (isPromotionTest) {
+      try {
+        const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
+        const rawTarget = Array.isArray(storedQuestions) ? storedQuestions[0]?.__targetGrade : undefined
+        targetGrade = typeof rawTarget === 'string' ? rawTarget : null
+        // 升學及格判斷：只看「目前年級」題目（孩子已學過的內容），
+        // 下一年級預覽題（__fromGrade === targetGrade）不計入及格率，
+        // 避免孩子因為沒學過的新內容而無法升學。
         const legitAttempts = sessionAttempts.filter((a) => !a.assisted)
-        const correctCount = legitAttempts.filter((a) => a.isCorrect).length
-        const passRate = legitAttempts.length > 0
-          ? correctCount / legitAttempts.length
+        const currentGradeAttempts = legitAttempts.filter((a) => {
+          const q = storedQuestions[a.questionIndex]
+          // 沒有 __fromGrade 標記的舊 session 一律視為目前年級題（向後相容）
+          return !q?.__fromGrade || q.__fromGrade !== targetGrade
+        })
+        const currentCorrect = currentGradeAttempts.filter((a) => a.isCorrect).length
+        const passRate = currentGradeAttempts.length > 0
+          ? currentCorrect / currentGradeAttempts.length
           : 0
-
+        // 目前年級正確率 ≥ 80% 即達升學門檻（預覽題答對另外加星鼓勵）
         if (passRate >= 0.8 && targetGrade) {
           qualifyPromotion = true
           passedPromotion = true
           // 注意：不在此自動升級 gradeLevel，由使用者手動確認後才升級
           // 雙倍星星獎勵也在確認升級時發放
         }
-      }
-    } catch { /* ignore */ }
+      } catch { /* ignore */ }
+    }
 
     await checkBadges({
       childId,
@@ -517,6 +699,7 @@ export async function submitAnswer(payload: {
       isPromotion: isPromotionTest,
       passedPromotion,
       isChallenge: isChallengeSession,
+      kind: practiceSession.kind,
     })
   }
 
@@ -527,11 +710,12 @@ export async function submitAnswer(payload: {
 
   // 回傳時檢查是否為升學測試且剛完成，附加升學結果
   let promotionResult: SubmitResult['promotion'] = null
-  if (finished) {
+  if (finished && isPromotionTest) {
     try {
       const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
-      if (Array.isArray(storedQuestions) && storedQuestions[0]?.__isPromotion) {
-        const targetGrade = storedQuestions[0].__targetGrade as string
+      const rawTargetGrade = Array.isArray(storedQuestions) ? storedQuestions[0]?.__targetGrade : undefined
+      const targetGrade = typeof rawTargetGrade === 'string' ? rawTargetGrade : null
+      if (targetGrade) {
         const child = await prisma.childProfile.findUnique({ where: { id: practiceSession.childId } })
         const confirmed = child?.gradeLevel === targetGrade
         promotionResult = {
@@ -557,10 +741,12 @@ export async function getChildSkills(childId: string) {
   // 家長：只能看自己建立/綁定的孩子；孩子：只能看自己
   const child =
     auth.type === 'child'
-      ? await prisma.childProfile.findFirst({
-          where: { id: childId },
-          include: { masterySnapshots: { include: { skill: true } } },
-        })
+      ? auth.childId !== childId
+        ? null
+        : await prisma.childProfile.findFirst({
+            where: { id: childId },
+            include: { masterySnapshots: { include: { skill: true } } },
+          })
       : await prisma.childProfile.findFirst({
           where: {
             id: childId,
@@ -576,10 +762,11 @@ export async function getChildSkills(childId: string) {
   // 年級權限：低年級不可看高年級；高年級可往下複習低年級
   const grades = accessibleGrades(child.gradeLevel)
 
+  // P1-6：一般練習技能選單只計非 challenge 題
   const skills = await prisma.skill.findMany({
     where: { isActive: true, gradeLevel: { in: grades } },
     orderBy: { order: 'asc' },
-    include: { _count: { select: { questions: { where: { isActive: true } } } } },
+    include: { _count: { select: { questions: { where: { isActive: true, isChallenge: false } } } } },
   })
 
   return {
@@ -632,6 +819,8 @@ export async function startNextPractice(childId: string) {
 // ============ 手動確認升學 ============
 // 升學測試達到門檻後，由使用者手動點擊按鈕觸發升級，
 // 而非 submitAnswer 自動升級，給予使用者確認與慶祝的空間。
+// P1-9：使用 transaction + conditional update 防 race condition；
+// 查最近一個匹配 targetGrade 的 promotion session。
 export async function confirmPromotion(childId: string, targetGrade: string) {
   const auth = await getPracticeAuth()
   if (!auth) throw new Error('未授權')
@@ -650,25 +839,90 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
   const next = getNextGrade(child.gradeLevel)
   if (next !== targetGrade) throw new Error('年級順序錯誤')
 
-  // 升級 gradeLevel
-  await prisma.childProfile.update({
-    where: { id: childId },
-    data: { gradeLevel: targetGrade },
-  })
-
-  // 升學確認獎勵：額外星星（與原答對星星等量，加倍鼓勵）
-  // 從最近一次完成的 promotion session 中計算星星數
+  // ============ 重新驗證升學測試 ============
+  // P1-9：查最近一個「符合 targetGrade 的升學測試 session」，
+  // 而非最近一次完成的一般練習。
   const lastPromotionSession = await prisma.practiceSession.findFirst({
-    where: { childId, completedAt: { not: null } },
+    where: {
+      childId,
+      kind: 'PROMOTION',
+      status: 'COMPLETED',
+    },
     orderBy: { completedAt: 'desc' },
-    select: { correctCount: true },
+    include: { attempts: true },
   })
-  if (lastPromotionSession && lastPromotionSession.correctCount > 0) {
-    await updateStars(childId, lastPromotionSession.correctCount)
+  if (!lastPromotionSession) throw new Error('未完成升學測試，無法升學')
+
+  const storedQuestions: unknown[] = lastPromotionSession.questionsJson
+    ? JSON.parse(lastPromotionSession.questionsJson)
+    : []
+  if (!Array.isArray(storedQuestions) || !storedQuestions[0]) {
+    throw new Error('找不到練習記錄')
+  }
+  const firstQ = storedQuestions[0] as Record<string, unknown>
+  if (!firstQ.__isPromotion || firstQ.__targetGrade !== targetGrade) {
+    throw new Error('未通過升學測試，無法升學')
   }
 
+  // 重算升學及格率（與 submitAnswer 邏輯一致）
+  const legitAttempts = lastPromotionSession.attempts.filter((a) => !a.assisted)
+  const currentGradeAttempts = legitAttempts.filter((a) => {
+    const q = storedQuestions[a.questionIndex] as Record<string, unknown> | undefined
+    return !q?.__fromGrade || q.__fromGrade !== targetGrade
+  })
+  const currentCorrect = currentGradeAttempts.filter((a) => a.isCorrect).length
+  const passRate = currentGradeAttempts.length > 0
+    ? currentCorrect / currentGradeAttempts.length
+    : 0
+  if (passRate < 0.8) {
+    throw new Error(`目前年級正確率 ${Math.round(passRate * 100)}% 未達 80%，無法升學`)
+  }
+
+  // ============ 使用 transaction 防 race condition ============
+  // P1-9：conditional update 保證只有一個請求能完成升級及發獎勵。
+  // 檢查 promotionRewarded（而非 promotionPassedAt），確保獎勵只發一次。
+  await prisma.$transaction(async (tx) => {
+    // 再次讀取最新狀態（在 transaction 內）
+    const current = await tx.childProfile.findUnique({
+      where: { id: childId },
+      select: { gradeLevel: true, promotionRewarded: true },
+    })
+    if (!current) throw new Error('找不到孩子檔案')
+    if (current.gradeLevel === targetGrade) {
+      // 已被其他併發請求升級
+      return
+    }
+
+    // 升級 gradeLevel + 累計升學通過次數 + 記錄升學時間與目標年級
+    await tx.childProfile.update({
+      where: { id: childId },
+      data: {
+        gradeLevel: targetGrade,
+        promotionCount: { increment: 1 },
+        promotionPassedAt: new Date(),
+        promotionTarget: targetGrade,
+      },
+    })
+
+    // 雙倍星星獎勵（僅發一次：promotionRewarded 為 false 時才發放）
+    if (!current.promotionRewarded && lastPromotionSession.correctCount > 0) {
+      await tx.childProfile.update({
+        where: { id: childId },
+        data: { stars: { increment: lastPromotionSession.correctCount }, promotionRewarded: true },
+      })
+    } else if (!current.promotionRewarded) {
+      await tx.childProfile.update({
+        where: { id: childId },
+        data: { promotionRewarded: true },
+      })
+    }
+  })
+
+  // 重新驗證快取：儀表板與練習選單都會讀到新年級
   revalidatePath('/dashboard')
-  redirect(`/practice/${childId}`)
+  revalidatePath(`/practice/${childId}`)
+  // 帶 ?promoted=G1 旗標，讓練習選單顯示「已解鎖新年級」的慶祝橫幅
+  redirect(`/practice/${childId}?promoted=${targetGrade}`)
 }
 
 // ============ 升學測試 ============
@@ -708,34 +962,47 @@ export async function startPromotionTest(childId: string) {
   const allMastered = await isGradeAllMastered(childId, child.gradeLevel)
   if (!allMastered) throw new Error('尚未完成所有技能，無法參加升學測試')
 
-  // 取得目前年級的所有技能
+  // P1-6：升學測試也只取非 challenge 題
   const skills = await prisma.skill.findMany({
     where: { gradeLevel: child.gradeLevel, isActive: true },
-    include: { questions: { where: { isActive: true } } },
+    include: { questions: { where: { isActive: true, isChallenge: false } } },
   })
   if (skills.length === 0 || skills.every((s) => s.questions.length === 0)) {
     throw new Error('目前年級沒有題目可供測試')
   }
 
-  // 也取得下一年級的題目（用來出「預覽題」評估真實實力）
+  // 也取得下一年級的題目（用來出「預覽題」提前適應新內容）
   const nextSkills = await prisma.skill.findMany({
     where: { gradeLevel: next, isActive: true },
-    include: { questions: { where: { isActive: true } } },
+    include: { questions: { where: { isActive: true, isChallenge: false } } },
   })
+  const nextTotalQuestions = nextSkills.reduce((sum, s) => sum + s.questions.length, 0)
 
   const QUESTIONS_PER_SESSION = 10
-  // 目前年級約 5 題（保留已學知識的考驗）
-  const currentGradeCount = Math.min(5, Math.floor(QUESTIONS_PER_SESSION / 2))
-  // 下一年級約 5 題（預覽題，真正有難度）
-  const nextGradeCount = Math.min(QUESTIONS_PER_SESSION - currentGradeCount,
-    nextSkills.reduce((sum, s) => sum + s.questions.length, 0))
+  // 題目比例：以「目前年級」為主（證明已學內容扎實），下一年級僅少量「預覽題」。
+  // 預覽題不計入升學及格判斷（孩子還沒學過，答錯不該懲罰）。
+  // 7 題目前年級 + 3 題下一年級預覽（若下一年級題庫不足則全用目前年級）
+  const desiredNextGradeCount = nextTotalQuestions > 0 ? 3 : 0
+  const currentGradeCount = QUESTIONS_PER_SESSION - desiredNextGradeCount
 
-  const allQuestions: { templateId: string; prompt: string; answer: string; options?: string[]; explanation?: string }[] = []
+  type SeedQuestion = {
+    templateId: string
+    prompt: string
+    answer: string
+    options?: string[]
+    explanation?: string
+    hint?: string
+    /** 標記題目來源年級，用於及格判斷（目前年級才計分） */
+    __fromGrade: string
+  }
+  const currentGradeQuestions: SeedQuestion[] = []
+  const nextGradeQuestions: SeedQuestion[] = []
 
-  // 從目前年級出題（驗證已學內容）
-  const questionsPerSkill = Math.max(1, Math.floor(currentGradeCount / skills.length))
+  // 從目前年級出題（平均分配到每個技能，先各出足夠數量再取前 N 題）
   for (const skill of skills) {
-    const templates = shuffle(skill.questions).slice(0, questionsPerSkill)
+    // 每個技能最多取 ceil(currentGradeCount / 技能數)，確保湊得到目標題數
+    const perSkill = Math.ceil(currentGradeCount / skills.length)
+    const templates = shuffle(skill.questions).slice(0, perSkill)
     for (const t of templates) {
       const q = generateQuestion({
         id: t.id,
@@ -745,58 +1012,71 @@ export async function startPromotionTest(childId: string) {
         answer: t.answer,
         options: t.options,
       })
-      allQuestions.push({
+      currentGradeQuestions.push({
         templateId: q.templateId!,
         prompt: q.prompt,
         answer: q.answer,
         options: q.options,
         explanation: t.explanation ?? undefined,
+        hint: t.hint ?? undefined,
+        __fromGrade: child.gradeLevel,
       })
     }
   }
 
-  // 從下一年級出題（預覽題 — 真正有難度的挑戰）
-  const nextQuestionsPerSkill = nextSkills.length > 0
-    ? Math.max(1, Math.floor(nextGradeCount / nextSkills.length))
-    : 0
-  for (const skill of nextSkills) {
-    const templates = shuffle(skill.questions).slice(0, nextQuestionsPerSkill)
-    for (const t of templates) {
-      const q = generateQuestion({
-        id: t.id,
-        type: t.type,
-        prompt: t.prompt,
-        paramsJson: t.paramsJson,
-        answer: t.answer,
-        options: t.options,
-      })
-      allQuestions.push({
-        templateId: q.templateId!,
-        prompt: q.prompt,
-        answer: q.answer,
-        options: q.options,
-        explanation: t.explanation ?? undefined,
-      })
+  // 從下一年級出題（預覽題 — 提前看看新內容，答錯不影響及格）
+  if (nextTotalQuestions > 0) {
+    for (const skill of nextSkills) {
+      const perSkill = Math.max(1, Math.ceil(desiredNextGradeCount / nextSkills.length))
+      const templates = shuffle(skill.questions).slice(0, perSkill)
+      for (const t of templates) {
+        const q = generateQuestion({
+          id: t.id,
+          type: t.type,
+          prompt: t.prompt,
+          paramsJson: t.paramsJson,
+          answer: t.answer,
+          options: t.options,
+        })
+        nextGradeQuestions.push({
+          templateId: q.templateId!,
+          prompt: q.prompt,
+          answer: q.answer,
+          options: q.options,
+          explanation: t.explanation ?? undefined,
+          hint: t.hint ?? undefined,
+          __fromGrade: next,
+        })
+      }
     }
   }
 
-  // 洗牌後取 QUESTIONS_PER_SESSION 題
-  const finalQuestions = shuffle(allQuestions).slice(0, QUESTIONS_PER_SESSION)
+  // 組合：取足夠的目前年級題 + 預覽題，洗牌後恰好取 QUESTIONS_PER_SESSION 題
+  const pickedCurrent = shuffle(currentGradeQuestions).slice(0, currentGradeCount)
+  const pickedNext = shuffle(nextGradeQuestions).slice(0, desiredNextGradeCount)
+  const finalQuestions = shuffle([...pickedCurrent, ...pickedNext]).slice(0, QUESTIONS_PER_SESSION)
 
-  // 用 __isPromotion: true 標記這是升學測試
+  // 用 __isPromotion: true 標記這是升學測試；保留各題 __fromGrade 以供及格判斷
   const sessionQuestions = finalQuestions.map((q) => ({
     ...q,
     __isPromotion: true,
     __targetGrade: next,
   }))
 
+  // 實際題數可能會少於 QUESTIONS_PER_SESSION（題庫不足時），
+  // 以實際數量寫入 totalQuestions，避免學生做完所有題目後仍無法完成 session
+  const actualTotal = sessionQuestions.length
+  if (actualTotal === 0) throw new Error('沒有可用題目')
+
   const practiceSession = await prisma.practiceSession.create({
     data: {
       childId,
       skillId: skills[0].id, // 用第一個技能存關聯
       parentId: auth.type === 'parent' ? auth.userId : child.parentId,
-      totalQuestions: QUESTIONS_PER_SESSION,
+      totalQuestions: actualTotal,
       questionsJson: JSON.stringify(sessionQuestions),
+      kind: 'PROMOTION',
+      status: 'IN_PROGRESS',
     },
   })
 
@@ -866,6 +1146,7 @@ export async function startChallengePractice(childId: string) {
       answer: q.answer,
       options: q.options,
       explanation: t.explanation ?? undefined,
+      hint: t.hint ?? undefined,
       interaction,
       rangeMin,
       rangeMax,
@@ -876,13 +1157,18 @@ export async function startChallengePractice(childId: string) {
     }
   })
 
+  // 實際題數可能少於 CHALLENGE_QUESTIONS_PER_SESSION
+  const actualTotal = generated.length
+
   const practiceSession = await prisma.practiceSession.create({
     data: {
       childId,
       skillId: firstSkill.id,
       parentId: auth.type === 'parent' ? auth.userId : child.parentId,
-      totalQuestions: CHALLENGE_QUESTIONS_PER_SESSION,
+      totalQuestions: actualTotal,
       questionsJson: JSON.stringify(generated),
+      kind: 'CHALLENGE',
+      status: 'IN_PROGRESS',
     },
   })
 
@@ -890,24 +1176,24 @@ export async function startChallengePractice(childId: string) {
 }
 
 // ============ 取消未完成的練習（斷點續做中移除）============
-// 讓使用者關閉不想繼續的練習，將其標記為已取消（completedAt 設為當前時間）
+// P1-4：使用 status=CANCELLED + cancelledAt，不再濫用 completedAt
 export async function cancelSession(sessionId: string) {
   const auth = await getPracticeAuth()
   if (!auth) throw new Error('未授權')
 
   const practiceSession = await prisma.practiceSession.findUnique({
     where: { id: sessionId },
-    select: { childId: true, parentId: true },
+    select: { childId: true },
   })
   if (!practiceSession) throw new Error('練習不存在')
 
-  // 驗證權限
-  if (auth.type === 'child' && auth.childId !== practiceSession.childId) throw new Error('無權存取')
-  if (auth.type === 'parent' && practiceSession.parentId !== auth.userId) throw new Error('無權存取')
+  // 使用 canAccessChild 統一驗證（支援 linked parent、self-study child 等場景）
+  if (!(await canAccessChild(practiceSession.childId))) throw new Error('無權存取')
 
-  // 只取消未完成的練習
+  // 只取消進行中的練習
+  const now = new Date()
   await prisma.practiceSession.updateMany({
-    where: { id: sessionId, completedAt: null },
-    data: { completedAt: new Date() },
+    where: { id: sessionId, status: 'IN_PROGRESS' },
+    data: { status: 'CANCELLED', cancelledAt: now },
   })
 }
