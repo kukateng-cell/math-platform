@@ -78,6 +78,13 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
     return { message: '技能、題目、答案為必填' }
   }
 
+  // P2-13：runtime 驗證 type 是否為合法值
+  const validTypes = ['DIRECT', 'ADD', 'SUB', 'MUL', 'DIV', 'WORD_PROBLEM'] as const
+  type ValidType = typeof validTypes[number]
+  if (!validTypes.includes(type as ValidType)) {
+    return { message: '無效的題目類型' }
+  }
+
   // 參數化題（ADD/SUB/MUL/DIV/WORD_PROBLEM）必須有合法 JSON 參數
   let mergedParamsJson: string | null = paramsJsonRaw || null
   if (type === 'ADD' || type === 'SUB' || type === 'MUL' || type === 'DIV' || type === 'WORD_PROBLEM') {
@@ -248,9 +255,11 @@ export async function moveSkillUp(formData: FormData) {
   })
   if (!prev) return
 
-  // 交換 order
-  await prisma.skill.update({ where: { id: skill.id }, data: { order: prev.order } })
-  await prisma.skill.update({ where: { id: prev.id }, data: { order: skill.order } })
+  // P2-13：使用 transaction 確保聯盟交換的原子性
+  await prisma.$transaction([
+    prisma.skill.update({ where: { id: skill.id }, data: { order: prev.order } }),
+    prisma.skill.update({ where: { id: prev.id }, data: { order: skill.order } }),
+  ])
   revalidatePath('/admin')
   revalidatePath('/admin/skills')
 }
@@ -269,9 +278,11 @@ export async function moveSkillDown(formData: FormData) {
   })
   if (!next) return
 
-  // 交換 order
-  await prisma.skill.update({ where: { id: skill.id }, data: { order: next.order } })
-  await prisma.skill.update({ where: { id: next.id }, data: { order: skill.order } })
+  // P2-13：使用 transaction 確保聯盟交換的原子性
+  await prisma.$transaction([
+    prisma.skill.update({ where: { id: skill.id }, data: { order: next.order } }),
+    prisma.skill.update({ where: { id: next.id }, data: { order: skill.order } }),
+  ])
   revalidatePath('/admin')
   revalidatePath('/admin/skills')
 }
@@ -390,9 +401,11 @@ export async function getAdminStats() {
 
 export async function getRecentAttempts(limit = 50) {
   await requireAdmin()
+  // P2-13：clamp limit 避免記憶體爆量
+  const safeLimit = Math.min(Math.max(1, limit), 1000)
   return prisma.attempt.findMany({
     orderBy: { createdAt: 'desc' },
-    take: limit,
+    take: safeLimit,
     include: {
       session: { include: { child: true, skill: true } },
     },
@@ -445,9 +458,16 @@ export async function updateBadge(state: BadgeFormState, formData: FormData): Pr
 export async function deleteBadge(formData: FormData) {
   await requireAdmin()
   const id = String(formData.get('id'))
-  // 若有孩子已獲得此徽章，先刪除關聯
-  await prisma.childBadge.deleteMany({ where: { badgeId: id } })
-  await prisma.badge.delete({ where: { id } })
+  // P2-13：改為停用而非刪除（保留孩子已獲得的歷史徽章）
+  // 檢查是否有孩子已獲得此徽章
+  const childCount = await prisma.childBadge.count({ where: { badgeId: id } })
+  if (childCount > 0) {
+    // 有歷史資料 → 只停用（孩子已獲得的徽章仍顯示在他們的成就頁面）
+    await prisma.badge.update({ where: { id }, data: { isActive: false } })
+  } else {
+    // 無歷史資料 → 可安全刪除
+    await prisma.badge.delete({ where: { id } })
+  }
   revalidatePath('/admin')
   revalidatePath('/admin/badges')
 }

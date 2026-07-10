@@ -1,29 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { accessibleGrades } from '@/lib/grade'
-
-// ============ 時區工具（Streak 用）============
-// 平台目標用戶為台灣（zh-TW，UTC+8）。伺服器可能在其他時區（如 Supabase ap-south-1 孟買），
-// 若用伺服器本地時區算「日曆日」，跨時區用戶的 streak 會計算偏差（例：台灣 23:30 練習、
-// 隔天 06:00 再練，按孟買時區仍是同一天，streak 不增加）。
-// 解法：固定用 Asia/Taipei 時區把 timestamp 折算成「日曆日 key」（YYYY-MM-DD），
-// 再比較兩個日曆日。將來若要支援每個用戶自訂時區，只要把 APP_TIMEZONE 改成 per-user 即可。
-const APP_TIMEZONE = 'Asia/Taipei'
-
-/** 取某個 timestamp 在目標時區的日曆日 key（YYYY-MM-DD），用於 streak 計算 */
-function calendarDayKey(date: Date, timeZone = APP_TIMEZONE): string {
-  // toLocaleDateString('en-CA') 會輸出 YYYY-MM-DD 格式（en-CA 的預設格式）
-  return date.toLocaleDateString('en-CA', { timeZone })
-}
-
-/** 計算兩個日曆日相差幾天（負值代表 from 在 to 之後）。以目標時區為準。 */
-function diffCalendarDays(from: Date, to: Date, timeZone = APP_TIMEZONE): number {
-  const fromKey = calendarDayKey(from, timeZone)
-  const toKey = calendarDayKey(to, timeZone)
-  // 把 YYYY-MM-DD 解析成 UTC 午夜（避免本地時區干擾），再算天數差
-  const fromUtc = Date.UTC(+fromKey.slice(0, 4), +fromKey.slice(5, 7) - 1, +fromKey.slice(8, 10))
-  const toUtc = Date.UTC(+toKey.slice(0, 4), +toKey.slice(5, 7) - 1, +toKey.slice(8, 10))
-  return Math.round((toUtc - fromUtc) / (1000 * 60 * 60 * 24))
-}
+import { diffCalendarDays } from '@/lib/timezone'
 
 // ============ 星星獎勵 ============
 // 每次練習完成後將此輪獲得的星星加入總數
@@ -58,11 +35,14 @@ export async function updateStreak(childId: string) {
 
   if (diffDays <= 0) return // 同一天（含未來時間誤差），當天已算過
   if (diffDays === 1) {
-    // 連續
-    await prisma.childProfile.update({
-      where: { id: childId },
+    // 連續日：用 updateMany + 條件（lastPracticeAt 不變）確保原子性，
+    // 避免併發時兩個請求各自 +1。
+    const result = await prisma.childProfile.updateMany({
+      where: { id: childId, lastPracticeAt: last },
       data: { streak: { increment: 1 }, lastPracticeAt: now },
     })
+    // result.count === 0 代表已被其他請求更新過，不重複 increment
+    if (result.count === 0) return
   } else {
     // 中斷（diffDays >= 2）
     await prisma.childProfile.update({
@@ -166,36 +146,57 @@ export async function checkBadges(ctx: BadgeCheckContext) {
   const currentCombo = computeCombo(recentAttemptsRaw)
   const currentSpeed = computeSpeedRun(recentAttemptsRaw, 5000)
 
-  // 加/減法達人：從已查得的 attempts 中，過濾出加/減法技能的非協助作答
-  // 加法技能 code：add-within-10 / add-within-20；減法：sub-within-10
-  const addSkillCodes = new Set(['add-within-10', 'add-within-20'])
-  const subSkillCodes = new Set(['sub-within-10'])
-  // 注意：達人需「最近 20 題」，從全部 attempts 中過濾（不侷限於前 60 筆的視窗）。
-  // 但預查只取 60 筆——達人判定取最近 20 題，60 筆已足夠涵蓋。
-  const addAttempts = recentAttemptsRaw
-    .filter((a): a is typeof a & { question: NonNullable<typeof a.question> } => !a.assisted && !!a.question?.skill && addSkillCodes.has(a.question.skill.code))
-    .slice(0, 20)
-  const subAttempts = recentAttemptsRaw
-    .filter((a): a is typeof a & { question: NonNullable<typeof a.question> } => !a.assisted && !!a.question?.skill && subSkillCodes.has(a.question.skill.code))
-    .slice(0, 20)
-  const addCorrectRate = addAttempts.length > 0
-    ? addAttempts.filter((a) => a.isCorrect).length / addAttempts.length
-    : 0
-  const subCorrectRate = subAttempts.length > 0
-    ? subAttempts.filter((a) => a.isCorrect).length / subAttempts.length
-    : 0
-
-  // all-skills：已練過的技能數（限定可接觸年級）
+  // all-skills：已練過的技能數（使用 DB distinct skillId，而非僅最近 60 筆）
+  // P2-5：以 DB 查詢結果為準，避免較早練習的技能因超過 60 筆視窗而從集合中消失
+  const practicedSkillRows = await prisma.attempt.findMany({
+    where: {
+      session: { childId },
+      question: { skill: { gradeLevel: { in: reachableGrades } } },
+    },
+    distinct: ['questionId'],
+    select: { question: { select: { skillId: true } } },
+  })
   const practicedSkillIds = new Set(
-    recentAttemptsRaw
-      .filter((a): a is typeof a & { question: NonNullable<typeof a.question> } =>
-        !!a.question?.skill && reachableGrades.includes(a.question.skill.gradeLevel))
-      .map((a) => a.question.skillId)
+    practicedSkillRows.filter((a) => a.question).map((a) => a.question!.skillId)
   )
 
-  // promotion-star：年級 ≥ G3（gradeRank K=0..G3=3）—— 直接用已查得的 child.gradeLevel
-  const { gradeRank } = await import('@/lib/grade')
-  const childRank = gradeRank(child.gradeLevel) ?? 0
+  // P2-6：加/減法達人直接查 DB 取最近 20 題，不依賴 60 筆的快取視窗
+  // 加法技能 ID 查詢
+  const addSkillRows = await prisma.skill.findMany({
+    where: { code: { in: ['add-within-10', 'add-within-20'] } },
+    select: { id: true },
+  })
+  const addSkillIds = addSkillRows.map((s) => s.id)
+  const addAttempts = addSkillIds.length > 0 ? await prisma.attempt.findMany({
+    where: { session: { childId }, question: { skillId: { in: addSkillIds } }, assisted: false },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    select: { isCorrect: true },
+  }) : []
+  const addCorrectCount = addAttempts.filter((a) => a.isCorrect).length
+  const addCorrectRate = addAttempts.length > 0
+    ? addCorrectCount / addAttempts.length
+    : 0
+
+  // 減法技能 ID 查詢
+  const subSkillRows = await prisma.skill.findMany({
+    where: { code: { in: ['sub-within-10'] } },
+    select: { id: true },
+  })
+  const subSkillIds = subSkillRows.map((s) => s.id)
+  const subAttempts = subSkillIds.length > 0 ? await prisma.attempt.findMany({
+    where: { session: { childId }, question: { skillId: { in: subSkillIds } }, assisted: false },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    select: { isCorrect: true },
+  }) : []
+  const subCorrectCount = subAttempts.filter((a) => a.isCorrect).length
+  const subCorrectRate = subAttempts.length > 0
+    ? subCorrectCount / subAttempts.length
+    : 0
+
+  // promotion-star：使用持久化的 promotionCount（P2-7），而非年級推估
+  const promotionCount = child.promotionCount ?? 0
 
   for (const badge of allBadges) {
     // 跳過已獲得的徽章
@@ -263,9 +264,8 @@ export async function checkBadges(ctx: BadgeCheckContext) {
       }
 
       case 'promotion-star': {
-        // 通過 3 次升學測試 ≒ 目前年級 ≥ G3（gradeRank K=0..G3=3）
-        // （使用預查詢的 childRank，避免重複查 child）
-        earned = childRank >= 3
+        // 通過 3 次升學測試（使用持久化的 promotionCount，P2-7）
+        earned = promotionCount >= 3
         break
       }
 
@@ -318,8 +318,11 @@ export async function checkBadges(ctx: BadgeCheckContext) {
     }
 
     if (earned) {
-      await prisma.childBadge.create({
-        data: { childId, badgeId: badge.id },
+      // P2-8：使用 upsert 而非 create，避免併發完成時因 unique constraint 衝突而失敗
+      await prisma.childBadge.upsert({
+        where: { childId_badgeId: { childId, badgeId: badge.id } },
+        update: {}, // 已存在則不更新
+        create: { childId, badgeId: badge.id },
       })
       newlyEarned.push({ badgeId: badge.id, name: badge.name, icon: badge.icon })
     }

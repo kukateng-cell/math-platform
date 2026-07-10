@@ -88,16 +88,14 @@ enum LinkStatus {
 
 model ChildProfile {
   id        String   @id @default(cuid())
-  // 學生可以有自己的帳號密碼獨立登入
-  email        String?  @unique
-  passwordHash String?
-  pin          String?  // 4 位數 PIN 碼
-  nickname     String
-  gradeLevel   String  // K, G1, G2 ...（程式碼層驗證，見 grade.ts / definitions.ts）
+  // 學生可以有自己的帳號獨立登入（Email OTP，免密碼）
+  email     String?  @unique
+  nickname  String
+  gradeLevel String  // K, G1, G2 ...
 
   // 可選：由家長建立時才有 parentId；學生自主註冊時為 null
   parentId  String?
-  // 學習模式：STANDARD(需 PIN,可綁家長) | SELF_STUDY(免 PIN,用驗證碼登入)
+  // 學習模式：STANDARD(可綁家長) | SELF_STUDY(用驗證碼登入,自主學習)
   mode      ChildMode @default(STANDARD)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -106,10 +104,11 @@ model ChildProfile {
   stars          Int       @default(0)   // 累計星星數
   streak         Int       @default(0)   // 連續練習天數
   lastPracticeAt DateTime?               // 上次練習日期（供 streak 計算）
+  promotionCount Int       @default(0)   // 升學通過次數（供 promotion-star 徽章計算）
 
   // ============ 升學追蹤（P1-9：防重複獎勵 race condition）============
   promotionPassedAt  DateTime?  // 最後一次通過升學測試的時間
-  promotionTarget    String?  // 通過的目標年級
+  promotionTarget    String?    // 通過的目標年級
   promotionRewarded  Boolean    @default(false)  // 是否已發放升學獎勵
 
   parent            User?             @relation(fields: [parentId], references: [id], onDelete: Cascade)
@@ -123,8 +122,8 @@ model ChildProfile {
 }
 
 enum ChildMode {
-  STANDARD   // 需 PIN,可綁家長
-  SELF_STUDY // 免 PIN,用驗證碼登入,自主學習
+  STANDARD   // 可綁家長
+  SELF_STUDY // 用驗證碼登入,自主學習
 }
 
 // ============ 技能 ============
@@ -204,6 +203,10 @@ model PracticeSession {
   abandonedAt DateTime?
   totalQuestions Int         @default(0)
   correctCount   Int         @default(0)
+  // P2-4：非 assisted 的答題數（正確率分母用），避免 assisted 題被當成錯題
+  gradedQuestionCount Int @default(0)
+  // P2-4：assisted（家長協助）的答題數
+  assistedCount      Int @default(0)
   // 伺服器生成的題目快照（JSON），供 submitAnswer 驗證用，避免信任前端
   questionsJson String?
 
@@ -268,6 +271,7 @@ model Badge {
   name      String
   icon      String   // emoji
   condition String   // 解鎖條件描述
+  isActive  Boolean  @default(true) // P2-13：停用而非刪除，保留歷史徽章
 
   childBadges ChildBadge[]
 }

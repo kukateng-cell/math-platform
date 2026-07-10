@@ -1,5 +1,15 @@
 import nodemailer from 'nodemailer'
 
+// ============ HTML Escape（防 XSS，email 模板用）============
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 // ====================================================================
 // Gmail SMTP 寄信（支援 Vercel serverless 環境）
 // --------------------------------------------------------------------
@@ -105,7 +115,7 @@ export async function sendLinkRequestEmail(
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
           <div style="text-align:center;font-size:40px;margin-bottom:16px">🔗</div>
           <h1 style="font-size:20px;text-align:center;margin-bottom:24px">數學小達人 - 新的綁定請求</h1>
-          <p style="color:#555">學生「<strong>${childNickname}</strong>」希望與您的帳號建立綁定關係。</p>
+          <p style="color:#555">學生「<strong>${escapeHtml(childNickname)}</strong>」希望與您的帳號建立綁定關係。</p>
           <p style="color:#555">請登入數學小達人，至「家長儀表板」確認或拒絕此請求。</p>
           <p style="color:#999;font-size:13px;margin-top:24px">若這不是您預期的操作，請忽略此信件。</p>
         </div>
