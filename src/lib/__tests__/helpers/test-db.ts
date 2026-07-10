@@ -152,11 +152,10 @@ export async function createTestAttempt(overrides: {
   assisted?: boolean
   questionId?: string
 }) {
-  const qId = overrides.questionId || 'test-q'
   return prisma.attempt.create({
     data: {
       sessionId: overrides.sessionId,
-      questionId: qId,
+      questionId: overrides.questionId || null,
       questionIndex: overrides.questionIndex ?? 0,
       questionPrompt: '1+1=?',
       userAnswer: overrides.isCorrect ? '2' : '3',

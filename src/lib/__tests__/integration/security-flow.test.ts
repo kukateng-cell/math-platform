@@ -198,14 +198,15 @@ describe('Attempt 重複提交與 session 完成', () => {
   it('同一題重複提交應被 @@unique 約束阻擋', async () => {
     const child = await createTestChild()
     const skill = await createTestSkill()
+    const q = await createTestQuestion(skill.id)
     const session = await createTestSession({ childId: child.id, skillId: skill.id, totalQuestions: 3 })
 
     // 第一次提交
-    await createTestAttempt({ sessionId: session.id, questionIndex: 0 })
+    await createTestAttempt({ sessionId: session.id, questionIndex: 0, questionId: q.id })
 
     // 第二次同 index 應拋 P2002
     await expect(
-      createTestAttempt({ sessionId: session.id, questionIndex: 0 })
+      createTestAttempt({ sessionId: session.id, questionIndex: 0, questionId: q.id })
     ).rejects.toThrow()
   })
 
