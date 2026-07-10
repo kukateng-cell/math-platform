@@ -2,30 +2,36 @@ import 'dotenv/config'
 import { PrismaClient } from '../src/generated/prisma/client.js'
 import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
-async function main() {
-  console.log('🌱 Seeding...')
+function randomPassword(bytes = 18): string {
+  return randomBytes(bytes)
+    .toString('base64url')
+    .replace(/[Il1O0]/g, 'x')
+    .slice(0, 24)
+}
 
-  // ============ 管理員帳號 ============
-  // 安全：不再使用寫死的弱密碼（admin123）帶到正式環境。
-  //   - 開發環境：未設定 ADMIN_PASSWORD 時，沿用方便的 admin123。
-  //   - 正式環境：必須設定 ADMIN_PASSWORD；否則自動產生一次性隨機密碼並印出，
-  //     且明確拒絕 admin123 / 過短密碼。
-  //   - update: {} 表示已存在的管理員「不會」被重新設密碼（避免覆蓋已改過的密碼）。
   const isProd = process.env.NODE_ENV === 'production'
+  const envAdminEmail = process.env.ADMIN_EMAIL?.trim()
   const envAdminPassword = process.env.ADMIN_PASSWORD?.trim()
 
-  function randomPassword(bytes = 18): string {
-    // crypto.random 轉 base64url，去掉易混淆字元
-    const { randomBytes } = await import('crypto')
-    return randomBytes(bytes)
-      .toString('base64url')
-      .replace(/[Il1O0]/g, 'x')
-      .slice(0, 24)
+  // P0-4：正式環境必須設定 ADMIN_EMAIL（可收 OTP 的真實信箱）
+  if (isProd) {
+    if (!envAdminEmail) {
+      console.error('\n❌ 正式環境必須設定 ADMIN_EMAIL（可接收 OTP 的真實 Email）')
+      console.error('   請設定：ADMIN_EMAIL=admin@example.com\n')
+      process.exit(1)
+    }
+    if (!envAdminPassword || envAdminPassword.length < 8 || envAdminPassword === 'admin123') {
+      console.error('\n❌ 正式環境必須設定安全的 ADMIN_PASSWORD（至少 8 碼，不可為 admin123）\n')
+      process.exit(1)
+    }
   }
+
+  const adminEmail = envAdminEmail || 'admin@math.local'
 
   let adminPassword: string
   if (envAdminPassword && envAdminPassword.length >= 8 && envAdminPassword !== 'admin123') {
@@ -44,10 +50,10 @@ async function main() {
 
   const adminHash = await bcrypt.hash(adminPassword, 10)
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@math.local' },
+    where: { email: adminEmail },
     update: {},
     create: {
-      email: 'admin@math.local',
+      email: adminEmail,
       name: '管理員',
       passwordHash: adminHash,
       role: 'ADMIN',
@@ -662,13 +668,27 @@ async function main() {
   })
 
   // ============ 題目模板 ============
-  // 必須按外鍵依賴順序清除，避免 SQLite 外鍵約束錯誤
-  await prisma.attempt.deleteMany({})
-  await prisma.practiceSession.deleteMany({})
-  await prisma.masterySnapshot.deleteMany({})
-  await prisma.questionTemplate.deleteMany({})
+  // ⚠️ 安全保護：非破壞模式（預設）不會刪除既有學習資料（作答、session、掌握度）。
+  // 僅在 ALLOW_DESTRUCTIVE_SEED=true 環境變數下才允許刪除。
+  // 正式環境禁止無條件 deleteMany({}) 以免清空正式學習資料。
+  const isDestructive = process.env.ALLOW_DESTRUCTIVE_SEED === 'true'
 
-  // ───────── 1. 數數（count-objects）: 20+ 題 ─────────
+  // 檢查是否有非 demo 的學習資料（作答紀錄），避免誤刪
+  const existingAttemptCount = await prisma.attempt.count()
+  const shouldSkipRebuild = existingAttemptCount > 0 && !isDestructive
+  if (shouldSkipRebuild) {
+    console.log(`  ℹ️  發現 ${existingAttemptCount} 筆作答紀錄，跳過題目重建。`)
+    console.log(`  ℹ️  若要強制重建題庫，設定 ALLOW_DESTRUCTIVE_SEED=true 後重新執行。`)
+  } else {
+    if (isDestructive) {
+      console.log('  ⚠️  破壞模式啟用（ALLOW_DESTRUCTIVE_SEED=true），清除既有學習資料與題庫...')
+      await prisma.attempt.deleteMany({})
+      await prisma.practiceSession.deleteMany({})
+      await prisma.masterySnapshot.deleteMany({})
+      await prisma.questionTemplate.deleteMany({})
+    }
+
+    // ───────── 1. 數數（count-objects）: 20+ 題 ─────────
   const countSymbols = ['★', '●', '■', '◆', '▲', '♥', '⬟', '⬢']
   const countQuestions: { prompt: string; answer: string; options: string }[] = []
   for (let n = 3; n <= 10; n++) {
@@ -2424,6 +2444,56 @@ async function main() {
   const totalChallenge = await prisma.questionTemplate.count({ where: { isChallenge: true } })
   console.log(`  ✓ Badges: ${badges.length} seeded`)
   console.log(`  ✓ Skills from K to G6, Questions: ${totalQ} (including ${totalChallenge} challenge)`)
+
+  // ============ P0-1：為所有缺少 hint 的題目模板補上安全提示文字 ============
+  // hint 是「作答前可安全顯示」的提示，不可包含答案或完整算式。
+  // explanation 保留原樣（作答後才顯示，含答案沒問題）。
+  const hintsBySkillCode: Record<string, string> = {
+    'count-objects': '一個一個慢慢數，可以用手指或畫圈圈幫忙',
+    'count-compare': '先數一數每一邊有幾個，再比較大小',
+    'shape-recognition': '注意看圖形的邊和角，想一想它是什麼形狀',
+    'add-within-10': '把兩個數合在一起，可以用手指或積木幫忙算',
+    'add-within-20': '先算個位數，湊到 10 再繼續加',
+    'sub-within-10': '從大數裡拿走小數，想一想剩下多少',
+    'sub-within-20': '可以先湊 10 再減，或用畫圖的方式幫忙',
+    'add-sub-100': '注意十位數和個位數要對齊再算',
+    'word-problem': '先找出題目裡的數字，判斷是要加還是減',
+    'intro-multiply': '乘法就是連加，例如 4×3 就是 4+4+4',
+    'multiply-6-9': '背九九乘法表，想想看口訣是什麼',
+    'multiply-table': '用九九乘法口訣來算',
+    'divide-basic': '除法就是平分，想想看每人可以分到多少',
+    'add-sub-1000': '注意百位、十位、個位要對齊',
+    'mixed-operations': '先乘除後加減，有括號先算括號',
+    'time-calc': '把時間換算成分鐘來算比較不容易出錯',
+    'area-perimeter': '周長是繞一圈的長度，面積是裡面的大小',
+    'decimal-intro': '小數點要對齊，像整數一樣計算',
+    'large-multiply': '用直式算，注意進位',
+    'triangle': '注意三個角的大小，想想看屬於哪一類',
+    'two-digit-div': '想想看什麼數乘以除數會等於被除數',
+    'decimal-multiply-divide': '先算數字，再算小數位數',
+    'factors-multiples': '用質因數分解來找公因數和公倍數',
+    'equation': '把 x 留在一邊，數字移到另一邊，記得兩邊要平衡',
+    'polygon-formula': '回想看看這個圖形的公式是什麼',
+    'fraction-multiply-divide': '乘法分子乘分子、分母乘分母；除法要倒數後相乘',
+    'ratio': '把比例寫成分數來算',
+  }
+  // 若跳過題庫重建（有既有學習資料），則 hints 後處理也不需要執行
+  if (!shouldSkipRebuild) {
+    const noHintTemplates = await prisma.questionTemplate.findMany({
+      where: { hint: null },
+      include: { skill: { select: { code: true } } },
+    })
+    let hintUpdated = 0
+    for (const t of noHintTemplates) {
+      const hint = hintsBySkillCode[t.skill.code]
+      if (hint) {
+        await prisma.questionTemplate.update({ where: { id: t.id }, data: { hint } })
+        hintUpdated++
+      }
+    }
+    console.log(`  ✓ Hints added: ${hintUpdated} templates`)
+  }
+
   console.log('✅ Done!')
 }
 

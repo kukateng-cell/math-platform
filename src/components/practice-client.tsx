@@ -19,10 +19,11 @@ import type { Recommendation } from '@/lib/mastery'
 type QuestionItem = {
   templateId: string
   prompt: string
-  // 注意：不含 answer 欄位。正確答案只存在 server 端，
-  // 唯有透過 submitAnswer 提交後才會在回傳值（correctAnswer）中提供。
+  // 注意：不含 answer 與 explanation 欄位。正確答案與完整算式只存在 server 端，
+  // 唯有透過 submitAnswer 提交後才會在回傳值（correctAnswer / explanation）中提供。
+  // hint 是作答前可安全顯示的提示文字（不含答案），查看後該題自動視為 assisted。
   options?: string[]
-  explanation?: string
+  hint?: string
   interaction?: string
   rangeMin?: number
   rangeMax?: number
@@ -141,6 +142,9 @@ export default function PracticeClient({
   const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showHint, setShowHint] = useState(false)
+  // P0-1：追蹤本題是否查看過 hint。查看 hint 的作答，提交時 hintUsed=true，
+  // 伺服器會強制視為 assisted（不計入掌握度/星星/徽章），不信任前端 assisted。
+  const [hintUsed, setHintUsed] = useState(false)
   const [showCelebration, setShowCelebration] = useState(true)
   /** 多設備情境：此練習已在其他裝置被完成，非本地答錯 */
   const [remoteFinished, setRemoteFinished] = useState(false)
@@ -348,10 +352,14 @@ export default function PracticeClient({
         userAnswer: currentAnswer,
         assisted,
         durationMs,
+        // P0-1：傳送 hintUsed 給伺服器。伺服器會強制 assisted=true（不信任前端），
+        // 確保查看 hint 的作答不計入掌握度/星星/徽章。
+        hintUsed,
       })
 
       setLastResult(result)
-      if (result.correct && !assisted) setCorrectCount((c) => c + 1)
+      // P0-1：若伺服器端因 hintUsed 強制 assisted，前端 correctCount 也不計入
+      if (result.correct && !assisted && !hintUsed) setCorrectCount((c) => c + 1)
 
       // 多設備情境：另一裝置已完成此練習 → 不顯示答錯動畫，直接跳完成頁
       const alreadyFinished = result.finished && !result.correct && result.correctAnswer === ''
@@ -395,6 +403,7 @@ export default function PracticeClient({
     setLastResult(null)
     setAssisted(false)
     setShowHint(false)
+    setHintUsed(false)
     setFeedback(null)
     setRevealCorrect(false)
     setBgFlash(null)
@@ -803,12 +812,17 @@ export default function PracticeClient({
         </p>
       </div>
 
-      {/* 💡 提示按鈕 — 作答前可預先查看解題提示 */}
-      {current.explanation && !lastResult && (
+      {/* 💡 提示按鈕 — 作答前可預先查看解題提示（不含答案） */}
+      {/* P0-1：只顯示 hint（不含答案）；查看後標記 hintUsed，提交時伺服器強制 assisted */}
+      {current.hint && !lastResult && (
         <div className="text-center">
           <button
             type="button"
-            onClick={() => setShowHint(!showHint)}
+            onClick={() => {
+              setShowHint(!showHint)
+              // 第一次展開 hint 時標記本題已使用提示（提交時 hintUsed=true）
+              if (!showHint) setHintUsed(true)
+            }}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
           >
             <span className="text-base">{showHint ? '隱藏提示' : '顯示提示'}</span>
@@ -817,7 +831,7 @@ export default function PracticeClient({
           </button>
           {showHint && (
             <div className="mx-auto mt-2 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-800 animate-fade-in-up dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              <span className="inline-flex items-start gap-1.5 align-top"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{renderTextWithShapes(current.explanation ?? '', 'sm')}</span>
+              <span className="inline-flex items-start gap-1.5 align-top"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{renderTextWithShapes(current.hint ?? '', 'sm')}</span>
             </div>
           )}
         </div>
