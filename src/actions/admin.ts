@@ -490,7 +490,7 @@ export async function getAllChildrenStats() {
         where: { status: 'COMPLETED' },
         orderBy: { startedAt: 'desc' },
         take: 5,
-        select: { correctCount: true, totalQuestions: true, startedAt: true },
+        select: { correctCount: true, totalQuestions: true, gradedQuestionCount: true, startedAt: true },
       },
       masterySnapshots: {
         select: { recentTotal: true, masteryLevel: true },
@@ -525,7 +525,7 @@ export async function getAllChildrenStats() {
     const avgAccuracy = recentSessions.length > 0
       ? Math.round(
           (recentSessions.reduce(
-            (sum, s) => sum + (s.totalQuestions > 0 ? s.correctCount / s.totalQuestions : 0),
+            (sum, s) => sum + ((s.gradedQuestionCount || s.totalQuestions) > 0 ? s.correctCount / (s.gradedQuestionCount || s.totalQuestions) : 0),
             0
           ) / recentSessions.length) * 100
         )

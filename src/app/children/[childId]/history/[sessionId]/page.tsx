@@ -85,7 +85,9 @@ export default async function SessionDetailPage({
 
   const totalQuestions = session.totalQuestions || session.attempts.length
   const correctCount = session.correctCount
-  const accuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0
+  // P2-4：分母用 gradedQuestionCount（排除 assisted 題）
+  const gradedQuestionCount = session.gradedQuestionCount || totalQuestions
+  const accuracy = gradedQuestionCount > 0 ? Math.round((correctCount / gradedQuestionCount) * 100) : 0
 
   // 按題型統計
   const typeStats = session.attempts.reduce(

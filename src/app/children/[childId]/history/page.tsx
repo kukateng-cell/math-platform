@@ -71,9 +71,11 @@ export default async function PracticeHistoryPage({
       ) : (
         <div className="space-y-4">
           {history.map((session) => {
+            // P2-4：分母用 gradedQuestionCount（排除 assisted 題）
+            const graded = session.gradedQuestionCount || session.totalQuestions
             const accuracy =
-              session.totalQuestions > 0
-                ? Math.round((session.correctCount / session.totalQuestions) * 100)
+              graded > 0
+                ? Math.round((session.correctCount / graded) * 100)
                 : 0
             const accColor =
               accuracy >= 80

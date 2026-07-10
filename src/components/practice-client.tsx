@@ -440,7 +440,12 @@ export default function PracticeClient({
     }
 
     const starsEarned = correctCount
-    const accuracy = Math.round((correctCount / questions.length) * 100)
+    // P2-4：正確率分母用 gradedQuestionCount（排除 assisted 題），不把家長協助題當成錯題
+    const gradedQuestionCount = questionResults.filter((r) => r && !r.assisted).length
+    const assistedCount = questionResults.filter((r) => r && r.assisted).length
+    const accuracy = gradedQuestionCount > 0
+      ? Math.round((correctCount / gradedQuestionCount) * 100)
+      : Math.round((correctCount / questions.length) * 100)
     const encouragement = getEncouragement(accuracy)
     // totalTime 取自 finalTotalMs（練習完成時已於 handleSubmit / remoteFinished 路徑寫入）。
     // 不在 render 中呼叫 Date.now() 或讀 ref，符合純粹性規則。
@@ -519,8 +524,13 @@ export default function PracticeClient({
         {/* 答對題數 + 總花費時間 */}
         <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
           <p className="text-lg text-neutral-700 dark:text-gray-200">
-            答對 <span className="font-bold text-green-600 dark:text-green-400">{correctCount}</span> / {questions.length} 題
+            獨立作答 <span className="font-bold text-green-600 dark:text-green-400">{correctCount}</span> / {gradedQuestionCount || questions.length} 題
           </p>
+          {assistedCount > 0 && (
+            <p className="text-lg text-neutral-700 dark:text-gray-200">
+              家長協助 <span className="font-bold text-amber-600 dark:text-amber-400">{assistedCount}</span> 題
+            </p>
+          )}
           <p className="text-lg text-neutral-700 dark:text-gray-200">
             共花費 <span className="inline-flex items-center gap-1 font-mono font-bold text-blue-600 dark:text-blue-400"><Icon name="stopwatch" className="h-5 w-5" /> {formatDuration(totalTime)}</span>
           </p>
