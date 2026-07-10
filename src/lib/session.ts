@@ -41,10 +41,13 @@ export async function decrypt(token: string | undefined = ''): Promise<SessionPa
 
 // 建立 session cookie（登入/註冊成功時呼叫）
 // payload 需包含 tokenVersion（來自 User.tokenVersion），用於角色變更後即時失效。
+// P2-7：登入家長時清除孩子 session cookie，避免身份混淆
 export async function createSession(payload: SessionPayload) {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   const token = await encrypt(payload)
   const cookieStore = await cookies()
+  // 清除孩子 session cookie（避免同時存在兩個身份）
+  cookieStore.delete('math-child')
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
