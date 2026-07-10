@@ -6,9 +6,12 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  // 清除既有挑戰題，支援重新執行
-  const deleted = await prisma.questionTemplate.deleteMany({ where: { isChallenge: true } })
-  console.log(`  ✓ Removed ${deleted.count} existing challenge questions`)
+  // 軟停用既有挑戰題（soft deactivate），避免卡住 active session 的 templateId
+  const deactivated = await prisma.questionTemplate.updateMany({
+    where: { isChallenge: true },
+    data: { isActive: false },
+  })
+  console.log(`  ✓ Deactivated ${deactivated.count} existing challenge questions`)
 
   const allSkills = await prisma.skill.findMany({ where: { isActive: true } })
   const skillByName = new Map(allSkills.map((s) => [s.code, s]))
