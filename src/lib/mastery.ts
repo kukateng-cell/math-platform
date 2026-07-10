@@ -18,9 +18,10 @@ export async function updateMastery(sessionId: string) {
   const { childId, skillId } = practiceSession
 
   // 取該技能最近 RECENT_WINDOW 題（非 assisted），按時間倒序
+  // P2-9：只取 COMPLETED + NORMAL session 的作答
   const recentAttempts = await prisma.attempt.findMany({
     where: {
-      session: { childId, skillId },
+      session: { childId, skillId, status: 'COMPLETED', kind: 'NORMAL' },
       assisted: false,
     },
     orderBy: { createdAt: 'desc' },

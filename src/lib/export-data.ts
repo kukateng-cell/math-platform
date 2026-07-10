@@ -200,9 +200,9 @@ export async function buildChildCsv(childId: string): Promise<{ nickname: string
   })
   if (!child) throw new Error('找不到孩子檔案')
 
-  // 作答明細（跨所有 session，最多 2000 筆避免超時）
+  // 作答明細（P2-9：只取 COMPLETED + NORMAL session 的作答，與 session 區塊口徑一致）
   const attempts = await prisma.attempt.findMany({
-    where: { session: { childId } },
+    where: { session: { childId, status: 'COMPLETED', kind: 'NORMAL' } },
     orderBy: { createdAt: 'desc' },
     take: 2000,
     include: { session: { include: { skill: { select: { name: true } } } } },
@@ -283,7 +283,7 @@ export async function buildAllChildrenCsv(): Promise<string> {
     include: {
       parent: { select: { email: true } },
       sessions: {
-        where: { status: 'COMPLETED' },
+        where: { status: 'COMPLETED', kind: 'NORMAL' },
         orderBy: { startedAt: 'desc' },
         include: { skill: { select: { name: true, gradeLevel: true } } },
       },
