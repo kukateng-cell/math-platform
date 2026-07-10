@@ -63,6 +63,7 @@ function sessionsTable(
     completedAt: Date | null
     totalQuestions: number
     correctCount: number
+    gradedQuestionCount: number
   }[],
 ): CsvTable {
   return {
@@ -71,8 +72,9 @@ function sessionsTable(
       { key: 'completedAt', label: '完成時間' },
       { key: 'gradeLevel', label: '年級' },
       { key: 'skillName', label: '技能' },
-      { key: 'totalQuestions', label: '題數' },
+      { key: 'totalQuestions', label: '總題數' },
       { key: 'correctCount', label: '答對' },
+      { key: 'assisted', label: '家長協助' },
       { key: 'accuracy', label: '正確率' },
     ],
     rows: sessions.map((s) => ({
@@ -82,9 +84,11 @@ function sessionsTable(
       skillName: s.skillName,
       totalQuestions: s.totalQuestions,
       correctCount: s.correctCount,
+      assisted: s.totalQuestions - s.gradedQuestionCount,
+      // P2-4：使用 gradedQuestionCount 作為分母（排除 assisted 題）
       accuracy:
-        s.totalQuestions > 0
-          ? `${Math.round((s.correctCount / s.totalQuestions) * 100)}%`
+        s.gradedQuestionCount > 0
+          ? `${Math.round((s.correctCount / s.gradedQuestionCount) * 100)}%`
           : '-',
     })),
   }
@@ -217,6 +221,7 @@ export async function buildChildCsv(childId: string): Promise<{ nickname: string
           completedAt: s.completedAt,
           totalQuestions: s.totalQuestions,
           correctCount: s.correctCount,
+          gradedQuestionCount: s.gradedQuestionCount,
         })),
       ),
     },
@@ -298,6 +303,7 @@ export async function buildAllChildrenCsv(): Promise<string> {
         skillName: '',
         totalQuestions: '',
         correctCount: '',
+        assisted: '',
         accuracy: '',
       })
       continue
@@ -313,9 +319,10 @@ export async function buildAllChildrenCsv(): Promise<string> {
         skillName: s.skill.name,
         totalQuestions: s.totalQuestions,
         correctCount: s.correctCount,
+        assisted: s.totalQuestions - s.gradedQuestionCount,
         accuracy:
-          s.totalQuestions > 0
-            ? `${Math.round((s.correctCount / s.totalQuestions) * 100)}%`
+          s.gradedQuestionCount > 0
+            ? `${Math.round((s.correctCount / s.gradedQuestionCount) * 100)}%`
             : '-',
       })
     }
@@ -330,8 +337,9 @@ export async function buildAllChildrenCsv(): Promise<string> {
       { key: 'startedAt', label: '開始時間' },
       { key: 'completedAt', label: '完成時間' },
       { key: 'skillName', label: '技能' },
-      { key: 'totalQuestions', label: '題數' },
+      { key: 'totalQuestions', label: '總題數' },
       { key: 'correctCount', label: '答對' },
+      { key: 'assisted', label: '家長協助' },
       { key: 'accuracy', label: '正確率' },
     ],
     rows,

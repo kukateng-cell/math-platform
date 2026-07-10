@@ -164,7 +164,7 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
   // 避免使用者多次開啟同一技能卻未完成，造成「繼續練習」清單出現重複技能。
   // 注意：僅處理一般技能 session，特殊 session（升學測試/提升練習）帶有標記，不在此清理。
   //
-  // ⚠️ 必須同時回填 correctCount：
+  // ⚠️ 必須同時回填 correctCount / gradedQuestionCount / assistedCount（P2-4）：
   const staleSessions = await prisma.practiceSession.findMany({
     where: { childId, skillId, completedAt: null },
     select: { id: true },
@@ -174,14 +174,24 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
     await Promise.all(
       staleSessions.map(async (s) => {
         // 先算出該 session 的實際答對數（isCorrect 且非 assisted），再寫回
-        const realCorrect = await prisma.attempt.count({
-          where: { sessionId: s.id, isCorrect: true, assisted: false },
-        })
+        const [realCorrect, gradedCount, assistedCount] = await Promise.all([
+          prisma.attempt.count({
+            where: { sessionId: s.id, isCorrect: true, assisted: false },
+          }),
+          prisma.attempt.count({
+            where: { sessionId: s.id, assisted: false },
+          }),
+          prisma.attempt.count({
+            where: { sessionId: s.id, assisted: true },
+          }),
+        ])
         return prisma.practiceSession.update({
           where: { id: s.id },
           data: {
             completedAt: now,
             correctCount: realCorrect,
+            gradedQuestionCount: gradedCount,
+            assistedCount,
           },
         })
       })
@@ -489,7 +499,23 @@ export async function submitAnswer(payload: {
   // durationMs 伺服器驗證：下限 1 秒、上限 5 分鐘，防止前端偽造速度類徽章。
   // 下限設為 1000ms 而非 0ms：人類不可能在 1 秒內讀題並作答，
   // 若允許 0ms 會被偽造為 1ms 而通過速度徽章的 durationMs > 0 檢查。
-  const validatedDurationMs = Math.max(1000, Math.min(payload.durationMs, 300_000))
+  // P2-9：同時檢查累計時間是否超過 session 開始以來的實際經過時間，
+  // 防止前端一次性提交大量「1 秒」作答（server 端 elapsed 會戳破謊言）。
+  let validatedDurationMs = Math.max(1000, Math.min(payload.durationMs, 300_000))
+  // Server 端 elapsed：從 session 建立到現在的毫秒數
+  const serverElapsedMs = Date.now() - practiceSession.startedAt.getTime()
+  // 查詢已累計的 durationMs（不含本次提交）
+  if (practiceSession.completedAt === null) {
+    const existingDurations = await prisma.attempt.aggregate({
+      where: { sessionId: payload.sessionId },
+      _sum: { durationMs: true },
+    })
+    const cumulativeClientMs = (existingDurations._sum.durationMs ?? 0) + validatedDurationMs
+    // 若客戶端累計時間遠超 server 經過時間（允許 5 秒緩衝），則強制 clamp
+    if (cumulativeClientMs > serverElapsedMs + 5000) {
+      validatedDurationMs = Math.max(1000, Math.floor(Math.max(1, serverElapsedMs - (existingDurations._sum.durationMs ?? 0))))
+    }
+  }
 
   // 防止重複提交同一題（attempt 表有 @@unique([sessionId, questionIndex])，
   // 捕捉 Prisma P2002 錯誤並優雅回退，避免刷高星星與掌握度）
@@ -609,11 +635,19 @@ export async function submitAnswer(payload: {
       (a) => a.isCorrect
     )
 
-    // 平行寫入 correctCount、星星、連續天數
+    // P2-4：計算分欄位，確保各頁面正確率口徑一致
+    const gradedCount = sessionAttempts.filter((a) => !a.assisted).length
+    const assistedCount = sessionAttempts.filter((a) => a.assisted).length
+
+    // 平行寫入 correctCount、gradedQuestionCount、assistedCount、星星、連續天數
     await Promise.all([
       prisma.practiceSession.update({
         where: { id: payload.sessionId },
-        data: { correctCount: starsEarned },
+        data: {
+          correctCount: starsEarned,
+          gradedQuestionCount: gradedCount,
+          assistedCount,
+        },
       }),
       updateStars(childId, starsEarned),
       updateStreak(childId),

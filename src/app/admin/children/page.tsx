@@ -10,6 +10,8 @@ function gradeLabel(level: string): string {
     G2: '二年級',
     G3: '三年級',
     G4: '四年級',
+    G5: '五年級',
+    G6: '六年級',
   }
   return map[level] ?? level
 }
