@@ -137,6 +137,13 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
       } catch { /* ignore */ }
     }
 
+    // 若 inputMode 未明確設定，依答案內容判斷：純數字→numeric，否則→text。
+    // 在 server 端根據答案決定（答案不會送到 client），確保 client 的 inputMode
+    // 始終權威，不需依賴答案內容來判斷輸入模式（P0-2：答案不可送到瀏覽器）。
+    if (!inputMode) {
+      inputMode = /^-?\d+(\.\d+)?$/.test(q.answer) ? 'numeric' : 'text'
+    }
+
     generated.push({
       templateId: q.templateId!,
       prompt: q.prompt,
@@ -199,12 +206,21 @@ export async function startSession(childId: string, skillId: string) {
   redirect(`/practice/${childId}/${skillId}/${sessionId}`)
 }
 
+// 公開題目型別：移除 answer，避免正確答案被送到瀏覽器（P0-2）。
+// answer 只存在於 server 端的 session snapshot（questionsJson），
+// 唯有透過 submitAnswer 提交後才會在回傳值中附上 correctAnswer。
+export type PublicQuestion = Omit<StoredQuestion, 'answer'>
+
 // 取得一次練習要做的題目（從 session 的伺服器快照讀取，確保與驗證一致）
 // 同時回傳「已作答進度」供斷點續做：已答題數、正確數、每題結果。
+//
+// 安全：回傳的 questions 已移除 answer 欄位，學生無法從 RSC payload /
+// network response / DevTools 讀出未作答題目的正確答案。只有提交後的
+// correctAnswer 才會由 submitAnswer 回傳。
 export async function getSessionQuestions(
   sessionId: string
 ): Promise<{
-  questions: (StoredQuestion & { interaction?: string; rangeMin?: number; rangeMax?: number })[]
+  questions: PublicQuestion[]
   skillName: string
   childNickname: string
   /** 已作答的題數（從 Attempt 推算，用來決定從第幾題開始） */
@@ -265,8 +281,17 @@ export async function getSessionQuestions(
   })
   const correctCount = attempts.filter((a) => a.isCorrect && !a.assisted).length
 
+  // 移除 answer 欄位：正確答案只留在 server 端，不可送到瀏覽器。
+  // 已答題的正確答案改由 answeredResults（來自 Attempt.correctAnswer）提供。
+  const publicQuestions: PublicQuestion[] = questions.map((q) => {
+    // 解構出 answer 但不使用（void 標記為故意丟棄），確保它不會出現在回傳值
+    const { answer, ...rest } = q
+    void answer
+    return rest
+  })
+
   return {
-    questions,
+    questions: publicQuestions,
     skillName: practiceSession.skill.name,
     childNickname: practiceSession.child.nickname,
     answeredCount: attempts.length,

@@ -283,6 +283,27 @@ model PendingSignup {
   @@index([expiresAt])
 }
 
+// ============ 密碼重設授權（一次性 grant，防 token 重放）============
+// 用途：忘記密碼 OTP 驗證通過後，產生一筆 grant（帶 jti）存入 DB，
+// 並簽發帶相同 jti 的 PASSWORD_RESET_VERIFIED token。
+// resetPassword 必須在 transaction 中「消耗」此 grant（consumedAt 從 null 設為時間戳），
+// 確保即使 token 被 replay，也只有第一次能成功。consumedAt IS NULL 的條件式
+// updateMany 即為 idempotency gate。
+model PasswordResetGrant {
+  id         String    @id @default(cuid())
+  userId     String
+  // JWT ID：與 PASSWORD_RESET_VERIFIED token 內的 jti 對應，一次性消耗
+  jti        String    @unique
+  // null = 尚未使用；resetPassword 成功時設為時間戳
+  consumedAt DateTime?
+  // 與 token 同步過期（產生後 10 分鐘），過期的 grant 可定期清理
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 // ============ 登入/操作限速（替代記憶體 Map，serverless 可靠）============
 // 用途：同一 key（email、userId 等）在時間窗口內的操作次數限制。
 // key 設計為帶前綴的複合字串，如 "login:alice@example.com"、"reset:bob@example.com"。

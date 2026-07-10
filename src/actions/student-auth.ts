@@ -124,9 +124,10 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
     redirect(`/practice/${child.id}`)
   }
 
-  // 否則視為「登入」temp token
-  const childId = await verifyTempToken(tempToken)
-  if (!childId) return { error: '驗證已過期，請重新操作' }
+  // 否則視為「登入」temp token（只接受 STUDENT_LOGIN_OTP_PENDING）
+  const decoded = await verifyTempToken(tempToken, 'STUDENT_LOGIN_OTP_PENDING')
+  if (!decoded) return { error: '驗證已過期，請重新操作' }
+  const childId = decoded.userId
 
   if (!(await verifyOtp(childId, otpCode))) return { error: '驗證碼錯誤或已過期' }
 
@@ -172,7 +173,7 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
     // 寄送失敗：告知使用者，不謊稱已發送
     return { error: '驗證碼發送失敗，請稍後再試', captcha: await createCaptcha() }
   }
-  const tempToken = await createTempToken(child.id)
+  const tempToken = await createTempToken(child.id, 'STUDENT_LOGIN_OTP_PENDING')
 
   const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
 
@@ -215,9 +216,10 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
     }
   }
 
-  // 否則視為「登入」temp token（OTP 以 childId 為金鑰）
-  const childId = await verifyTempToken(tempToken)
-  if (!childId) return { error: '階段已過期，請重新操作' }
+  // 否則視為「登入」temp token（只接受 STUDENT_LOGIN_OTP_PENDING，OTP 以 childId 為金鑰）
+  const decoded = await verifyTempToken(tempToken, 'STUDENT_LOGIN_OTP_PENDING')
+  if (!decoded) return { error: '階段已過期，請重新操作' }
+  const childId = decoded.userId
 
   // 冷卻檢查
   if (!(await canResendOtp(childId))) {

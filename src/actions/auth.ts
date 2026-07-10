@@ -1,9 +1,10 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { createSession, deleteSession, getSession, revokeAllSessions } from '@/lib/session'
+import { createSession, deleteSession, getSession } from '@/lib/session'
 import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds } from '@/lib/otp'
@@ -250,7 +251,9 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   const showOtp = process.env.NODE_ENV === 'development' && user.role === 'ADMIN'
   const devOtp = showOtp ? otpCode : undefined
 
-  const tempToken = await createTempToken(user.id)
+  // 簽發 LOGIN_OTP_PENDING token：僅供 verifyLoginOtp / resendOtp 使用，
+  // 不能用於重設密碼（resetPassword 只接受 PASSWORD_RESET_VERIFIED）
+  const tempToken = await createTempToken(user.id, 'LOGIN_OTP_PENDING')
 
   return {
     otpRequired: true,
@@ -269,10 +272,12 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
     return { message: '缺少必要參數' }
   }
 
-  const userId = await verifyTempToken(tempToken)
-  if (!userId) {
+  // 只接受 LOGIN_OTP_PENDING token（拒絕來自其他流程的 token）
+  const decoded = await verifyTempToken(tempToken, 'LOGIN_OTP_PENDING')
+  if (!decoded) {
     return { message: '驗證已過期，請重新登入' }
   }
+  const userId = decoded.userId
 
   if (!(await verifyOtp(userId, otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
@@ -294,10 +299,12 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
     return { message: '階段已過期，請重新登入' }
   }
 
-  const userId = await verifyTempToken(tempToken)
-  if (!userId) {
+  // resendOtp 只接受 LOGIN_OTP_PENDING token（家長登入流程的重發）
+  const decoded = await verifyTempToken(tempToken, 'LOGIN_OTP_PENDING')
+  if (!decoded) {
     return { message: '階段已過期，請重新登入' }
   }
+  const userId = decoded.userId
 
   // 檢查冷卻時間
   if (!(await canResendOtp(userId))) {
@@ -431,7 +438,7 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
         captcha: await createCaptcha(),
       }
     }
-    tempToken = await createTempToken(user.id)
+    tempToken = await createTempToken(user.id, 'PASSWORD_RESET_OTP_PENDING')
   }
 
   return {
@@ -450,17 +457,38 @@ export async function verifyResetOtp(state: FormState, formData: FormData): Prom
     return { message: '缺少必要參數' }
   }
 
-  const userId = await verifyTempToken(tempToken)
-  if (!userId) {
+  // 只接受 PASSWORD_RESET_OTP_PENDING token（拒絕登入/其他流程的 token）
+  const decoded = await verifyTempToken(tempToken, 'PASSWORD_RESET_OTP_PENDING')
+  if (!decoded) {
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
+  const userId = decoded.userId
 
   if (!(await verifyOtp(userId, otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
   }
 
-  // OTP 通過 → 發給一個新的「可重設密碼」短期 token（10 分鐘）
-  const resetToken = await createTempToken(userId)
+  // OTP 通過 → 建立 DB grant（帶 jti）並簽發 PASSWORD_RESET_VERIFIED token。
+  // resetPassword 必須在 transaction 中消耗此 grant，確保 token 一次性、不可重放。
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tokenVersion: true },
+  })
+  if (!user) {
+    return { message: '驗證已過期，請重新申請重設密碼' }
+  }
+
+  const jti = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 與 token 同步 10 分鐘
+  await prisma.passwordResetGrant.create({
+    data: { userId, jti, expiresAt },
+  })
+
+  // 帶 jti（一次性消耗用）+ tokenVersion（綁定當前版本，密碼變更後版本遞增即失效）
+  const resetToken = await createTempToken(userId, 'PASSWORD_RESET_VERIFIED', {
+    jti,
+    tokenVersion: user.tokenVersion,
+  })
   return { ok: true, tempToken: resetToken, message: '驗證成功，請設定新密碼' }
 }
 
@@ -474,10 +502,13 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
 
-  const userId = await verifyTempToken(tempToken)
-  if (!userId) {
+  // 只接受 PASSWORD_RESET_VERIFIED token（OTP 驗證通過後簽發，帶 jti）
+  const decoded = await verifyTempToken(tempToken, 'PASSWORD_RESET_VERIFIED')
+  if (!decoded || !decoded.jti) {
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
+  const userId = decoded.userId
+  const jti = decoded.jti
 
   // 密碼規則沿用註冊的 SignupFormSchema（至少 8 碼、含字母與數字）
   const pwdCheck = SignupFormSchema.shape.password.safeParse(password)
@@ -490,16 +521,43 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
   }
 
   const passwordHash = await bcrypt.hash(password, 10)
-  await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash },
-  })
 
-  // 密碼重設後即時失效所有舊 session（遞增 tokenVersion）。
-  // 例如密碼外洩，攻擊者已登入的情況下也能立即把他踢下線。
-  await revokeAllSessions(userId)
+  // ============ 單一 transaction：消耗 grant + 更新密碼 + 失效舊 session ============
+  // 條件式 updateMany（consumedAt IS NULL）即為 idempotency gate：
+  // 併發或重放請求只有第一個能匹配（count=1），其餘 count=0 → 拒絕。
+  // tokenVersion 遞增使所有舊 session 立即失效（被盜 cookie 即時踢下線）。
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 只能消耗「未使用 + 未過期 + 屬於此使用者」的 grant
+      const consumed = await tx.passwordResetGrant.updateMany({
+        where: {
+          jti,
+          userId,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { consumedAt: new Date() },
+      })
+      if (consumed.count === 0) {
+        // grant 不存在 / 已被消耗 / 已過期 / 不屬於此使用者 → 拒絕
+        throw new Error('GRANT_INVALID')
+      }
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash,
+          tokenVersion: { increment: 1 },
+        },
+      })
+      return true
+    })
+    if (!result) return { message: '驗證已過期，請重新申請重設密碼' }
+  } catch {
+    // GRANT_INVALID 或其他錯誤 → 不洩漏細節
+    return { message: '驗證已過期或已被使用，請重新申請重設密碼' }
+  }
 
-  // 重設完成 → 引導回登入頁
+  // 重設完成 → 引導回登入頁（tokenVersion 已遞增，舊 session 全部失效）
   return { ok: true, message: '密碼已重設成功，請使用新密碼登入' }
 }
 

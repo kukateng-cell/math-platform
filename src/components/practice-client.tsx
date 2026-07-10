@@ -19,7 +19,8 @@ import type { Recommendation } from '@/lib/mastery'
 type QuestionItem = {
   templateId: string
   prompt: string
-  answer: string
+  // 注意：不含 answer 欄位。正確答案只存在 server 端，
+  // 唯有透過 submitAnswer 提交後才會在回傳值（correctAnswer）中提供。
   options?: string[]
   explanation?: string
   interaction?: string
@@ -818,18 +819,21 @@ export default function PracticeClient({
             let cls = 'border-2 border-neutral-300 bg-white shadow-sm hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:hover:border-blue-400 dark:hover:bg-gray-800 transition-all duration-150'
             if (selected === opt) cls = 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950'
             if (lastResult && feedback) {
+              // 用 server 回傳的 lastResult.correctAnswer 來判斷哪個選項是正確的，
+              // 不使用題目本身的 answer（答案不會送到 client，P0-2）。
+              const correctAnswer = lastResult.correctAnswer
               if (feedback === 'correct' && selected === opt) {
                 cls = 'border-green-500 bg-green-100 animate-pop animate-ripple dark:border-green-600 dark:bg-green-950'
               } else if (feedback === 'incorrect') {
                 if (selected === opt) {
                   cls = 'border-red-400 bg-red-100 animate-shake dark:border-red-800 dark:bg-red-950'
-                } else if (opt === current.answer && revealCorrect) {
+                } else if (opt === correctAnswer && revealCorrect) {
                   cls = 'border-green-500 bg-green-50 animate-fade-in-up dark:border-green-600 dark:bg-green-950'
                 } else {
                   cls = 'border-neutral-200 bg-white opacity-60 dark:border-gray-700 dark:bg-gray-900'
                 }
               } else if (feedback === 'correct') {
-                if (opt === current.answer) {
+                if (opt === correctAnswer) {
                   cls = 'border-green-500 bg-green-50 dark:border-green-600 dark:bg-green-950'
                 } else {
                   cls = 'border-neutral-200 bg-white opacity-60 dark:border-gray-700 dark:bg-gray-900'
@@ -881,11 +885,11 @@ export default function PracticeClient({
           onSubmit={handleSubmit}
           disabled={!!lastResult}
           index={index}
-          // 自動判斷輸入模式：
-          // - inputMode 明確設為 'text' → 文字模式（鍵盤輸入中文/英文）
-          // - inputMode 明確設為 'numeric' → 數字鍵盤
-          // - 未設定時，依答案內容自動偵測：非純數字答案（含中文/單位）→ 文字模式
-          mode={current.inputMode === 'text' || (current.inputMode !== 'numeric' && current.answer && !/^-?\d+(\.\d+)?$/.test(current.answer)) ? 'text' : 'numeric'}
+          // 自動判斷輸入模式：inputMode 由 server 端根據答案決定後送出，
+          // client 端不再檢查答案內容（答案不會送到 client，P0-2）。
+          // - inputMode='text' → 文字模式（鍵盤輸入中文/英文）
+          // - inputMode='numeric' 或未設定 → 數字鍵盤（預設）
+          mode={current.inputMode === 'text' ? 'text' : 'numeric'}
           maxLength={current.maxLength}
           placeholder={current.placeholder}
         />
@@ -907,7 +911,7 @@ export default function PracticeClient({
             <p className="flex items-center justify-center gap-1.5 text-lg font-bold">
               {lastResult.correct
                 ? <><Icon name="check" className="h-5 w-5" /> 答對了！</>
-                : <><Icon name="x" className="h-5 w-5" /> 正確答案是 {displayAnswer(lastResult.correctAnswer || current.answer)}</>}
+                : <><Icon name="x" className="h-5 w-5" /> 正確答案是 {displayAnswer(lastResult.correctAnswer)}</>}
             </p>
             {lastResult.explanation && (
               <p className="mt-2 flex items-start gap-1.5 text-sm opacity-80"><Icon name="lightbulb" className="mt-0.5 h-4 w-4 shrink-0" />{renderTextWithShapes(lastResult.explanation, 'sm')}</p>
