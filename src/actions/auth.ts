@@ -28,7 +28,6 @@ export async function refreshCaptchaAction(
 
 // PendingSignup 暫存時間（超過此時間的記錄在查詢時自動忽略）
 const PENDING_SIGNUP_TTL_MINUTES = 10
-const PENDING_SIGNUP_MAX_ATTEMPTS = 5
 
 // ============ 註冊 Step 1：驗證資料 + CAPTCHA → 發送 OTP ============
 // P1-1：加入 identifier/IP rate limit

@@ -656,7 +656,8 @@ function randomPassword(bytes = 18): string {
 
   // 檢查是否有非 demo 的學習資料（作答紀錄），避免誤刪
   const existingAttemptCount = await prisma.attempt.count()
-  if (existingAttemptCount > 0 && !isDestructive) {
+  const shouldSkipRebuild = existingAttemptCount > 0 && !isDestructive
+  if (shouldSkipRebuild) {
     console.log(`  ℹ️  發現 ${existingAttemptCount} 筆作答紀錄，跳過題目重建。`)
     console.log(`  ℹ️  若要強制重建題庫，設定 ALLOW_DESTRUCTIVE_SEED=true 後重新執行。`)
   } else {
@@ -1571,7 +1572,6 @@ function randomPassword(bytes = 18): string {
       explanation: '9 減 5 等於 4。',
     },
   })
-  } // ← end of `if (existingAttemptCount > 0 && !isDestructive)` else block
 
   // ============ 成就徽章 ============
   const badges = [
@@ -2458,19 +2458,22 @@ function randomPassword(bytes = 18): string {
     'fraction-multiply-divide': '乘法分子乘分子、分母乘分母；除法要倒數後相乘',
     'ratio': '把比例寫成分數來算',
   }
-  const noHintTemplates = await prisma.questionTemplate.findMany({
-    where: { hint: null },
-    include: { skill: { select: { code: true } } },
-  })
-  let hintUpdated = 0
-  for (const t of noHintTemplates) {
-    const hint = hintsBySkillCode[t.skill.code]
-    if (hint) {
-      await prisma.questionTemplate.update({ where: { id: t.id }, data: { hint } })
-      hintUpdated++
+  // 若跳過題庫重建（有既有學習資料），則 hints 後處理也不需要執行
+  if (!shouldSkipRebuild) {
+    const noHintTemplates = await prisma.questionTemplate.findMany({
+      where: { hint: null },
+      include: { skill: { select: { code: true } } },
+    })
+    let hintUpdated = 0
+    for (const t of noHintTemplates) {
+      const hint = hintsBySkillCode[t.skill.code]
+      if (hint) {
+        await prisma.questionTemplate.update({ where: { id: t.id }, data: { hint } })
+        hintUpdated++
+      }
     }
+    console.log(`  ✓ Hints added: ${hintUpdated} templates`)
   }
-  console.log(`  ✓ Hints added: ${hintUpdated} templates`)
 
   console.log('✅ Done!')
 }
