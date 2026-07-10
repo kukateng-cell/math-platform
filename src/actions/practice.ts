@@ -27,13 +27,19 @@ type PracticeAuth =
   | null
 
 async function getPracticeAuth(): Promise<PracticeAuth> {
-  // 先嘗試家長 session
-  const session = await getSession()
-  if (session) return { type: 'parent', userId: session.userId }
+  // P2-7：同時檢查兩種 session，根據情況選擇正確身份。
+  // 若兩個 cookie 同時存在（異常狀態），優先 child session（因為練習路由是孩子操作），
+  // 但家長仍然可以透過練習路由陪伴孩子做題。
+  // 注意：createSession/createChildSession 已會清除對方的 cookie，
+  // 兩者同時存在只是過渡期或殘留狀態。
 
-  // 再嘗試孩子 session
+  // 先嘗試孩子 session（練習路由的主要使用者）
   const childSession = await getChildSession()
   if (childSession) return { type: 'child', childId: childSession.childId }
+
+  // 再嘗試家長 session（家長陪伴做題時）
+  const session = await getSession()
+  if (session) return { type: 'parent', userId: session.userId }
 
   return null
 }

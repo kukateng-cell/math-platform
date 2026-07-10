@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession, deleteSession, getSession } from '@/lib/session'
+import { deleteChildSession } from '@/lib/child-session'
 import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds, createPasswordResetToken, verifyPasswordResetToken } from '@/lib/otp'
@@ -363,8 +364,10 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
 }
 
 // ============ 登出 ============
+// P2-7：同時清除家長與孩子 cookie
 export async function logout() {
   await deleteSession()
+  await deleteChildSession()
   redirect('/login')
 }
 

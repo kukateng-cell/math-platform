@@ -14,11 +14,12 @@ type PracticeAuth =
   | null
 
 async function getPracticeAuth(): Promise<PracticeAuth> {
-  const session = await getSession()
-  if (session) return { type: 'parent', userId: session.userId }
-
+  // P2-7：孩子 session 優先（練習/成就路由是孩子操作）
   const childSession = await getChildSession()
   if (childSession) return { type: 'child', childId: childSession.childId }
+
+  const session = await getSession()
+  if (session) return { type: 'parent', userId: session.userId }
 
   return null
 }
