@@ -510,26 +510,40 @@ export async function submitAnswer(payload: {
   // 這確保即使前端偽造 assisted=false，查看 hint 的作答也不會污染正確率。
   const serverAssisted = payload.assisted || payload.hintUsed === true
 
-  // durationMs 伺服器驗證：下限 1 秒、上限 5 分鐘，防止前端偽造速度類徽章。
-  // 下限設為 1000ms 而非 0ms：人類不可能在 1 秒內讀題並作答，
-  // 若允許 0ms 會被偽造為 1ms 而通過速度徽章的 durationMs > 0 檢查。
-  // P2-9：同時檢查累計時間是否超過 session 開始以來的實際經過時間，
-  // 防止前端一次性提交大量「1 秒」作答（server 端 elapsed 會戳破謊言）。
-  let validatedDurationMs = Math.max(1000, Math.min(payload.durationMs, 300_000))
-  // Server 端 elapsed：從 session 建立到現在的毫秒數
-  const serverElapsedMs = Date.now() - practiceSession.startedAt.getTime()
-  // 查詢已累計的 durationMs（不含本次提交）
-  if (practiceSession.completedAt === null) {
-    const existingDurations = await prisma.attempt.aggregate({
-      where: { sessionId: payload.sessionId },
-      _sum: { durationMs: true },
+  // ============ durationMs：完全由 server 端計算，不信任前端 ============
+  // P2-3：前端可以任意偽造 durationMs（例如每題都傳 1000ms），因此不再使用
+  // 客戶端提供的值作為徽章判定依據。
+  //
+  // Server 端策略：用「上一題的 createdAt」到「現在」的時間差作為本題用時。
+  // 第一題則用「session.startedAt」到「現在」。這個值無法被前端操縱。
+  //
+  // 效能優化：第一題（questionIndex=0）直接用 session.startedAt，零額外查詢；
+  // 後續題用 findUnique（走 @@unique([sessionId, questionIndex]) 索引）查上一題，
+  // 比 findFirst + orderBy 更快（index scan vs sort）。
+  //
+  // 注意：server 端 elapsed 包含網路往返時間，因此會略長於真實思考時間。
+  // 這對速度徽章是「保守」的——讓徽章更難取得而非更容易，符合安全方向。
+  const nowForDuration = Date.now()
+  let durationBaseline: Date
+  if (payload.questionIndex === 0) {
+    // 第一題：基準 = session 開始時間（零額外查詢）
+    durationBaseline = practiceSession.startedAt
+  } else {
+    // 後續題：查上一題的 createdAt（findUnique 走 unique index，極快）
+    const prevAttempt = await prisma.attempt.findUnique({
+      where: {
+        sessionId_questionIndex: {
+          sessionId: payload.sessionId,
+          questionIndex: payload.questionIndex - 1,
+        },
+      },
+      select: { createdAt: true },
     })
-    const cumulativeClientMs = (existingDurations._sum.durationMs ?? 0) + validatedDurationMs
-    // 若客戶端累計時間遠超 server 經過時間（允許 5 秒緩衝），則強制 clamp
-    if (cumulativeClientMs > serverElapsedMs + 5000) {
-      validatedDurationMs = Math.max(1000, Math.floor(Math.max(1, serverElapsedMs - (existingDurations._sum.durationMs ?? 0))))
-    }
+    durationBaseline = prevAttempt?.createdAt ?? practiceSession.startedAt
   }
+  const serverDurationMs = Math.max(0, nowForDuration - durationBaseline.getTime())
+  // Clamp 到合理範圍：下限 1 秒（人類不可能更快）、上限 5 分鐘（防止異常值）
+  const validatedDurationMs = Math.max(1000, Math.min(serverDurationMs, 300_000))
 
   // 防止重複提交同一題（attempt 表有 @@unique([sessionId, questionIndex])，
   // 捕捉 Prisma P2002 錯誤並優雅回退，避免刷高星星與掌握度）
