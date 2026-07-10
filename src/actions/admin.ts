@@ -72,6 +72,8 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   const answer = String(formData.get('answer') || '').trim()
   const options = String(formData.get('options') || '').trim() || null
   const explanation = String(formData.get('explanation') || '').trim() || null
+  // P0-1：hint 為作答前可安全顯示的提示（不含答案）
+  const hint = String(formData.get('hint') || '').trim() || null
   const paramsJsonRaw = String(formData.get('paramsJson') || '').trim()
 
   if (!skillId || !prompt || !answer) {
@@ -145,7 +147,7 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   }
 
   await prisma.questionTemplate.create({
-    data: { skillId, type, prompt, answer, options, explanation, paramsJson: mergedParamsJson },
+    data: { skillId, type, prompt, answer, options, explanation, hint, paramsJson: mergedParamsJson },
   })
   revalidatePath('/admin')
   return { ok: true }
@@ -296,6 +298,8 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
   const answer = String(formData.get('answer') || '').trim()
   const options = String(formData.get('options') || '').trim() || null
   const explanation = String(formData.get('explanation') || '').trim() || null
+  // P0-1：hint 為作答前可安全顯示的提示（不含答案）
+  const hint = String(formData.get('hint') || '').trim() || null
   const paramsJson = String(formData.get('paramsJson') || '').trim() || null
 
   if (!id || !skillId || !prompt || !answer) {
@@ -361,7 +365,7 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
 
   await prisma.questionTemplate.update({
     where: { id },
-    data: { skillId, prompt, answer, options, explanation, paramsJson: mergedParamsJson },
+    data: { skillId, prompt, answer, options, explanation, hint, paramsJson: mergedParamsJson },
   })
   revalidatePath('/admin')
   revalidatePath('/admin/questions')

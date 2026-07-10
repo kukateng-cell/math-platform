@@ -65,7 +65,10 @@ type StoredQuestion = {
   prompt: string
   answer: string
   options?: string[]
+  // 作答後顯示的完整解題說明（可能含答案，不可在作答前送到瀏覽器）
   explanation?: string
+  // 作答前可安全顯示的提示（不含答案）。查看後該題自動視為 assisted。
+  hint?: string
   /** 互動模式：choice (預設) / numberline / fillin */
   interaction?: string
   /** 數字線範圍 */
@@ -152,6 +155,7 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
       answer: q.answer,
       options: q.options,
       explanation: t.explanation ?? undefined,
+      hint: t.hint ?? undefined,
       interaction,
       rangeMin,
       rangeMax,
@@ -222,10 +226,11 @@ export async function startSession(childId: string, skillId: string) {
   redirect(`/practice/${childId}/${skillId}/${sessionId}`)
 }
 
-// 公開題目型別：移除 answer，避免正確答案被送到瀏覽器（P0-2）。
+// 公開題目型別：移除 answer 與 explanation，避免正確答案與完整算式被送到瀏覽器（P0-1/P0-2）。
 // answer 只存在於 server 端的 session snapshot（questionsJson），
-// 唯有透過 submitAnswer 提交後才會在回傳值中附上 correctAnswer。
-export type PublicQuestion = Omit<StoredQuestion, 'answer'>
+// explanation 可能包含答案或完整算式，唯有透過 submitAnswer 提交後才會在回傳值中提供。
+// hint 是「作答前可安全顯示」的提示文字，不含答案，可送到 client。
+export type PublicQuestion = Omit<StoredQuestion, 'answer' | 'explanation'>
 
 // 取得一次練習要做的題目（從 session 的伺服器快照讀取，確保與驗證一致）
 // 同時回傳「已作答進度」供斷點續做：已答題數、正確數、每題結果。
@@ -303,12 +308,15 @@ export async function getSessionQuestions(
   })
   const correctCount = attempts.filter((a) => a.isCorrect && !a.assisted).length
 
-  // 移除 answer 欄位：正確答案只留在 server 端，不可送到瀏覽器。
+  // 移除 answer 與 explanation 欄位：正確答案與完整算式只留在 server 端，不可送到瀏覽器。
   // 已答題的正確答案改由 answeredResults（來自 Attempt.correctAnswer）提供。
+  // explanation 改由 submitAnswer 回傳值提供（作答後才顯示）。
+  // hint 可安全送到 client（不含答案）。
   const publicQuestions: PublicQuestion[] = questions.map((q) => {
-    // 解構出 answer 但不使用（void 標記為故意丟棄），確保它不會出現在回傳值
-    const { answer, ...rest } = q
+    // 解構出 answer / explanation 但不使用（void 標記為故意丟棄），確保它們不會出現在回傳值
+    const { answer, explanation, ...rest } = q
     void answer
+    void explanation
     return rest
   })
 
@@ -432,12 +440,14 @@ export type SubmitResult = {
 }
 
 // 提交一題作答（伺服器從快照重算正確答案，不信任前端）
+// hintUsed：學生是否查看過提示。若為 true，伺服器端強制 assisted=true（不信任前端 assisted）
 export async function submitAnswer(payload: {
   sessionId: string
   questionIndex: number // 這題在 session 快照中的索引
   userAnswer: string
   assisted: boolean
   durationMs: number
+  hintUsed?: boolean
 }): Promise<SubmitResult> {
   const auth = await getPracticeAuth()
   if (!auth) throw new Error('未授權')
@@ -495,6 +505,11 @@ export async function submitAnswer(payload: {
   // 中英文等價驗證：例如「left」「左邊」都視為正確
   const correct = isAnswerCorrect(payload.userAnswer, correctAnswer)
 
+  // P0-1：伺服器端強制 assisted。若學生查看過 hint（hintUsed=true），
+  // 無視前端傳入的 assisted 值，一律視為 assisted（不計入掌握度/星星/徽章）。
+  // 這確保即使前端偽造 assisted=false，查看 hint 的作答也不會污染正確率。
+  const serverAssisted = payload.assisted || payload.hintUsed === true
+
   // durationMs 伺服器驗證：下限 1 秒、上限 5 分鐘，防止前端偽造速度類徽章。
   // 下限設為 1000ms 而非 0ms：人類不可能在 1 秒內讀題並作答，
   // 若允許 0ms 會被偽造為 1ms 而通過速度徽章的 durationMs > 0 檢查。
@@ -534,7 +549,7 @@ export async function submitAnswer(payload: {
           userAnswer: payload.userAnswer,
           correctAnswer,
           isCorrect: correct,
-          assisted: payload.assisted,
+          assisted: serverAssisted,
           durationMs: validatedDurationMs,
         },
       })
@@ -976,6 +991,7 @@ export async function startPromotionTest(childId: string) {
     answer: string
     options?: string[]
     explanation?: string
+    hint?: string
     /** 標記題目來源年級，用於及格判斷（目前年級才計分） */
     __fromGrade: string
   }
@@ -1002,6 +1018,7 @@ export async function startPromotionTest(childId: string) {
         answer: q.answer,
         options: q.options,
         explanation: t.explanation ?? undefined,
+        hint: t.hint ?? undefined,
         __fromGrade: child.gradeLevel,
       })
     }
@@ -1027,6 +1044,7 @@ export async function startPromotionTest(childId: string) {
           answer: q.answer,
           options: q.options,
           explanation: t.explanation ?? undefined,
+          hint: t.hint ?? undefined,
           __fromGrade: next,
         })
       }
@@ -1128,6 +1146,7 @@ export async function startChallengePractice(childId: string) {
       answer: q.answer,
       options: q.options,
       explanation: t.explanation ?? undefined,
+      hint: t.hint ?? undefined,
       interaction,
       rangeMin,
       rangeMax,

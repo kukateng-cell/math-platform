@@ -166,7 +166,10 @@ model QuestionTemplate {
   answer     String
   // 選項（選擇題用），逗號分隔；為空表示填答題
   options    String?
+  // 解題說明（作答後顯示，不可在作答前送到瀏覽器）
   explanation String?
+  // 作答前提示（不含答案，可安全顯示；查看後該題自動視為 assisted）
+  hint       String?
   isActive   Boolean  @default(true)
   // 提升練習題：跨技能綜合應用題，難度較高，不影響掌握度與升學
   isChallenge Boolean @default(false)
