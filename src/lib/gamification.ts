@@ -58,11 +58,14 @@ export async function updateStreak(childId: string) {
 
   if (diffDays <= 0) return // 同一天（含未來時間誤差），當天已算過
   if (diffDays === 1) {
-    // 連續
-    await prisma.childProfile.update({
-      where: { id: childId },
+    // 連續日：用 updateMany + 條件（lastPracticeAt 不變）確保原子性，
+    // 避免併發時兩個請求各自 +1。
+    const result = await prisma.childProfile.updateMany({
+      where: { id: childId, lastPracticeAt: last },
       data: { streak: { increment: 1 }, lastPracticeAt: now },
     })
+    // result.count === 0 代表已被其他請求更新過，不重複 increment
+    if (result.count === 0) return
   } else {
     // 中斷（diffDays >= 2）
     await prisma.childProfile.update({
