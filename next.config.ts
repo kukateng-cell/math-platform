@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   // 限制 Server Action 的 body 大小，防止大型 payload 攻擊
   experimental: {
     serverActions: {
-      bodySizeLimit: '5mb',
+      bodySizeLimit: '256kb',
     },
   },
 };

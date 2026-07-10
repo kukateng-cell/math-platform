@@ -96,11 +96,12 @@ export const QuestionParamsSchema = z.discriminatedUnion('type', [
 
 // 註冊表單驗證（P1-2：Email 統一 lowercase 正規化）
 export const SignupFormSchema = z.object({
-  name: z.string().min(2, '請輸入至少 2 個字元的稱呼').trim(),
+  name: z.string().min(2, '請輸入至少 2 個字元的稱呼').max(100, '稱呼不可超過 100 字').trim(),
   email: EmailSchema,
   password: z
     .string()
     .min(8, '密碼至少 8 個字元')
+    .max(128, '密碼不可超過 128 字')
     .regex(/[a-zA-Z]/, '密碼需包含至少一個英文字母')
     .regex(/[0-9]/, '密碼需包含至少一個數字')
     .trim(),
@@ -109,7 +110,7 @@ export const SignupFormSchema = z.object({
 // 登入表單驗證（P1-2：Email 統一 lowercase 正規化）
 export const LoginFormSchema = z.object({
   email: EmailSchema,
-  password: z.string().min(1, '請輸入密碼').trim(),
+  password: z.string().min(1, '請輸入密碼').max(128, '密碼不可超過 128 字').trim(),
 })
 
 // 孩子檔案驗證

@@ -12,6 +12,7 @@ import { getNextGrade } from '@/lib/grade'
 import { accessibleGrades, canAccessGrade } from '@/lib/grade'
 import { isAnswerCorrect } from '@/lib/answer-i18n'
 import { startOfToday } from '@/lib/timezone'
+import { z } from 'zod'
 
 const QUESTIONS_PER_SESSION = 10
 
@@ -439,16 +440,26 @@ export type SubmitResult = {
   } | null
 }
 
+// P2-4：submitAnswer payload 驗證（防超大 payload 與型別注入）
+const SubmitAnswerPayload = z.object({
+  sessionId: z.string().min(1, '缺少 sessionId'),
+  questionIndex: z.number().int().min(0).max(100),
+  userAnswer: z.string().max(200, '答案長度不可超過 200 字'),
+  assisted: z.boolean(),
+  durationMs: z.number().int().min(0).max(300_000),
+  hintUsed: z.boolean().optional(),
+})
+
 // 提交一題作答（伺服器從快照重算正確答案，不信任前端）
 // hintUsed：學生是否查看過提示。若為 true，伺服器端強制 assisted=true（不信任前端 assisted）
-export async function submitAnswer(payload: {
-  sessionId: string
-  questionIndex: number // 這題在 session 快照中的索引
-  userAnswer: string
-  assisted: boolean
-  durationMs: number
-  hintUsed?: boolean
-}): Promise<SubmitResult> {
+export async function submitAnswer(payload: z.infer<typeof SubmitAnswerPayload>): Promise<SubmitResult> {
+  // 驗證 payload
+  const parsed = SubmitAnswerPayload.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error(`參數驗證失敗：${parsed.error.errors.map((e) => e.message).join('；')}`)
+  }
+  // 使用已驗證的資料
+  payload = parsed.data
   const auth = await getPracticeAuth()
   if (!auth) throw new Error('未授權')
 
