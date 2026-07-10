@@ -42,6 +42,11 @@ export async function createSkill(state: AdminFormState, formData: FormData): Pr
     return { message: '無效的年級' }
   }
 
+  // P2-4：長度限制
+  if (code.length > 50) return { message: '技能代碼過長' }
+  if (name.length > 100) return { message: '技能名稱過長' }
+  if (description && description.length > 500) return { message: '技能說明過長' }
+
   try {
     await prisma.skill.create({
       data: { code, name, description, gradeLevel, prerequisiteId },
@@ -86,6 +91,12 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   if (!validTypes.includes(type as ValidType)) {
     return { message: '無效的題目類型' }
   }
+
+  // P2-4：長度限制（防 DB 濫用）
+  if (prompt.length > 500) return { message: '題目文字過長' }
+  if (answer.length > 200) return { message: '答案過長' }
+  if (options && options.length > 500) return { message: '選項過長' }
+  if (explanation && explanation.length > 1000) return { message: '解析文字過長' }
 
   // 參數化題（ADD/SUB/MUL/DIV/WORD_PROBLEM）必須有合法 JSON 參數
   let mergedParamsJson: string | null = paramsJsonRaw || null
@@ -181,6 +192,11 @@ export async function updateSkill(state: AdminFormState, formData: FormData): Pr
   if (!VALID_GRADE_LEVELS.includes(gradeLevel as typeof VALID_GRADE_LEVELS[number])) {
     return { message: '無效的年級' }
   }
+
+  // P2-4：長度限制
+  if (name.length > 100) return { message: '技能名稱過長' }
+  if (description && description.length > 500) return { message: '技能說明過長' }
+  if (order < 0 || order > 999) return { message: '排序值不合法' }
 
   // 不可將自己的 dependents 設為前置（避免循環）
   if (prerequisiteId) {
@@ -363,6 +379,12 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
     }
   }
 
+  // P2-4：長度限制
+  if (prompt.length > 500) return { message: '題目文字過長' }
+  if (answer.length > 200) return { message: '答案過長' }
+  if (options && options.length > 500) return { message: '選項過長' }
+  if (explanation && explanation.length > 1000) return { message: '解析文字過長' }
+
   await prisma.questionTemplate.update({
     where: { id },
     data: { skillId, prompt, answer, options, explanation, hint, paramsJson: mergedParamsJson },
@@ -432,6 +454,12 @@ export async function createBadge(state: BadgeFormState, formData: FormData): Pr
     return { message: '代碼、名稱、條件為必填' }
   }
 
+  // P2-4：長度限制
+  if (code.length > 50) return { message: '徽章代碼過長' }
+  if (name.length > 100) return { message: '徽章名稱過長' }
+  if (icon.length > 50) return { message: '圖示代碼過長' }
+  if (condition.length > 500) return { message: '解鎖條件描述過長' }
+
   try {
     await prisma.badge.create({ data: { code, name, icon, condition } })
   } catch {
@@ -452,6 +480,11 @@ export async function updateBadge(state: BadgeFormState, formData: FormData): Pr
   if (!name || !condition) {
     return { message: '名稱、條件為必填' }
   }
+
+  // P2-4：長度限制
+  if (name.length > 100) return { message: '徽章名稱過長' }
+  if (icon.length > 50) return { message: '圖示代碼過長' }
+  if (condition.length > 500) return { message: '解鎖條件描述過長' }
 
   await prisma.badge.update({ where: { id }, data: { name, icon, condition } })
   revalidatePath('/admin')
