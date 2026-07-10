@@ -14,15 +14,13 @@ import 'dotenv/config'
 import { PrismaClient } from '@/generated/prisma/client.js'
 import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
-
-// 讀取測試環境變數（vitest 會載入 .env.test）
+import pg from 'pg'
 
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) {
   throw new Error('DATABASE_URL not set — integration tests require a PostgreSQL database')
 }
 
-import pg from 'pg'
 const pool = new pg.Pool({ connectionString })
 const adapter = new PrismaPg(pool)
 export const prisma = new PrismaClient({ adapter })
