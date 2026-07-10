@@ -396,7 +396,8 @@ export async function deleteChild(formData: FormData) {
   const session = await getSession()
   if (!session) throw new Error('未授權')
 
-  const childId = String(formData.get('childId'))
+  const childId = String(formData.get('childId') || '').trim()
+  if (!childId || childId.length > 50) throw new Error('參數不合法')
   // 確認是這名家長的孩子，避免越權刪除
   await prisma.childProfile.deleteMany({
     where: { id: childId, parentId: session.userId },
