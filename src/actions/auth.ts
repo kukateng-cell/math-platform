@@ -3,10 +3,10 @@
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { createSession, deleteSession, getSession, revokeAllSessions } from '@/lib/session'
+import { createSession, deleteSession, getSession } from '@/lib/session'
 import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds } from '@/lib/otp'
+import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds, createPasswordResetToken, verifyPasswordResetToken } from '@/lib/otp'
 import { sendOtpEmail } from '@/lib/email'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
 import { revalidatePath } from 'next/cache'
@@ -424,8 +424,26 @@ export async function verifyResetOtp(state: FormState, formData: FormData): Prom
     return { message: '驗證碼錯誤或已過期' }
   }
 
-  // OTP 通過 → 發給一個新的「可重設密碼」短期 token（10 分鐘）
-  const resetToken = await createTempToken(userId)
+  // OTP 通過 → 建立密碼重設授權（PasswordResetGrant）並發給綁定的重設 token。
+  // grant 快照當下 user.tokenVersion；resetPassword 會比對此值，確保
+  // 任何使 tokenVersion 變動的事件（另一次重設、角色變更）都會令舊 grant 失效。
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, tokenVersion: true },
+  })
+  if (!user) {
+    return { message: '找不到帳號' }
+  }
+
+  const grant = await prisma.passwordResetGrant.create({
+    data: { userId: user.id, tokenVersion: user.tokenVersion },
+  })
+
+  const resetToken = await createPasswordResetToken({
+    userId: user.id,
+    jti: grant.id,
+    tokenVersion: user.tokenVersion,
+  })
   return { ok: true, tempToken: resetToken, message: '驗證成功，請設定新密碼' }
 }
 
@@ -439,8 +457,9 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
 
-  const userId = await verifyTempToken(tempToken)
-  if (!userId) {
+  // 解碼重設 token（夾帶 userId / jti / tokenVersion）
+  const payload = await verifyPasswordResetToken(tempToken)
+  if (!payload) {
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
 
@@ -454,15 +473,38 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
     return { message: '兩次輸入的密碼不一致' }
   }
 
-  const passwordHash = await bcrypt.hash(password, 10)
-  await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash },
-  })
+  // 查驗授權紀錄：必須存在、尚未消耗、tokenVersion 與當前 user 一致。
+  // tokenVersion 不一致代表此 grant 簽發後 user 已發生變動
+  // （例如已用另一個 grant 重設過、或角色被變更），此 grant 視為過期。
+  const [user, grant] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, tokenVersion: true },
+    }),
+    prisma.passwordResetGrant.findUnique({ where: { id: payload.jti } }),
+  ])
 
-  // 密碼重設後即時失效所有舊 session（遞增 tokenVersion）。
-  // 例如密碼外洩，攻擊者已登入的情況下也能立即把他踢下線。
-  await revokeAllSessions(userId)
+  if (!user) {
+    return { message: '找不到帳號' }
+  }
+  if (!grant || grant.consumedAt || grant.tokenVersion !== user.tokenVersion) {
+    return { message: '驗證已過期，請重新申請重設密碼' }
+  }
+
+  // 原子化執行：更新密碼 + 遞增 tokenVersion（踢掉所有舊 session）
+  // + 作廢該使用者所有 outstanding grants（防「兩次 OTP → 兩個 grant」重放）
+  const passwordHash = await bcrypt.hash(password, 10)
+  const now = new Date()
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
+    }),
+    prisma.passwordResetGrant.updateMany({
+      where: { userId: user.id, consumedAt: null },
+      data: { consumedAt: now },
+    }),
+  ])
 
   // 重設完成 → 引導回登入頁
   return { ok: true, message: '密碼已重設成功，請使用新密碼登入' }

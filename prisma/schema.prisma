@@ -27,6 +27,8 @@ model User {
   childProfiles ChildProfile[]
   childLinks    ParentChild[]  @relation("ParentLinks")
   sessions      PracticeSession[]
+  // 密碼重設授權（OTP 通過後簽發，一次性，綁定 tokenVersion 防重放）
+  passwordResetGrants PasswordResetGrant[]
 
   @@index([email])
 }
@@ -264,6 +266,30 @@ model OtpCode {
 
   @@index([identifier])
   @@index([expiresAt])
+}
+
+// ============ 密碼重設授權（PasswordResetGrant）============
+// 用途：忘記密碼 OTP 驗證通過後簽發的「可重設密碼」授權紀錄。
+// 安全：
+//   1. 一次性（consumedAt）：resetPassword 成功後標記為已消耗，
+//      同一 token 無法再次使用（防重放）。
+//   2. tokenVersion 比對：grant 建立時快照 user.tokenVersion，
+//      resetPassword 時若 user.tokenVersion 已變動（如另一次重設、
+//      角色變更）則此 grant 視為過期，必須重新驗證 OTP。
+//   3. 一次重設作廢所有 outstanding grants：成功重設後以 updateMany
+//      將該 user 所有 consumedAt=null 的 grant 一次標記為已消耗，
+//      防止「先後兩次 OTP → 兩個 grant → 第一個用完第二個還能用」。
+model PasswordResetGrant {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenVersion Int       // 簽發當下 User.tokenVersion 的快照
+  consumedAt   DateTime? // null = 尚未使用；重設成功後填入時間
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([consumedAt])
 }
 
 // ============ 登入/操作限速（替代記憶體 Map，serverless 可靠）============
