@@ -10,6 +10,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds, createPasswordResetToken, verifyPasswordResetToken } from '@/lib/otp'
 import { sendOtpEmail } from '@/lib/email'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
+import type { User } from '@/generated/prisma'
 import { revalidatePath } from 'next/cache'
 import { SignJWT, jwtVerify } from 'jose'
 import { getSessionKey } from '@/lib/secret'
@@ -241,7 +242,7 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
     return { message: '嘗試次數過多，請稍後再試', captcha: await createCaptcha() }
   }
 
-  const user = await prisma.user.findUnique({ where: { email } })
+  const user: User | null = await prisma.user.findUnique({ where: { email } })
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return { message: 'Email 或密碼不正確', captcha: await createCaptcha() }
   }
@@ -529,8 +530,7 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
   if (!payload) {
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
-  const userId = decoded.userId
-  const jti = decoded.jti
+  const { userId, jti } = payload
 
   // 密碼規則沿用註冊的 SignupFormSchema（至少 8 碼、含字母與數字）
   const pwdCheck = SignupFormSchema.shape.password.safeParse(password)
