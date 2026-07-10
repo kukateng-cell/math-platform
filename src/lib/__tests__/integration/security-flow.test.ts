@@ -48,42 +48,41 @@ beforeEach(async () => {
 // ──────────────────────────────────────────────
 
 describe('密碼重設 grant 一次性', () => {
-  it('同一個 jti 的 grant 只能消耗一次', async () => {
+  it('同一個 grant 只能消耗一次', async () => {
     const user = await createTestParent()
-    const jti = 'test-jti-' + Date.now()
 
-    await prisma.passwordResetGrant.create({
-      data: { userId: user.id, jti, expiresAt: new Date(Date.now() + 3600_000) },
+    const grant = await prisma.passwordResetGrant.create({
+      data: { userId: user.id, tokenVersion: user.tokenVersion },
     })
 
     // 第一次消耗應成功
     const first = await prisma.passwordResetGrant.updateMany({
-      where: { jti, userId: user.id, consumedAt: null, expiresAt: { gt: new Date() } },
+      where: { id: grant.id, userId: user.id, consumedAt: null },
       data: { consumedAt: new Date() },
     })
     expect(first.count).toBe(1)
 
     // 第二次消耗應失敗（consumedAt 已非 null）
     const second = await prisma.passwordResetGrant.updateMany({
-      where: { jti, userId: user.id, consumedAt: null, expiresAt: { gt: new Date() } },
+      where: { id: grant.id, userId: user.id, consumedAt: null },
       data: { consumedAt: new Date() },
     })
     expect(second.count).toBe(0)
   })
 
-  it('過期的 grant 不可消耗', async () => {
+  it('tokenVersion 不符的 grant 不可消耗', async () => {
     const user = await createTestParent()
-    const jti = 'expired-jti-' + Date.now()
 
-    await prisma.passwordResetGrant.create({
-      data: { userId: user.id, jti, expiresAt: new Date(Date.now() - 1000) },
+    // 用舊的 tokenVersion 建立 grant（模擬 tokenVersion 遞增後的情況）
+    const grant = await prisma.passwordResetGrant.create({
+      data: { userId: user.id, tokenVersion: user.tokenVersion - 1 },
     })
 
-    const result = await prisma.passwordResetGrant.updateMany({
-      where: { jti, userId: user.id, consumedAt: null, expiresAt: { gt: new Date() } },
-      data: { consumedAt: new Date() },
+    // 用目前使用者的 tokenVersion 查詢應找不到（grant.tokenVersion !== user.tokenVersion）
+    const result = await prisma.passwordResetGrant.findFirst({
+      where: { id: grant.id, consumedAt: null, tokenVersion: user.tokenVersion },
     })
-    expect(result.count).toBe(0)
+    expect(result).toBeNull()
   })
 })
 

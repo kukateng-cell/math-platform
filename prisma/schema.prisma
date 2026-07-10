@@ -348,3 +348,18 @@ model RateLimit {
 
   @@index([resetAt])
 }
+
+// ============ 註冊暫存（PendingSignup）============
+// 用途：家長註冊流程中，CAPTCHA + OTP 驗證期間暫存註冊資料。
+// OTP 驗證通過後建立 User，並刪除此暫存記錄。自動過期（expiresAt）。
+model PendingSignup {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  attemptCount Int      @default(0)
+  expiresAt    DateTime // 建立後 10 分鐘自動過期
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
+}
