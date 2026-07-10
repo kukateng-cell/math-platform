@@ -83,6 +83,7 @@ model ChildProfile {
   stars          Int       @default(0)   // 累計星星數
   streak         Int       @default(0)   // 連續練習天數
   lastPracticeAt DateTime?               // 上次練習日期（供 streak 計算）
+  promotionCount Int       @default(0)   // 升學通過次數（供 promotion-star 徽章計算）
 
   parent            User?             @relation(fields: [parentId], references: [id], onDelete: Cascade)
   parentLinks       ParentChild[]     @relation("ChildLinks")
@@ -234,6 +235,7 @@ model Badge {
   name      String
   icon      String   // emoji
   condition String   // 解鎖條件描述
+  isActive  Boolean  @default(true) // P2-13：停用而非刪除，保留歷史徽章
 
   childBadges ChildBadge[]
 }

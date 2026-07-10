@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose'
-import { createHmac } from 'crypto'
+import { createHmac, randomInt, timingSafeEqual } from 'crypto'
 import { getOtpKey } from '@/lib/secret'
 import { prisma } from '@/lib/prisma'
 
@@ -39,22 +39,25 @@ async function otpIsDbAvailable(): Promise<boolean> {
   return otpDbAvailable
 }
 
-// 產生 6 位數驗證碼
+// 產生 6 位數驗證碼（使用 crypto.randomInt，P2-11）
 export async function generateOtp(identifier: string): Promise<string> {
-  const code = String(Math.floor(100000 + Math.random() * 900000)) // 6 位數
+  const code = String(randomInt(100000, 1000000)) // 6 位數
   const now = new Date()
 
   if (await otpIsDbAvailable()) {
     try {
-      await prisma.otpCode.deleteMany({ where: { identifier } })
-      await prisma.otpCode.create({
-        data: {
-          identifier,
-          code: hashOtp(identifier, code),  // 存 HMAC 雜湊，不存明文
-          expiresAt: new Date(now.getTime() + OTP_EXPIRY_MS),
-          resentAt: now,
-        },
-      })
+      // P2-11：使用 transaction 確保 delete + create 原子性，避免併發競態
+      await prisma.$transaction([
+        prisma.otpCode.deleteMany({ where: { identifier } }),
+        prisma.otpCode.create({
+          data: {
+            identifier,
+            code: hashOtp(identifier, code),  // 存 HMAC 雜湊，不存明文
+            expiresAt: new Date(now.getTime() + OTP_EXPIRY_MS),
+            resentAt: now,
+          },
+        }),
+      ])
       return code
     } catch {
       if (process.env.NODE_ENV === 'production') {
@@ -115,6 +118,14 @@ export async function getResendCooldownSeconds(identifier: string): Promise<numb
   return Math.max(0, Math.ceil(remaining / 1000))
 }
 
+/** 常數時間比較兩個 hex 字串（HMAC-SHA256 輸出長度固定 64 hex chars） */
+function constantTimeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
+
 // 驗證 OTP：過期或錯誤回傳 false，成功則刪除（一次性）
 export async function verifyOtp(identifier: string, code: string): Promise<boolean> {
   if (await otpIsDbAvailable()) {
@@ -128,9 +139,9 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
         await prisma.otpCode.delete({ where: { id: entry.id } })
         return false
       }
-      // 常數時間比較，避免 timing 攻擊
+      // P2-11：常數時間比較，避免 timing 攻擊
       const candidate = hashOtp(identifier, code.trim())
-      if (candidate !== entry.code) return false
+      if (!constantTimeEqual(candidate, entry.code)) return false
       await prisma.otpCode.delete({ where: { id: entry.id } }) // 一次性使用
       return true
     } catch {
@@ -147,7 +158,8 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
     return false
   }
   const candidate = hashOtp(identifier, code.trim())
-  if (candidate !== entry.codeHash) return false
+  // P2-11：常數時間比較（記憶體備援版）
+  if (!constantTimeEqual(candidate, entry.codeHash)) return false
   memoryOtpStore.delete(identifier) // 一次性使用
   return true
 }
