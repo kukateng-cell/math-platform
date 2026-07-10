@@ -14,6 +14,25 @@ function randomPassword(bytes = 18): string {
     .slice(0, 24)
 }
 
+  const isProd = process.env.NODE_ENV === 'production'
+  const envAdminEmail = process.env.ADMIN_EMAIL?.trim()
+  const envAdminPassword = process.env.ADMIN_PASSWORD?.trim()
+
+  // P0-4：正式環境必須設定 ADMIN_EMAIL（可收 OTP 的真實信箱）
+  if (isProd) {
+    if (!envAdminEmail) {
+      console.error('\n❌ 正式環境必須設定 ADMIN_EMAIL（可接收 OTP 的真實 Email）')
+      console.error('   請設定：ADMIN_EMAIL=admin@example.com\n')
+      process.exit(1)
+    }
+    if (!envAdminPassword || envAdminPassword.length < 8 || envAdminPassword === 'admin123') {
+      console.error('\n❌ 正式環境必須設定安全的 ADMIN_PASSWORD（至少 8 碼，不可為 admin123）\n')
+      process.exit(1)
+    }
+  }
+
+  const adminEmail = envAdminEmail || 'admin@math.local'
+
   let adminPassword: string
   if (envAdminPassword && envAdminPassword.length >= 8 && envAdminPassword !== 'admin123') {
     adminPassword = envAdminPassword
@@ -31,10 +50,10 @@ function randomPassword(bytes = 18): string {
 
   const adminHash = await bcrypt.hash(adminPassword, 10)
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@math.local' },
+    where: { email: adminEmail },
     update: {},
     create: {
-      email: 'admin@math.local',
+      email: adminEmail,
       name: '管理員',
       passwordHash: adminHash,
       role: 'ADMIN',
