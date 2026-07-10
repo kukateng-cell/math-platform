@@ -34,18 +34,21 @@ export async function updateStreak(childId: string) {
   const diffDays = diffCalendarDays(last, now)
 
   if (diffDays <= 0) return // 同一天（含未來時間誤差），當天已算過
-
-  const newStreak = diffDays === 1 ? child.streak + 1 : 1
-
-  // P2-8：樂觀鎖——只有當 lastPracticeAt 與讀取時相同才更新
-  // 若 count=0，表示另一個併發請求已先更新了 lastPracticeAt
-  const result = await prisma.childProfile.updateMany({
-    where: { id: childId, lastPracticeAt: last },
-    data: { streak: newStreak, lastPracticeAt: now },
-  })
-  if (result.count === 0) {
-    // 另一個請求已處理，重新遞迴保證正確性
-    return updateStreak(childId)
+  if (diffDays === 1) {
+    // 連續日：用 updateMany + 條件（lastPracticeAt 不變）確保原子性，
+    // 避免併發時兩個請求各自 +1。
+    const result = await prisma.childProfile.updateMany({
+      where: { id: childId, lastPracticeAt: last },
+      data: { streak: { increment: 1 }, lastPracticeAt: now },
+    })
+    // result.count === 0 代表已被其他請求更新過，不重複 increment
+    if (result.count === 0) return
+  } else {
+    // 中斷（diffDays >= 2）
+    await prisma.childProfile.update({
+      where: { id: childId },
+      data: { streak: 1, lastPracticeAt: now },
+    })
   }
 }
 
