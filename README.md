@@ -38,6 +38,34 @@ npm run dev
 
 > **⚠️ 安全注意**：`db:seed` 和 `db:bootstrap` 會清除所有學習資料（作答、session、掌握度），僅適合全新資料庫。在已有正式資料的環境請使用 `db:content:sync`（非破壞式，只 upsert 技能與題目）。`db:bootstrap` 需要設定 `ALLOW_DESTRUCTIVE_SEED=true` 環境變數。
 
+## 管理員帳號
+
+### 開發環境
+
+```bash
+npm run db:bootstrap   # 建立 admin@math.local / admin123
+```
+
+### 正式環境
+
+正式環境必須設定**可收 OTP 的真實 Email**，seed 會強制檢查：
+
+```bash
+# 方式一：透過 seed 一併建立（需 ALLOW_DESTRUCTIVE_SEED=true）
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=your-strong-password npm run db:bootstrap
+
+# 方式二：獨立 CLI（推薦，不影響既有資料）
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=your-strong-password npm run admin:bootstrap
+
+# 互動模式（會提示輸入）
+npm run admin:bootstrap
+
+# 重設密碼（保留 Email，僅更新密碼 + 失效舊 session）
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=new-password npm run admin:bootstrap -- --force
+```
+
+正式 seed 若未設定 `ADMIN_EMAIL` 或密碼不合規格，會直接終止並印出提示，不會建立無法收 OTP 的 `.local` 帳號。
+
 打開 <http://localhost:3000>
 
 ## 預設帳號

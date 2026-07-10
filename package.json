@@ -18,6 +18,7 @@
     "db:bootstrap": "ALLOW_DESTRUCTIVE_SEED=true node --experimental-strip-types prisma/seed.ts",
     "db:content:sync": "node --experimental-strip-types prisma/seed.ts",
     "db:seed": "node --experimental-strip-types prisma/seed.ts",
+    "admin:bootstrap": "node --experimental-strip-types scripts/bootstrap-admin.ts",
     "db:seed:demo": "node --experimental-strip-types scripts/seed-demo.ts",
     "db:clean:demo": "node --experimental-strip-types scripts/clean-demo.ts",
     "db:seed:challenge": "node --experimental-strip-types scripts/seed-challenge.ts"
