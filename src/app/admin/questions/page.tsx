@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { toggleQuestion } from '@/actions/admin'
+import { gradeRank } from '@/lib/grade'
 import QuestionForm from '@/components/admin/question-form'
 import QuestionActions from '@/components/admin/question-actions'
 import SkillFilter from '@/components/admin/skill-filter'
@@ -34,7 +35,13 @@ export default async function AdminQuestionsPage({
   const page = Math.max(1, parseInt(pageStr || '1', 10) || 1)
 
   // 技能列表（供表單與篩選用）
-  const skills = await prisma.skill.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+  // P2-6：跨年級排序——先依年級順序（K→G6），再依同年級內的 order
+  const rawSkills = await prisma.skill.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+  const skills = [...rawSkills].sort((a, b) => {
+    const gradeDiff = gradeRank(a.gradeLevel as string) - gradeRank(b.gradeLevel as string)
+    if (gradeDiff !== 0) return gradeDiff
+    return a.order - b.order
+  })
   const skillOptions = skills.map((s) => ({ id: s.id, name: s.name }))
 
   // 題目查詢（含搜尋與篩選）

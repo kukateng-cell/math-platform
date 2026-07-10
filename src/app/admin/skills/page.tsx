@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { toggleSkill } from '@/actions/admin'
+import { gradeRank } from '@/lib/grade'
 import SkillForm from '@/components/admin/skill-form'
 import SkillActions from '@/components/admin/skill-actions'
 
@@ -10,13 +11,19 @@ export default async function AdminSkillsPage() {
   const session = await getSession()
   if (!session || session.role !== 'ADMIN') redirect('/dashboard')
 
-  const skills = await prisma.skill.findMany({
+  const rawSkills = await prisma.skill.findMany({
     orderBy: { order: 'asc' },
     include: {
       prerequisite: true,
       dependents: { select: { id: true, name: true } },
       _count: { select: { questions: { where: { isActive: true } } } },
     },
+  })
+  // P2-6：跨年級排序——先依年級順序（K→G6），再依同年級內的 order
+  const skills = [...rawSkills].sort((a, b) => {
+    const gradeDiff = gradeRank(a.gradeLevel as string) - gradeRank(b.gradeLevel as string)
+    if (gradeDiff !== 0) return gradeDiff
+    return a.order - b.order
   })
 
   const skillOptions = skills.map((s) => ({ id: s.id, name: s.name }))
