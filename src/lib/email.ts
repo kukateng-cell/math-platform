@@ -75,7 +75,7 @@ export async function sendOtpEmail(
           <div style="background:#f0f5ff;border-radius:12px;padding:24px;text-align:center">
             <p style="color:#555;margin-bottom:12px">您的驗證碼</p>
             <p style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#2563eb;margin:0">
-              ${otpCode}
+              ${escapeHtml(otpCode)}
             </p>
           </div>
           <p style="color:#999;font-size:13px;margin-top:24px;text-align:center">
