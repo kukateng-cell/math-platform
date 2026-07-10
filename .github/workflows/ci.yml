@@ -1,12 +1,14 @@
 name: CI
 
 # ============ 持續整合 ============
-# 每次 push / PR 到 main 時，自動執行 lint / typecheck / 單元測試 / build，
-# 確保型別錯誤、lint 違規、測試失敗不會進到主分支。
+# 每次 push / PR 到 main 時，自動執行：
+#   1. 單元測試（純邏輯，無需 DB）
+#   2. Lint + TypeScript 型別檢查
+#   3. DB 整合測試（需 PostgreSQL service）
+#   4. Migration + Seed smoke test
+#   5. Next.js build 建置
 #
-# 不需要資料庫連線：typecheck / lint / test / build 都只依賴程式碼本身。
-# （build 會執行 next build；若專案未設定必要環境變數導致 build 失敗，
-#  可將 build job 的 needs 移除或改為允許失敗。）
+# DB 測試與 smoke test 共用一個 PostgreSQL service container。
 
 on:
   push:
@@ -21,7 +23,7 @@ concurrency:
 
 jobs:
   # ───────── 單元測試（最快，優先跑）─────────
-  test:
+  unit-test:
     name: 單元測試
     runs-on: ubuntu-latest
     steps:
@@ -61,14 +63,57 @@ jobs:
       - name: TypeScript 型別檢查
         run: npm run typecheck
 
+  # ───────── DB 整合測試 + Smoke Test ─────────
+  db-test:
+    name: DB 整合測試
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安裝依賴
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Schema sync (db push)
+        run: npx prisma db push --accept-data-loss
+
+      - name: DB 整合測試
+        run: npm run test:integration
+
+      - name: Smoke test (seed + verify)
+        run: npm run test:smoke
+
   # ───────── 建置（最後把關，確保能產出可部署產物）─────────
   build:
     name: 建置
+    needs: [unit-test, lint-typecheck]
     runs-on: ubuntu-latest
     # 提供最小必要環境變數，避免 next build 因缺少變數而中斷
     env:
-      # CI build 不需要真實的金鑰／連線，但程式碼可能在模組載入時讀取，
-      # 給予佔位值確保 build 能完成。這些值不會被用於實際連線。
       SESSION_SECRET: ci-build-placeholder-not-a-real-secret-32chars
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       SMTP_HOST: localhost
