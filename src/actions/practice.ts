@@ -13,6 +13,7 @@ import { accessibleGrades, canAccessGrade } from '@/lib/grade'
 import { isAnswerCorrect } from '@/lib/answer-i18n'
 import { startOfToday } from '@/lib/timezone'
 import { z } from 'zod'
+import type { GradeLevel } from '@/generated/prisma'
 
 const QUESTIONS_PER_SESSION = 10
 
@@ -791,7 +792,7 @@ export async function getChildSkills(childId: string) {
   if (!child) return null
 
   // 年級權限：低年級不可看高年級；高年級可往下複習低年級
-  const grades = accessibleGrades(child.gradeLevel)
+  const grades = accessibleGrades(child.gradeLevel as string)
 
   // P1-6：一般練習技能選單只計非 challenge 題
   const skills = await prisma.skill.findMany({
@@ -928,10 +929,10 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
     await tx.childProfile.update({
       where: { id: childId },
       data: {
-        gradeLevel: targetGrade,
+        gradeLevel: targetGrade as GradeLevel,
         promotionCount: { increment: 1 },
         promotionPassedAt: new Date(),
-        promotionTarget: targetGrade,
+        promotionTarget: targetGrade as GradeLevel,
       },
     })
 
@@ -1004,7 +1005,7 @@ export async function startPromotionTest(childId: string) {
 
   // 也取得下一年級的題目（用來出「預覽題」提前適應新內容）
   const nextSkills = await prisma.skill.findMany({
-    where: { gradeLevel: next, isActive: true },
+    where: { gradeLevel: next as GradeLevel, isActive: true },
     include: { questions: { where: { isActive: true, isChallenge: false } } },
   })
   const nextTotalQuestions = nextSkills.reduce((sum, s) => sum + s.questions.length, 0)
@@ -1128,7 +1129,7 @@ export async function startChallengePractice(childId: string) {
   if (!child) throw new Error('找不到孩子檔案')
 
   // 取得孩子可接觸年級下的所有挑戰題
-  const grades = accessibleGrades(child.gradeLevel)
+  const grades = accessibleGrades(child.gradeLevel as string)
   const challengeQuestions = await prisma.questionTemplate.findMany({
     where: { isActive: true, isChallenge: true, skill: { gradeLevel: { in: grades } } },
     include: { skill: { select: { name: true } } },

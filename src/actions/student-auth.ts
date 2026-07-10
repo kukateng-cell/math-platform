@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { sendOtpEmail } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { EmailSchema } from '@/lib/definitions'
+import type { GradeLevel } from '@/generated/prisma'
 
 // ============ 驗證 ============
 // 自主學習註冊：Email + 暱稱 + 年級（免密碼，用驗證碼登入）
@@ -129,7 +130,7 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
       data: {
         email: signupIntent.email,
         nickname: signupIntent.nickname,
-        gradeLevel: signupIntent.gradeLevel,
+        gradeLevel: signupIntent.gradeLevel as GradeLevel,
         mode: 'SELF_STUDY',
       },
     })
@@ -288,7 +289,7 @@ export async function linkParent(state: StudentState, formData: FormData): Promi
   if (!childSession) return { error: '請先登入' }
 
   const parentEmail = String(formData.get('parentEmail') || '').trim().toLowerCase()
-  if (!parentEmail) return { error: '請輸入家長的 Email' }
+  if (!parentEmail || parentEmail.length > 254) return { error: '請輸入有效的家長 Email' }
 
   const parent = await prisma.user.findUnique({ where: { email: parentEmail } })
   if (!parent || parent.role !== 'PARENT') {
@@ -347,7 +348,8 @@ export async function confirmLink(formData: FormData) {
   const session = await getSession()
   if (!session) throw new Error('請先登入')
 
-  const linkId = String(formData.get('linkId') || '')
+  const linkId = String(formData.get('linkId') || '').trim()
+  if (!linkId || linkId.length > 50) throw new Error('參數不合法')
   // 確認是這名家長本人的請求，避免越權
   const link = await prisma.parentChild.findFirst({
     where: { id: linkId, parentId: session.userId },
@@ -366,7 +368,8 @@ export async function rejectLink(formData: FormData) {
   const session = await getSession()
   if (!session) throw new Error('請先登入')
 
-  const linkId = String(formData.get('linkId') || '')
+  const linkId = String(formData.get('linkId') || '').trim()
+  if (!linkId || linkId.length > 50) throw new Error('參數不合法')
   const link = await prisma.parentChild.findFirst({
     where: { id: linkId, parentId: session.userId },
   })

@@ -1,7 +1,6 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession, deleteSession, getSession } from '@/lib/session'
@@ -10,7 +9,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds, createPasswordResetToken, verifyPasswordResetToken } from '@/lib/otp'
 import { sendOtpEmail } from '@/lib/email'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
-import type { User } from '@/generated/prisma'
+import type { User, GradeLevel as ChildGradeLevel } from '@/generated/prisma'
 import { revalidatePath } from 'next/cache'
 import { SignJWT, jwtVerify } from 'jose'
 import { getSessionKey } from '@/lib/secret'
@@ -531,7 +530,6 @@ export async function resetPassword(state: FormState, formData: FormData): Promi
   if (!payload) {
     return { message: '驗證已過期，請重新申請重設密碼' }
   }
-  const { userId, jti } = payload
 
   // 密碼規則沿用註冊的 SignupFormSchema（至少 8 碼、含字母與數字）
   const pwdCheck = SignupFormSchema.shape.password.safeParse(password)
@@ -604,7 +602,7 @@ export async function updateChildGrade(formData: FormData) {
 
   await prisma.childProfile.update({
     where: { id: childId },
-    data: { gradeLevel },
+    data: { gradeLevel: gradeLevel as ChildGradeLevel },
   })
 
   revalidatePath(`/children/${childId}`)
