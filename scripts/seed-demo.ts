@@ -164,8 +164,12 @@ async function writeSession(
       parentId,
       startedAt: gen.startedAt,
       completedAt: gen.completedAt,
+      status: 'COMPLETED',
+      kind: 'NORMAL',
       totalQuestions: QUESTIONS_PER_SESSION,
       correctCount: gen.correctCount,
+      gradedQuestionCount: QUESTIONS_PER_SESSION,
+      assistedCount: gen.assisted.filter(Boolean).length,
       questionsJson: JSON.stringify(gen.questions),
     },
   })
@@ -183,6 +187,7 @@ async function writeSession(
       data: {
         sessionId: session.id,
         questionId: q.templateId,
+        questionIndex: i,
         questionPrompt: q.prompt,
         userAnswer: isCorrect
           ? q.answer
@@ -354,7 +359,6 @@ async function main() {
     streak: number
     skillCodes: string[] // 這個孩子練習過 / 應練習的技能
     sessionsPerSkill: number
-    pin?: string
     // SELF_STUDY 自主學習學生
     selfStudy?: { email: string; linkParentName?: string }
   }
@@ -366,7 +370,6 @@ async function main() {
       parentName: '王雅婷',
       accuracy: 0.72,
       streak: 5,
-      pin: '1234',
       skillCodes: ['count-objects', 'shape-recognition', 'count-compare', 'add-within-10', 'sub-within-10'],
       sessionsPerSkill: 3,
     },
@@ -376,7 +379,6 @@ async function main() {
       parentName: '王雅婷',
       accuracy: 0.58,
       streak: 2,
-      pin: '5678',
       skillCodes: ['count-objects', 'shape-recognition'],
       sessionsPerSkill: 2,
     },
@@ -386,7 +388,6 @@ async function main() {
       parentName: '李大偉',
       accuracy: 0.88,
       streak: 14,
-      pin: '1111',
       skillCodes: [
         'count-compare', 'add-within-10', 'sub-within-10', 'add-within-20',
         'word-problem', 'intro-multiply', 'multiply-6-9', 'multiply-table', 'intro-divide',
@@ -399,7 +400,6 @@ async function main() {
       parentName: '李大偉',
       accuracy: 0.65,
       streak: 3,
-      pin: '2222',
       skillCodes: ['count-objects', 'count-compare', 'add-within-10', 'sub-within-10', 'add-within-20'],
       sessionsPerSkill: 2,
     },
@@ -409,7 +409,6 @@ async function main() {
       parentName: '陳美玲',
       accuracy: 0.93,
       streak: 9,
-      pin: '3333',
       skillCodes: [
         'add-within-10', 'sub-within-10', 'add-within-20', 'word-problem',
         'intro-multiply', 'multiply-6-9', 'multiply-table', 'intro-divide', 'divide-basic',
@@ -443,9 +442,6 @@ async function main() {
         parentId,
         mode: spec.selfStudy ? 'SELF_STUDY' : 'STANDARD',
         email: spec.selfStudy?.email,
-        passwordHash: spec.selfStudy ? passwordHash : undefined,
-        pin: spec.pin,
-        // 遊戲化數值稍後依實際練習累加，這裡先歸零
         stars: 0,
         streak: 0,
         lastPracticeAt: null,
