@@ -15,6 +15,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
+    "db:bootstrap": "ALLOW_DESTRUCTIVE_SEED=true node --experimental-strip-types prisma/seed.ts",
+    "db:content:sync": "node --experimental-strip-types prisma/seed.ts",
     "db:seed": "node --experimental-strip-types prisma/seed.ts",
     "db:seed:demo": "node --experimental-strip-types scripts/seed-demo.ts",
     "db:clean:demo": "node --experimental-strip-types scripts/clean-demo.ts",

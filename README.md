@@ -24,15 +24,19 @@ cp .env.example .env   # 若有範例檔；或手動建立 .env
 # DATABASE_URL：PostgreSQL 連線字串（Supabase pooled，port 6543）
 # SMTP_USER / SMTP_PASS：Gmail App Password（OTP 寄信用）
 
-# 3. 同步資料庫 schema（⚠️ 需使用 Supabase direct connection，port 5432）
+# 3a. 全新空 DB：同步 schema + 填入種子資料
 npm run db:push
+npm run db:bootstrap
 
-# 4. 填入種子資料（管理員帳號 + 47 個技能 + 題目）
-npm run db:seed
+# 3b. 既有 DB（已有學習資料）：僅同步題庫（不刪除既有作答/掌握度）
+npm run db:push
+npm run db:content:sync
 
-# 5. 啟動開發伺服器
+# 4. 啟動開發伺服器
 npm run dev
 ```
+
+> **⚠️ 安全注意**：`db:seed` 和 `db:bootstrap` 會清除所有學習資料（作答、session、掌握度），僅適合全新資料庫。在已有正式資料的環境請使用 `db:content:sync`（非破壞式，只 upsert 技能與題目）。`db:bootstrap` 需要設定 `ALLOW_DESTRUCTIVE_SEED=true` 環境變數。
 
 打開 <http://localhost:3000>
 

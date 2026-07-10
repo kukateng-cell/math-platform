@@ -11,26 +11,6 @@ export const EmailSchema = z.string().trim().email('請輸入有效的 Email').t
 
 // ============ 參數化題目參數驗證（P1-8：使用 discriminated union）============
 // 注意：discriminatedUnion 要求每個分支是純 ZodObject（不可被 refine/superRefine 包裹），
-// 因此 const 的驗證（如 aMin<=aMax）統一用基礎 object 的 superRefine 處理，
-// 再由完整的 QuestionParamsSchema 加上跨欄位檢查。
-
-// 基礎基底（含各題型共用欄位）
-const QuestionParamsBase = z.object({
-  type: z.enum(['ADD', 'SUB', 'MUL', 'DIV', 'WORD_PROBLEM']),
-  aMin: z.number().int(),
-  aMax: z.number().int(),
-  bMin: z.number().int(),
-  bMax: z.number().int(),
-  sumMax: z.number().int().optional(),
-  aMultipleOfB: z.boolean().optional(),
-  operation: z.enum(['add', 'sub', 'mul', 'div']).optional(),
-  interaction: z.enum(['choice', 'numberline', 'fillin']).optional(),
-  rangeMin: z.number().int().optional(),
-  rangeMax: z.number().int().optional(),
-  inputMode: z.enum(['numeric', 'text']).optional(),
-  maxLength: z.number().int().positive().optional(),
-  placeholder: z.string().optional(),
-})
 
 // 按題型區分的參數驗證
 // 每個 variant 使用 .passthrough() 讓 interaction/rangeMin/rangeMax 等
