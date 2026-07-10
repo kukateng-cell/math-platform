@@ -41,7 +41,8 @@ npm run dev
 ## 管理員帳號
 
 ### 開發環境
-```
+
+```bash
 npm run db:bootstrap   # 建立 admin@math.local / admin123
 ```
 
