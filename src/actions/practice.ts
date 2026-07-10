@@ -601,6 +601,12 @@ export async function submitAnswer(payload: {
   if (finished) {
     const childId = practiceSession.childId
 
+    // 型別保護：雖然 Prisma schema 中 childId 為必填，但某些環境下可能被推斷為 string | null。
+    // 若 childId 遺失則直接拋錯，避免傳給 updateStars/updateStreak 時出錯。
+    if (!childId) {
+      throw new Error('練習 session 缺少孩子資訊')
+    }
+
     // ============ idempotency gate：用 updateMany + status:IN_PROGRESS 條件式更新 ============
     // P1-4：改用 status 而非 completedAt 判斷完成狀態。
     // 多題併發提交時，只有第一個請求能成功將 status 從 IN_PROGRESS 改為 COMPLETED，

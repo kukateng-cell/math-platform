@@ -4,7 +4,8 @@ import { diffCalendarDays } from '@/lib/timezone'
 
 // ============ 星星獎勵 ============
 // 每次練習完成後將此輪獲得的星星加入總數
-export async function updateStars(childId: string, earnedStars: number) {
+export async function updateStars(childId: string | null, earnedStars: number) {
+  if (!childId) return
   if (earnedStars <= 0) return
   await prisma.childProfile.update({
     where: { id: childId },
@@ -14,7 +15,8 @@ export async function updateStars(childId: string, earnedStars: number) {
 
 // ============ 連續練習天數（Streak）============
 // 時區安全：用 Asia/Taipei 時區計算「日曆日」，不依賴伺服器本地時區。
-export async function updateStreak(childId: string) {
+export async function updateStreak(childId: string | null | null) {
+  if (!childId) return
   const child = await prisma.childProfile.findUnique({ where: { id: childId } })
   if (!child) return
 
