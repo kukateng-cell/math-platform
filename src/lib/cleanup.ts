@@ -18,7 +18,7 @@ import { cleanupExpiredCaptchas } from '@/lib/captcha'
 //   - cleanupAuthTempData() 統一協調，單張表失敗不影響其他表
 //
 // 觸發方式：
-//   - Vercel Cron：GET/POST /api/cron/cleanup（每小時，CRON_SECRET 鑑權）
+//   - Vercel Cron：GET/POST /api/cron/cleanup（每天，CRON_SECRET 鑑權；Hobby 方案限制每日一次）
 //   - CLI / CI   ：npm run cleanup:auth（scripts/cleanup-auth-data.ts）
 //
 // 索引：所有清理查詢都走既有 index，避免全表掃描：
