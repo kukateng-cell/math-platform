@@ -15,6 +15,12 @@ import { revalidatePath } from 'next/cache'
 import { SignJWT, jwtVerify } from 'jose'
 import { getSessionKey } from '@/lib/secret'
 
+// 開發模式或 SHOW_DEV_OTP=true 時，直接在前端顯示 OTP 驗證碼
+// 方便測試環境 / 無 Email 的 admin 帳號使用
+function shouldShowDevOtp(userRole?: string): boolean {
+  return process.env.NODE_ENV === 'development' || process.env.SHOW_DEV_OTP === 'true'
+}
+
 // ============ 重新產生 CAPTCHA（供前端「換一題」按鈕呼叫）============
 // 回傳新的 { question, token }，token 為新簽名的 JWT（5 分鐘有效）
 // 使用 useActionState 相容簽名，避免 server action 直接呼叫失效問題
@@ -107,7 +113,7 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
     .setExpirationTime('10m')
     .sign(KEY)
 
-  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  const devOtp = shouldShowDevOtp() ? otpCode : undefined
 
   return {
     otpRequired: true,
@@ -213,7 +219,7 @@ export async function resendSignupOtp(state: FormState, formData: FormData): Pro
     }
   }
 
-  const devOtp = process.env.NODE_ENV === 'development' ? otpCode : undefined
+  const devOtp = shouldShowDevOtp() ? otpCode : undefined
 
   return {
     otpRequired: true,
@@ -270,7 +276,7 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   }
 
   // 只有管理員在開發模式時才直接顯示 OTP（家長一律不顯示）
-  const showOtp = process.env.NODE_ENV === 'development' && user.role === 'ADMIN'
+  const showOtp = shouldShowDevOtp() && user.role === 'ADMIN'
   const devOtp = showOtp ? otpCode : undefined
 
   // 簽發 LOGIN_OTP_PENDING token：僅供 verifyLoginOtp / resendOtp 使用，
@@ -363,7 +369,7 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
 
   // 只有管理員在開發模式時才直接顯示 OTP
   const isAdmin = user?.role === 'ADMIN'
-  const showOtp = process.env.NODE_ENV === 'development' && isAdmin
+  const showOtp = shouldShowDevOtp() && isAdmin
   const devOtp = showOtp ? otpCode : undefined
 
   return {
