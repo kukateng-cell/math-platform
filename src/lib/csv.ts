@@ -10,6 +10,8 @@
 // - 日期一律 ISO 字串輸出，避免時區歧義。
 // ====================================================================
 
+import { APP_TIMEZONE } from '@/lib/timezone'
+
 /** 一列資料 = 一個物件，key 為欄位名。 */
 export type CsvRow = Record<string, string | number | boolean | null | undefined | Date>
 
@@ -89,10 +91,22 @@ export function tablesToCsv(tables: { name: string; table: CsvTable }[]): string
 
 /**
  * 產生下載檔名：export-{kind}-{YYYYMMDD-HHmm}.csv
+ *
+ * P3-5：時間戳固定使用 Asia/Taipei 時區（與頁面顯示一致），
+ * 不再隨伺服器本地時區漂移（本機 UTC+8 / Vercel UTC 會得到不同檔名）。
  */
 export function csvFileName(kind: string): string {
   const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now)
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00'
+  const ts = `${get('year')}${get('month')}${get('day')}-${get('hour')}${get('minute')}`
   return `export-${kind}-${ts}.csv`
 }

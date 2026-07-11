@@ -8,6 +8,7 @@ import { getChildBadges } from '@/actions/achievement'
 import AchievementBadges from '@/components/achievement-badges'
 import GradeSelector from '@/components/grade-selector'
 import type { Recommendation } from '@/lib/mastery'
+import { relativeTime } from '@/lib/timezone'
 
 // ============ 授權輔助 ============
 // 孩子檔案頁同時支援兩種身分：
@@ -28,24 +29,12 @@ async function getOverviewAuth(): Promise<OverviewAuth> {
   return null
 }
 
-// ============ 相對時間輔助 ============
-function relativeTime(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  const now = Date.now()
-  const diff = now - d.getTime()
-  const mins = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  if (mins < 1) return '剛剛'
-  if (mins < 60) return `${mins} 分鐘前`
-  if (hours < 24) return `${hours} 小時前`
-  if (days < 7) return `${days} 天前`
-  return d.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
-}
-
 // ============ 年級中文 ============
 function gradeLabel(level: string): string {
-  const map: Record<string, string> = { K: '幼兒園', G1: '一年級', G2: '二年級', G3: '三年級', G4: '四年級' }
+  const map: Record<string, string> = {
+    K: '幼兒園', G1: '一年級', G2: '二年級', G3: '三年級', G4: '四年級',
+    G5: '五年級', G6: '六年級',
+  }
   return map[level] ?? level
 }
 

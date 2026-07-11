@@ -99,6 +99,9 @@ type Props = {
     correctAnswer: string
     userAnswer: string
   }[]
+  /** P3-5：已完成 session 重新載入時的總用時（毫秒）。
+   *  完成頁據此顯示總用時，避免重載後顯示 00:00。 */
+  initialDurationMs?: number | null
 }
 
 export default function PracticeClient({
@@ -111,6 +114,7 @@ export default function PracticeClient({
   initialIndex = 0,
   initialCorrectCount = 0,
   initialQuestionResults = [],
+  initialDurationMs = null,
 }: Props) {
   const [index, setIndex] = useState(initialIndex)
   const [selected, setSelected] = useState<string | null>(null)
@@ -138,8 +142,15 @@ export default function PracticeClient({
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
   const [revealCorrect, setRevealCorrect] = useState(false)
   const [bgFlash, setBgFlash] = useState<'green' | 'red' | null>(null)
-  const [elapsed, setElapsed] = useState('00:00')
-  const [finalTotalMs, setFinalTotalMs] = useState<number | null>(null)
+  // P3-5：若 session 在其他裝置完成後重新載入（initialIndex 已達題數上限），
+  // 直接用伺服器記錄的總用時初始化，避免完成頁顯示 00:00。
+  const alreadyCompleted = initialIndex >= questions.length
+  const [elapsed, setElapsed] = useState(() =>
+    alreadyCompleted && initialDurationMs != null ? formatDuration(initialDurationMs) : '00:00'
+  )
+  const [finalTotalMs, setFinalTotalMs] = useState<number | null>(
+    alreadyCompleted && initialDurationMs != null ? initialDurationMs : null
+  )
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showHint, setShowHint] = useState(false)
   // P0-1：追蹤本題是否查看過 hint。查看 hint 的作答，提交時 hintUsed=true，
@@ -825,9 +836,8 @@ export default function PracticeClient({
             }}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
           >
-            <span className="text-base">{showHint ? '隱藏提示' : '顯示提示'}</span>
             <Icon name={showHint ? 'chevron-down' : 'lightbulb'} className="h-4 w-4" />
-            {showHint ? '隱藏提示' : '顯示提示'}
+            <span className="text-base">{showHint ? '隱藏提示' : '顯示提示'}</span>
           </button>
           {showHint && (
             <div className="mx-auto mt-2 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-800 animate-fade-in-up dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">

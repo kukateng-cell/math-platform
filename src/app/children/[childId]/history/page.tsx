@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getPracticeHistory } from '@/actions/reports'
 import { displayAnswer } from '@/lib/answer-i18n'
+import { relativeTime } from '@/lib/timezone'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,19 +12,6 @@ function formatDuration(ms: number): string {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${m} 分 ${s} 秒`
-}
-
-function relativeTime(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  const diff = Date.now() - d.getTime()
-  const mins = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  if (mins < 1) return '剛剛'
-  if (mins < 60) return `${mins} 分鐘前`
-  if (hours < 24) return `${hours} 小時前`
-  if (days < 7) return `${days} 天前`
-  return d.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
 }
 
 export default async function PracticeHistoryPage({
