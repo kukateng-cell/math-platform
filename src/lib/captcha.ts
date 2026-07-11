@@ -1,7 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { createHmac } from 'crypto'
 import { getSessionKey } from '@/lib/secret'
-import { prisma } from '@/lib/prisma'
 import { headers } from 'next/headers'
 
 const KEY = getSessionKey()
