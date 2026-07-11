@@ -23,7 +23,8 @@
     "admin:bootstrap": "node --experimental-strip-types scripts/bootstrap-admin.ts",
     "db:seed:demo": "node --experimental-strip-types scripts/seed-demo.ts",
     "db:clean:demo": "node --experimental-strip-types scripts/clean-demo.ts",
-    "db:seed:challenge": "node --experimental-strip-types scripts/seed-challenge.ts"
+    "db:seed:challenge": "node --experimental-strip-types scripts/seed-challenge.ts",
+    "cleanup:auth": "node --experimental-strip-types scripts/cleanup-auth-data.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

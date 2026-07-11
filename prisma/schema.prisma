@@ -338,8 +338,10 @@ model PasswordResetGrant {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // P2-10：consumedAt 用於「已消耗 grant」清理，createdAt 用於「過期未消耗 grant」清理
   @@index([userId])
   @@index([consumedAt])
+  @@index([createdAt])
 }
 
 // ============ 登入/操作限速（替代記憶體 Map，serverless 可靠）============

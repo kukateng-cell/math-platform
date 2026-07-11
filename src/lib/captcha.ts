@@ -10,9 +10,25 @@ function hashAnswer(answer: number): string {
   return createHmac('sha256', KEY).update(String(answer)).digest('hex').slice(0, 12)
 }
 
-// 記憶體追蹤 CAPTCHA 嘗試次數（key: token, value: 嘗試次數）
-// JWT 本身有 5 分鐘時效，因此不需額外清理；timeout 到 JWT 過期後自然無效。
-const captchaAttempts = new Map<string, number>()
+// 記憶體追蹤 CAPTCHA 嘗試次數（key: token, value: 嘗試次數 + 建立時間）
+// JWT 本身有 5 分鐘時效，token 過期後即無法通過 jwtVerify；
+// 但 Map entry 若不清理會無限累積（記憶體洩漏），故記錄 createdAt 供定期清理。
+// P2-10：CAPTCHA_RETENTION_MS 取 JWT 壽命（5 分鐘）+ 緩衝，超過即視為陳舊可刪。
+const CAPTCHA_RETENTION_MS = 10 * 60 * 1000 // 10 分鐘（JWT 5 分鐘 + 緩衝）
+const captchaAttempts = new Map<string, { attempts: number; createdAt: number }>()
+
+// 清理過期（陳舊）的 CAPTCHA 嘗試記錄，回傳清除筆數。
+// 由 cleanupAuthTempData()（cron / CLI）定期呼叫；createCaptcha 也會順帶呼叫。
+export function cleanupExpiredCaptchas(now = Date.now()): number {
+  let removed = 0
+  for (const [token, entry] of captchaAttempts) {
+    if (now - entry.createdAt > CAPTCHA_RETENTION_MS) {
+      captchaAttempts.delete(token)
+      removed++
+    }
+  }
+  return removed
+}
 
 // 產生 CAPTCHA 挑戰題：回傳 { question, token }，token 為簽名後的答案 hash
 // 安全：JWT payload 只存 answerHash，不存明文 answer，避免客戶端 decode 直接讀到答案。
@@ -36,6 +52,9 @@ export async function createCaptcha(): Promise<{ question: string; token: string
     .setExpirationTime('5m')
     .sign(KEY)
 
+  // P2-10：順帶清理陳舊的嘗試記錄，限制 Map 無限成長
+  cleanupExpiredCaptchas()
+
   const question = op === '+'
     ? `${a} + ${b} = ?`
     : `${a >= b ? a : b} - ${a >= b ? b : a} = ?`
@@ -51,11 +70,12 @@ export async function verifyCaptcha(
   if (!token || !userAnswer) return false
 
   // 檢查嘗試次數
-  const attempts = captchaAttempts.get(token) ?? 0
+  const entry = captchaAttempts.get(token)
+  const attempts = entry?.attempts ?? 0
   if (attempts >= MAX_ATTEMPTS) {
     return false
   }
-  captchaAttempts.set(token, attempts + 1)
+  captchaAttempts.set(token, { attempts: attempts + 1, createdAt: entry?.createdAt ?? Date.now() })
 
   try {
     const { payload } = await jwtVerify(token, KEY, { algorithms: ['HS256'] })
