@@ -10,55 +10,50 @@ import { z } from 'zod'
 export const EmailSchema = z.string().trim().email('請輸入有效的 Email').transform((v) => v.toLowerCase())
 
 // ============ 參數化題目參數驗證（P1-8：使用 discriminated union）============
-// 注意：discriminatedUnion 要求每個分支是純 ZodObject（不可被 refine/superRefine 包裹），
+// 注意：discriminatedUnion 要求每個分支是純 ZodObject（不可被 refine/superRefine 包裹）。
+//
+// P1-10：各 variant 使用 .strict()，不再使用 .passthrough()，
+// 確保 type 只能由 literal 校驗通過，不接受 JSON 中的假 type。
+// QuestionParamsBase 明確定義所有合法額外欄位（interaction/range/inputMode 等）。
 
-// 按題型區分的參數驗證
-// 每個 variant 使用 .passthrough() 讓 interaction/rangeMin/rangeMax 等
-// 額外欄位可通過 discriminatedUnion 進入 superRefine 層進行驗證
-const AddParamsSchema = z.object({
+// 共用基底：所有參數化題型共用的欄位與常見表單額外欄位
+const QuestionParamsBase = z.object({
+  aMin: z.number().int(),
+  aMax: z.number().int(),
+  bMin: z.number().int(),
+  bMax: z.number().int(),
+  // 表單額外欄位（互動模式、數線範圍等），各題型可選
+  rangeMin: z.number().int().optional(),
+  rangeMax: z.number().int().optional(),
+  interaction: z.enum(['choice', 'numberline', 'fillin']).optional(),
+  inputMode: z.enum(['numeric', 'text']).optional(),
+  placeholder: z.string().optional(),
+})
+
+const AddParamsSchema = QuestionParamsBase.merge(z.object({
   type: z.literal('ADD'),
-  aMin: z.number().int(),
-  aMax: z.number().int(),
-  bMin: z.number().int(),
-  bMax: z.number().int(),
   sumMax: z.number().int().optional(),
-}).passthrough()
+})).strict()
 
-const SubParamsSchema = z.object({
+const SubParamsSchema = QuestionParamsBase.merge(z.object({
   type: z.literal('SUB'),
-  aMin: z.number().int(),
-  aMax: z.number().int(),
-  bMin: z.number().int(),
-  bMax: z.number().int(),
-}).passthrough()
+})).strict()
 
-const MulParamsSchema = z.object({
+const MulParamsSchema = QuestionParamsBase.merge(z.object({
   type: z.literal('MUL'),
-  aMin: z.number().int(),
-  aMax: z.number().int(),
-  bMin: z.number().int(),
-  bMax: z.number().int(),
-}).passthrough()
+})).strict()
 
 // DIV 參數（禁止 bMin/bMax 包含 0）
-const DivParamsSchema = z.object({
+const DivParamsSchema = QuestionParamsBase.merge(z.object({
   type: z.literal('DIV'),
-  aMin: z.number().int(),
-  aMax: z.number().int(),
-  bMin: z.number().int(),
-  bMax: z.number().int(),
   aMultipleOfB: z.boolean().optional(),
-}).passthrough()
+})).strict()
 
-const WordProblemParamsSchema = z.object({
+const WordProblemParamsSchema = QuestionParamsBase.merge(z.object({
   type: z.literal('WORD_PROBLEM'),
-  aMin: z.number().int(),
-  aMax: z.number().int(),
-  bMin: z.number().int(),
-  bMax: z.number().int(),
   sumMax: z.number().int().optional(),
   operation: z.enum(['add', 'sub', 'mul', 'div']).optional(),
-}).passthrough()
+})).strict()
 
 // 完整的題目參數驗證 schema（P1-8：最終合併後的 JSON 驗證）
 // 使用 discriminatedUnion 確保型別安全，再透過 .superRefine 做跨欄位驗證
@@ -76,7 +71,8 @@ export const QuestionParamsSchema = z.discriminatedUnion('type', [
   if (p.bMin > p.bMax) {
     ctx.addIssue({ code: 'custom', message: 'bMin 必須小於等於 bMax', path: ['bMin'] })
   }
-  if (typeof p.sumMax === 'number' && typeof p.aMin === 'number' && typeof p.bMin === 'number' && p.sumMax < p.aMin + p.bMin) {
+  // sumMax 只在 ADD/WORD_PROBLEM 存在，需先用 'in' 判斷再取
+  if ('sumMax' in p && typeof p.sumMax === 'number' && p.sumMax < p.aMin + p.bMin) {
     ctx.addIssue({ code: 'custom', message: 'sumMax 必須大於等於最小可能和 (aMin+bMin)', path: ['sumMax'] })
   }
   // DIV 除數不可為 0

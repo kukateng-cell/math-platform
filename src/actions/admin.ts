@@ -114,8 +114,8 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
     }
     try {
       const parsed = JSON.parse(paramsJsonRaw)
-      // P1-8：注入 type 欄位供 discriminated union 驗證
-      if (!parsed.type) parsed.type = type
+      // P1-10：強制覆蓋 type（防止 JSON 中的假 type 繞過驗證）
+      parsed.type = type
       const result = QuestionParamsSchema.safeParse(parsed)
       if (!result.success) {
         return { message: `參數驗證失敗：${result.error.errors.map((e) => e.message).join('；')}` }
@@ -155,7 +155,7 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
   if (mergedParamsJson && (type === 'ADD' || type === 'SUB' || type === 'MUL' || type === 'DIV' || type === 'WORD_PROBLEM')) {
     try {
       const mergedParsed = JSON.parse(mergedParamsJson)
-      if (!mergedParsed.type) mergedParsed.type = type
+      mergedParsed.type = type
       const mergedResult = QuestionParamsSchema.safeParse(mergedParsed)
       if (!mergedResult.success) {
         return { message: `合併後參數驗證失敗：${mergedResult.error.errors.map((e) => e.message).join('；')}` }
@@ -342,8 +342,8 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
     }
     try {
       const parsed = JSON.parse(paramsJson)
-      // P1-8：注入 type 欄位供 discriminated union 驗證
-      if (!parsed.type) parsed.type = existing.type
+      // P1-10：強制覆蓋 type（防止 JSON 中的假 type 繞過驗證）
+      parsed.type = existing.type
       const result = QuestionParamsSchema.safeParse(parsed)
       if (!result.success) {
         return { message: `參數驗證失敗：${result.error.errors.map((e) => e.message).join('；')}` }
@@ -377,7 +377,7 @@ export async function updateQuestion(state: AdminFormState, formData: FormData):
   if (mergedParamsJson && (existing.type === 'ADD' || existing.type === 'SUB' || existing.type === 'MUL' || existing.type === 'DIV' || existing.type === 'WORD_PROBLEM')) {
     try {
       const mergedParsed = JSON.parse(mergedParamsJson)
-      if (!mergedParsed.type) mergedParsed.type = existing.type
+      mergedParsed.type = existing.type
       const mergedResult = QuestionParamsSchema.safeParse(mergedParsed)
       if (!mergedResult.success) {
         return { message: `合併後參數驗證失敗：${mergedResult.error.errors.map((e) => e.message).join('；')}` }
