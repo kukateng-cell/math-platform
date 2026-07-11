@@ -3,8 +3,12 @@ import { PrismaPg } from '@prisma/adapter-pg'
 
 // Prisma 7 必須傳入 driver adapter（不再用 datasource url 直連）
 // runtime（Server Actions）用 pooled 連線（port 6543）
+// Supabase 強制 SSL（尤其 Vercel Serverless 環境），因此明確啟用。
 function createPrismaClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL!,
+    ssl: { rejectUnauthorized: false },
+  })
   return new PrismaClient({ adapter })
 }
 
