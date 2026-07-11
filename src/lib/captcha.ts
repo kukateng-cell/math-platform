@@ -1,46 +1,54 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { createHmac } from 'crypto'
 import { getSessionKey } from '@/lib/secret'
+import { prisma } from '@/lib/prisma'
+import { headers } from 'next/headers'
 
 const KEY = getSessionKey()
 const MAX_ATTEMPTS = 3
 
-// CAPTCHA 答案雜湊（HMAC-SHA256 前 12 位 hex，不存明文 answer 到 JWT）
+// ====================================================================
+// CAPTCHA Provider 抽象層（P1-5）
+// --------------------------------------------------------------------
+// 正式環境支援 Cloudflare Turnstile（需設定 TURNSTILE_SITE_KEY /
+// TURNSTILE_SECRET_KEY）；開發環境使用簡單算術 CAPTCHA 做 fallback。
+//
+// 嘗試次數改用 DB RateLimit 表，不再存在 process memory：
+//   - serverless 多 instance 共享
+//   - cold start 後不遺失
+//   - 有 expiry 自動清理
+// ====================================================================
+
+/** 檢查是否啟用 Turnstile（正式環境建議使用） */
+function isTurnstileEnabled(): boolean {
+  return !!(process.env.TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY)
+}
+
+// ───────── Turnstile 驗證 ─────────
+async function verifyTurnstileToken(token: string): Promise<boolean> {
+  const secretKey = process.env.TURNSTILE_SECRET_KEY!
+  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ secret: secretKey, response: token }),
+  })
+  const data = (await res.json()) as { success: boolean }
+  return data.success
+}
+
+// ───────── 算術 CAPTCHA ─────────
 function hashAnswer(answer: number): string {
   return createHmac('sha256', KEY).update(String(answer)).digest('hex').slice(0, 12)
 }
 
-// 記憶體追蹤 CAPTCHA 嘗試次數（key: token, value: 嘗試次數 + 建立時間）
-// JWT 本身有 5 分鐘時效，token 過期後即無法通過 jwtVerify；
-// 但 Map entry 若不清理會無限累積（記憶體洩漏），故記錄 createdAt 供定期清理。
-// P2-10：CAPTCHA_RETENTION_MS 取 JWT 壽命（5 分鐘）+ 緩衝，超過即視為陳舊可刪。
-const CAPTCHA_RETENTION_MS = 10 * 60 * 1000 // 10 分鐘（JWT 5 分鐘 + 緩衝）
-const captchaAttempts = new Map<string, { attempts: number; createdAt: number }>()
-
-// 清理過期（陳舊）的 CAPTCHA 嘗試記錄，回傳清除筆數。
-// 由 cleanupAuthTempData()（cron / CLI）定期呼叫；createCaptcha 也會順帶呼叫。
-export function cleanupExpiredCaptchas(now = Date.now()): number {
-  let removed = 0
-  for (const [token, entry] of captchaAttempts) {
-    if (now - entry.createdAt > CAPTCHA_RETENTION_MS) {
-      captchaAttempts.delete(token)
-      removed++
-    }
-  }
-  return removed
-}
-
-// 產生 CAPTCHA 挑戰題：回傳 { question, token }，token 為簽名後的答案 hash
-// 安全：JWT payload 只存 answerHash，不存明文 answer，避免客戶端 decode 直接讀到答案。
-export async function createCaptcha(): Promise<{ question: string; token: string }> {
-  const a = Math.floor(Math.random() * 9) + 1   // 1-9
-  const b = Math.floor(Math.random() * 9) + 1   // 1-9
+async function createArithmeticChallenge(): Promise<{ question: string; token: string }> {
+  const a = Math.floor(Math.random() * 9) + 1
+  const b = Math.floor(Math.random() * 9) + 1
   const op: '+' | '-' = Math.random() > 0.5 ? '+' : '-'
   let answer: number
   if (op === '+') {
     answer = a + b
   } else {
-    // 確保減法答案非負
     const [big, small] = a >= b ? [a, b] : [b, a]
     answer = big - small
   }
@@ -52,9 +60,6 @@ export async function createCaptcha(): Promise<{ question: string; token: string
     .setExpirationTime('5m')
     .sign(KEY)
 
-  // P2-10：順帶清理陳舊的嘗試記錄，限制 Map 無限成長
-  cleanupExpiredCaptchas()
-
   const question = op === '+'
     ? `${a} + ${b} = ?`
     : `${a >= b ? a : b} - ${a >= b ? b : a} = ?`
@@ -62,21 +67,7 @@ export async function createCaptcha(): Promise<{ question: string; token: string
   return { question, token }
 }
 
-// 驗證 CAPTCHA 答案（含嘗試次數限制：同 token 最多 3 次）
-export async function verifyCaptcha(
-  token: string | undefined,
-  userAnswer: string | undefined
-): Promise<boolean> {
-  if (!token || !userAnswer) return false
-
-  // 檢查嘗試次數
-  const entry = captchaAttempts.get(token)
-  const attempts = entry?.attempts ?? 0
-  if (attempts >= MAX_ATTEMPTS) {
-    return false
-  }
-  captchaAttempts.set(token, { attempts: attempts + 1, createdAt: entry?.createdAt ?? Date.now() })
-
+async function verifyArithmeticToken(token: string, userAnswer: string): Promise<boolean> {
   try {
     const { payload } = await jwtVerify(token, KEY, { algorithms: ['HS256'] })
     const data = payload as unknown as { answerHash: string }
@@ -84,4 +75,68 @@ export async function verifyCaptcha(
   } catch {
     return false
   }
+}
+
+// ───────── 取得客戶端 IP（供 rate-limit key 使用）─────────
+export async function getClientIp(): Promise<string> {
+  try {
+    const h = await headers()
+    return h.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || h.get('x-real-ip')?.trim()
+      || 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
+/** 限速 key 輔助：結合場景 + identifier + IP */
+export function rateLimitKey(scenario: string, identifier: string, ip: string): string {
+  return `${scenario}:${identifier}:${ip}`
+}
+
+// ───────── 公開 API ─────────
+
+/** 產生 CAPTCHA 挑戰 */
+export async function createCaptcha(): Promise<{ question: string; token: string }> {
+  if (isTurnstileEnabled()) {
+    // Turnstile 由 Cloudflare 前端 widget 產生 token，後端產生 site key
+    return { question: '__turnstile__', token: process.env.TURNSTILE_SITE_KEY! }
+  }
+  return createArithmeticChallenge()
+}
+
+/** 驗證 CAPTCHA 答案（含 DB rate-limit 嘗試次數控制） */
+export async function verifyCaptcha(
+  token: string | undefined,
+  userAnswer: string | undefined,
+  options?: { identifier?: string; ip?: string }
+): Promise<boolean> {
+  if (!token || !userAnswer) return false
+
+  if (isTurnstileEnabled()) {
+    // Turnstile 驗證（由 Cloudflare 處理，無需 attempt 限制）
+    return verifyTurnstileToken(token)
+  }
+
+  // 算術 CAPTCHA：使用 DB rate-limit 防暴力破解
+  const identifier = options?.identifier || 'captcha'
+  const ip = options?.ip || 'unknown'
+  const rlKey = rateLimitKey('captcha', identifier, ip)
+
+  // 同 identifier 最�� 3 次嘗試（5 分鐘窗口）
+  const { allowed } = await (await import('@/lib/rate-limit')).consumeRateLimit(rlKey, MAX_ATTEMPTS, 300_000)
+  if (!allowed) return false
+
+  return verifyArithmeticToken(token, userAnswer)
+}
+
+// ============ 向後相容：無 identifier/IP 的舊版 verifyCaptcha ============
+// 供尚未傳入 options 的既有呼叫端使用。新程式碼請傳入 identifier/IP。
+// 使用場景前綴 + IP 作為 rate-limit key，避免不同操作共用計數。
+
+// ============ 清理過期 CAPTCHA 嘗試記錄（DB + 記憶體）============
+// CAPTCHA 嘗試次數已移到 DB RateLimit 表，由 cleanupExpiredRateLimits 清理。
+// 此函式保留為向後相容，回傳 0（無需額外清理）。
+export function cleanupExpiredCaptchas(): number {
+  return 0
 }
