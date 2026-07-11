@@ -113,11 +113,13 @@ function memoryConsumeRateLimit(
   return { allowed: entry.count <= max, remaining: Math.max(0, max - entry.count), resetAt: new Date(entry.resetAt) }
 }
 
-// 清理過期的限速記錄
-export async function cleanupExpiredRateLimits(): Promise<void> {
+// 清理過期的限速記錄。回傳已刪除筆數（DB + 記憶體）。
+export async function cleanupExpiredRateLimits(): Promise<number> {
+  let deleted = 0
   if (await isDbAvailable()) {
     try {
-      await prisma.rateLimit.deleteMany({ where: { resetAt: { lt: new Date() } } })
+      const result = await prisma.rateLimit.deleteMany({ where: { resetAt: { lt: new Date() } } })
+      deleted += result.count
     } catch {
       if (process.env.NODE_ENV === 'production') {
         throw new Error('[RateLimit] DB cleanup failed in production')
@@ -126,6 +128,10 @@ export async function cleanupExpiredRateLimits(): Promise<void> {
   }
   const now = Date.now()
   for (const [key, entry] of memoryStore) {
-    if (now > entry.resetAt) memoryStore.delete(key)
+    if (now > entry.resetAt) {
+      memoryStore.delete(key)
+      deleted++
+    }
   }
+  return deleted
 }
