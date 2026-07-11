@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { getCurrentUser } from '@/actions/auth'
 import { getPendingLinkRequests } from '@/actions/student-auth'
@@ -7,8 +9,6 @@ import AddChildForm from '@/components/add-child-form'
 import DeleteChildButton from '@/components/delete-child-button'
 import PendingLinkRequests from '@/components/pending-link-requests'
 import { Icon } from '@/components/icon'
-
-export const dynamic = 'force-dynamic'
 
 // 相對時間
 function relativeTime(date: Date): string {
