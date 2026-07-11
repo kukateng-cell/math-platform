@@ -9,10 +9,11 @@ const PROTECTED = ['/dashboard', '/admin', '/children']
 const CHILD_ROUTES = ['/practice']
 // 孩子可查看「自己」檔案的路由（自主學習孩子：家長 session 或本人孩子 session）
 const CHILD_OWN = ['/children']
-// 已登入者不該再看到：登入、註冊
+// 已登入者不該再看到：登入、註冊（已登入則依角色導向 /admin 或 /dashboard）
 const AUTH_PAGES = ['/login', '/signup']
 // 不需要 JWT 驗證的公開頁面（跳過整個 JWT 解析，降低延遲與伺服器負擔）
-const PUBLIC = ['/login', '/signup', '/forgot-password', '/child-login', '/student/login', '/student/signup', '/achievements']
+// 注意：/login、/signup 不在此列——它們需要解析 JWT 以判斷是否將已登入者導走（見 AUTH_PAGES 規則）。
+const PUBLIC = ['/forgot-password', '/child-login', '/student/login', '/student/signup', '/achievements']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
