@@ -179,7 +179,7 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
   //
   // ⚠️ 必須同時回填 correctCount / gradedQuestionCount / assistedCount（P2-4）：
   const staleSessions = await prisma.practiceSession.findMany({
-    where: { childId, skillId, completedAt: null, kind: 'NORMAL' },
+    where: { childId, skillId, status: 'IN_PROGRESS', kind: 'NORMAL' },
     select: { id: true },
   })
   if (staleSessions.length > 0) {
@@ -955,18 +955,33 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
     throw new Error(`目前年級正確率 ${Math.round(passRate * 100)}% 未達 80%，無法升學`)
   }
 
-  // ============ 使用 transaction 防 race condition ============
-  // P1-9：conditional update 保證只有一個請求能完成升級及發獎勵。
-  // 檢查 promotionRewarded（而非 promotionPassedAt），確保獎勵只發一次。
+  // ============ 使用 transaction + PromotionClaim 防 race condition ============
+  // P1-9：PromotionClaim.sessionId 為 unique，create 成功者才能升級。
+  // 不同 promotion session（不同 grade 升學）使用不同 sessionId，每次皆可發 bonus。
   await prisma.$transaction(async (tx) => {
-    // 再次讀取最新狀態（在 transaction 內）
+    // 嘗試建立 PromotionClaim（unique sessionId 保證只成功一次）
+    try {
+      await tx.promotionClaim.create({
+        data: {
+          childId,
+          sessionId: lastPromotionSession.id,
+          fromGrade: child.gradeLevel as GradeLevel,
+          targetGrade: targetGrade as GradeLevel,
+        },
+      })
+    } catch {
+      // 同一 promotion session 已被 claim → 已有其他併發請求處理完畢
+      return
+    }
+
+    // 再次讀取最新 gradeLevel（transaction 內，避免讀到舊值）
     const current = await tx.childProfile.findUnique({
       where: { id: childId },
-      select: { gradeLevel: true, promotionRewarded: true },
+      select: { gradeLevel: true },
     })
     if (!current) throw new Error('找不到孩子檔案')
     if (current.gradeLevel === targetGrade) {
-      // 已被其他併發請求升級
+      // 已被其他併發請求升級（但 PromotionClaim 已建立，視為成功）
       return
     }
 
@@ -981,18 +996,17 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
       },
     })
 
-    // 雙倍星星獎勵（僅發一次：promotionRewarded 為 false 時才發放）
-    if (!current.promotionRewarded && lastPromotionSession.correctCount > 0) {
+    // bonus 星星獎勵：每筆 PromotionClaim 各自發放
+    if (lastPromotionSession.correctCount > 0) {
       await tx.childProfile.update({
         where: { id: childId },
-        data: { stars: { increment: lastPromotionSession.correctCount }, promotionRewarded: true },
-      })
-    } else if (!current.promotionRewarded) {
-      await tx.childProfile.update({
-        where: { id: childId },
-        data: { promotionRewarded: true },
+        data: { stars: { increment: lastPromotionSession.correctCount } },
       })
     }
+    await tx.promotionClaim.update({
+      where: { sessionId: lastPromotionSession.id },
+      data: { bonusAwarded: true },
+    })
   })
 
   // 重新驗證快取：儀表板與練習選單都會讀到新年級
