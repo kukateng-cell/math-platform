@@ -182,12 +182,11 @@ export function renderTextWithShapes(text: string, size: Size = 'md'): React.Rea
 // - 否則 → 走原本的 renderTextWithShapes（處理內嵌標記 / 舊符號 / 純文字）
 // ====================================================================
 export function renderOption(text: string, size: Size = 'md'): React.ReactNode {
+  // resolveKind 內部已做 trim()，若整串都是形狀名（正方形/square/□…）就顯示單一大圖形；
+  // 否則走 renderTextWithShapes（處理內嵌標記 / 舊符號 / 純文字）。
   const kind = resolveKind(text)
-  if (kind && text.trim() === text.trim()) {
-    // 確認「整串」都是形狀名（避免把「正方形和圓形」誤判為單一圖形）
-    if (resolveKind(text.trim())) {
-      return <ShapeIcon kind={kind} size={size} />
-    }
+  if (kind) {
+    return <ShapeIcon kind={kind} size={size} />
   }
   return renderTextWithShapes(text, size)
 }
