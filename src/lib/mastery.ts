@@ -40,11 +40,20 @@ export async function updateMastery(sessionId: string) {
   })
 }
 
-// ============ 規則式推薦 ============
-// 計畫的規則：
-//  - 最近 5 題錯 3 題（正確率 < 40%）：回前置技能
-//  - 連續答對 5 題（正確率 = 100%）：推薦下一個技能
-//  - 60%-80%：保持當前技能多練一組
+// ============ 規則式推薦（明確狀態機）============
+// 推薦結果依照下列狀態順序判斷，每個狀態有明確的進入條件與輸出：
+//
+//   1. 未開始          → START_FIRST     （尚無任何練習紀錄）
+//   2. 全部完成        → ALL_DONE        （所有技能皆已掌握）
+//   3. 掌握後晉級      → ADVANCE         （前置已掌握、目標技能尚未練習）
+//   4. 低正確率回前置  → PRACTICE_PREREQ （目標技能表現過低，回頭複習前置）
+//   5. 保持當前        → KEEP            （其餘情況：繼續練習當前技能）
+//
+// 「目標技能」(frontier) = 技能序列中第一個尚未完全掌握的技能。
+//   - 技能序列假設呼叫端已依教學順序（年級 → order）排序。
+//   - 採用 frontier（序列中第一個未掌握者）而非 prerequisite 反查，
+//     如此多個 dependent 分支時能穩定選到順序最前者，而非任意取一個。
+// 「完全掌握」= recentTotal >= MASTERY_SAMPLES 且 正確率 >= MASTERY_THRESHOLD。
 export type Recommendation = {
   type: 'PRACTICE_PREREQ' | 'ADVANCE' | 'KEEP' | 'START_FIRST' | 'ALL_DONE'
   skillId?: string
@@ -52,14 +61,34 @@ export type Recommendation = {
   reason: string
 }
 
+const MASTERY_SAMPLES = 5      // 判定掌握所需的最低樣本數
+const MASTERY_THRESHOLD = 0.95 // 正確率達此門檻（且樣本足夠）視為已掌握
+const LOW_RATE_THRESHOLD = 0.4 // 正確率低於此門檻（且樣本足夠）→ 回前置
+
+// 判斷單一技能是否已「完全掌握」
+function isMastered(
+  m: { recentCorrect: number; recentTotal: number } | undefined
+): boolean {
+  if (!m || m.recentTotal < MASTERY_SAMPLES) return false
+  return m.recentCorrect / m.recentTotal >= MASTERY_THRESHOLD
+}
+
 export function getRecommendation(
   skills: { id: string; prerequisiteId: string | null; name?: string }[],
   mastery: { skillId: string; recentCorrect: number; recentTotal: number; masteryLevel: number }[]
 ): Recommendation {
-  // 還沒練過任何技能 → 從第一個開始
-  if (mastery.length === 0) {
+  // 邊界：完全沒有可用技能
+  if (skills.length === 0) {
+    return { type: 'START_FIRST', reason: '尚未有可用技能' }
+  }
+
+  // 建立 skillId → mastery 查詢表，避免重複 find
+  const masteryMap = new Map(mastery.map((m) => [m.skillId, m]))
+
+  // ---- 狀態 1：未開始（完全沒有練習紀錄）----
+  const hasAnyPractice = mastery.some((m) => m.recentTotal > 0)
+  if (!hasAnyPractice) {
     const first = skills[0]
-    if (!first) return { type: 'START_FIRST', reason: '尚未有可用技能' }
     return {
       type: 'START_FIRST',
       skillId: first.id,
@@ -68,98 +97,64 @@ export function getRecommendation(
     }
   }
 
-  // 找出「當前正在練的技能」：最近有作答紀錄的技能
-  // P2-14：不再跳過已掌握的技能（避免 ADVANCE 分支無法到達）。
-  // 從已練習過的技能中，依 order 找出練習進度中最前面的未完全掌握技能。
-  let allMastered = true
-  let currentSkill: (typeof skills)[0] | null = null
-  let currentMastery: (typeof mastery)[0] | null = null
-  let needCheckAdvance = false // 當前技能已掌握，需檢查是否可晉級
+  // ---- 找出目標技能（frontier）：序列中第一個尚未完全掌握的技能 ----
+  const frontierIndex = skills.findIndex((s) => !isMastered(masteryMap.get(s.id)))
+  const frontier = frontierIndex >= 0 ? skills[frontierIndex] : null
 
-  for (const skill of skills) {
-    const m = mastery.find((x) => x.skillId === skill.id)
-    if (!m || m.recentTotal === 0) {
-      // 還沒練過這個技能：如果前面的技能都掌握了，這就是下一個目標
-      if (allMastered) {
-        currentSkill = skill
-        currentMastery = null
-        break
+  // ---- 狀態 2：全部完成（所有技能皆已掌握）----
+  if (!frontier) {
+    return { type: 'ALL_DONE', reason: '太棒了！目前所有技能都已掌握 🎉' }
+  }
+
+  const frontierMastery = masteryMap.get(frontier.id)
+  const frontierHasPractice = !!frontierMastery && frontierMastery.recentTotal > 0
+
+  // ---- 狀態 3：掌握後晉級（目標技能尚未練習）----
+  // frontier 是第一個「未掌握且未練習」的技能；
+  // 因為在它之前的技能都掌握了我們才會走到這裡，代表可以晉級到此。
+  // 若 frontier 本身就是序列首項（前面沒有已掌握的技能）→ 視為從頭開始。
+  if (!frontierHasPractice) {
+    if (frontierIndex > 0) {
+      return {
+        type: 'ADVANCE',
+        skillId: frontier.id,
+        skillName: frontier.name ?? '下一個技能',
+        reason: '表現優異，可以挑戰下一個技能！',
       }
-      continue
     }
-
-    const rate = m.recentCorrect / m.recentTotal
-
-    if (rate >= 0.95) {
-      // 已掌握 → 記錄起來，繼續檢查後續技能
-      // 但不跳過：若下個技能尚未練習，則此為「可晉級」狀態
-      allMastered = true
-      currentSkill = skill
-      currentMastery = m
-      needCheckAdvance = true
-      continue
-    }
-
-    // 正確率 < 95% → 這是當前需要練習的技能
-    allMastered = false
-    currentSkill = skill
-    currentMastery = m
-    needCheckAdvance = false
-    break
-  }
-
-  // 所有技能都掌握（或沒任何技能）
-  if (!currentSkill) {
-    return allMastered
-      ? { type: 'ALL_DONE', reason: '太棒了！目前所有技能都已掌握 🎉' }
-      : { type: 'KEEP', reason: '繼續加油！' }
-  }
-
-  // 沒有 mastery 紀錄 → 當前技能是下一個要練的
-  if (!currentMastery) {
     return {
-      type: 'KEEP',
-      skillId: currentSkill.id,
-      skillName: currentSkill.name ?? '下一個技能',
-      reason: '準備好了嗎？試試這個新技能！',
+      type: 'START_FIRST',
+      skillId: frontier.id,
+      skillName: frontier.name ?? '第一個技能',
+      reason: '建議從第一個技能開始建立基礎',
     }
   }
 
-  const rate = currentMastery.recentTotal > 0
-    ? currentMastery.recentCorrect / currentMastery.recentTotal
+  // frontier 已有練習紀錄，計算正確率
+  const rate = frontierMastery!.recentTotal > 0
+    ? frontierMastery!.recentCorrect / frontierMastery!.recentTotal
     : 0
 
-  // 規則 1：正確率過低（< 40%）且有足夠樣本數 → 回前置技能
-  if (!needCheckAdvance && currentMastery.recentTotal >= 5 && rate < 0.4 && currentSkill.prerequisiteId) {
-    const prereq = skills.find((s) => s.id === currentSkill.prerequisiteId)
+  // ---- 狀態 4：低正確率回前置（樣本足夠且正確率過低，且有前置技能）----
+  if (
+    frontierMastery!.recentTotal >= MASTERY_SAMPLES &&
+    rate < LOW_RATE_THRESHOLD &&
+    frontier.prerequisiteId
+  ) {
+    const prereq = skills.find((s) => s.id === frontier.prerequisiteId)
     return {
       type: 'PRACTICE_PREREQ',
-      skillId: currentSkill.prerequisiteId,
+      skillId: frontier.prerequisiteId,
       skillName: prereq?.name ?? '前置技能',
       reason: '最近表現偏低，建議先複習前置技能打好基礎',
     }
   }
 
-  // 規則 2：掌握（rate >= 95%）且樣本夠 → 晉級下一個技能
-  // P2-14 修復：needCheckAdvance 在 loop 中正確設為 true 而非被跳過
-  if (needCheckAdvance && currentMastery.recentTotal >= 5 && rate >= 0.95) {
-    const next = skills.find((s) => s.prerequisiteId === currentSkill.id)
-    if (next) {
-      return {
-        type: 'ADVANCE',
-        skillId: next.id,
-        skillName: next.name ?? '下一個技能',
-        reason: '表現優異，可以挑戰下一個技能！',
-      }
-    }
-    return { type: 'ALL_DONE', reason: '太棒了！目前所有技能都已掌握 🎉' }
-  }
-
-  // 規則 3：中間值（有練習但未掌握）→ 保持當前技能
+  // ---- 狀態 5：保持當前（繼續練習當前技能）----
   return {
     type: 'KEEP',
-    skillId: currentSkill.id,
-    skillName: currentSkill.name ?? '當前技能',
+    skillId: frontier.id,
+    skillName: frontier.name ?? '當前技能',
     reason: rate >= 0.6
       ? '繼續保持，多練一組會更熟練'
       : '再加把勁，多練習幾次就會了',
