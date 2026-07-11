@@ -179,7 +179,7 @@ async function createPracticeSessionInternal(childId: string, skillId: string): 
   //
   // ⚠️ 必須同時回填 correctCount / gradedQuestionCount / assistedCount（P2-4）：
   const staleSessions = await prisma.practiceSession.findMany({
-    where: { childId, skillId, completedAt: null, kind: 'NORMAL' },
+    where: { childId, skillId, status: 'IN_PROGRESS', kind: 'NORMAL' },
     select: { id: true },
   })
   if (staleSessions.length > 0) {
@@ -429,6 +429,126 @@ export async function hasIncompleteSession(childId: string, skillId: string): Pr
   return count > 0
 }
 
+// ============ 可重入的練習完成處理（P1-6）============
+// 安全地完成一個練習 session，發放所有獎勵（mastery、stars、streak、badges）。
+// 使用 SessionReward unique key 確保每個 session 的獎勵至多發放一次。
+//
+// 呼叫時機：
+//   - submitAnswer 最後一題提交時
+//   - submitAnswer P2002（重複提交）且最後一題已存在時
+//   - 完成頁載入時（用於 crash recovery）
+//
+// 冪等性：重複呼叫不會重複發獎。
+
+async function finalizeSession(sessionId: string): Promise<{ qualifyPromotion: boolean }> {
+  // Step 1: 嘗試建立 SessionReward（unique 約束確保只成功一次）
+  try {
+    await prisma.sessionReward.create({
+      data: { sessionId },
+    })
+  } catch {
+    // SessionReward 已存在 → 獎勵已發放過，跳過
+    return { qualifyPromotion: false }
+  }
+
+  const practiceSession = await prisma.practiceSession.findUnique({
+    where: { id: sessionId },
+    include: { child: true },
+  })
+  if (!practiceSession) return { qualifyPromotion: false }
+
+  // 若 session 仍是 IN_PROGRESS，先標記為 COMPLETED
+  if (practiceSession.status === 'IN_PROGRESS') {
+    await prisma.practiceSession.update({
+      where: { id: sessionId },
+      data: { status: 'COMPLETED', completedAt: new Date() },
+    })
+  }
+
+  const childId = practiceSession.childId
+  const isSpecialSession = practiceSession.kind !== 'NORMAL'
+  const isChallengeSession = practiceSession.kind === 'CHALLENGE'
+  const isPromotionTest = practiceSession.kind === 'PROMOTION'
+
+  // Step 2: 查詢所有作答紀錄
+  const sessionAttempts = await prisma.attempt.findMany({
+    where: { sessionId },
+  })
+
+  // Step 3: 掌握度更新（特殊 session 不更新）
+  if (!isSpecialSession) {
+    await updateMastery(sessionId)
+    await prisma.sessionReward.update({
+      where: { sessionId },
+      data: { masteryAppliedAt: new Date() },
+    })
+  }
+
+  // Step 4: 遊戲化獎勵
+  const starsEarned = sessionAttempts.filter(
+    (a) => a.isCorrect && !a.assisted
+  ).length
+  const allCorrect = sessionAttempts.every((a) => a.isCorrect)
+  const gradedCount = sessionAttempts.filter((a) => !a.assisted).length
+  const assistedCount = sessionAttempts.filter((a) => a.assisted).length
+
+  await Promise.all([
+    prisma.practiceSession.update({
+      where: { id: sessionId },
+      data: { correctCount: starsEarned, gradedQuestionCount: gradedCount, assistedCount },
+    }),
+    updateStars(childId, starsEarned),
+    updateStreak(childId),
+  ])
+
+  // Step 5: 升學測試判定
+  let qualifyPromotion = false
+  let passedPromotion = false
+  if (isPromotionTest) {
+    try {
+      const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
+      const rawTarget = Array.isArray(storedQuestions) ? storedQuestions[0]?.__targetGrade : undefined
+      const targetGrade = typeof rawTarget === 'string' ? rawTarget : null
+      if (targetGrade) {
+        const legitAttempts = sessionAttempts.filter((a) => !a.assisted)
+        const currentGradeAttempts = legitAttempts.filter((a) => {
+          const q = storedQuestions[a.questionIndex]
+          return !q?.__fromGrade || q.__fromGrade !== targetGrade
+        })
+        const currentCorrect = currentGradeAttempts.filter((a) => a.isCorrect).length
+        const passRate = currentGradeAttempts.length > 0
+          ? currentCorrect / currentGradeAttempts.length
+          : 0
+        if (passRate >= 0.8) {
+          qualifyPromotion = true
+          passedPromotion = true
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Step 6: 徽章檢查
+  await checkBadges({
+    childId,
+    sessionCorrectCount: starsEarned,
+    sessionTotalQuestions: practiceSession.totalQuestions,
+    allCorrect,
+    isPromotion: isPromotionTest,
+    passedPromotion,
+    isChallenge: isChallengeSession,
+    kind: practiceSession.kind,
+  })
+
+  // Step 7: 標記獎勵已發放
+  await prisma.sessionReward.update({
+    where: { sessionId },
+    data: { rewardAppliedAt: new Date() },
+  })
+
+  revalidatePath('/dashboard')
+  return { qualifyPromotion }
+}
+
 export type SubmitResult = {
   correct: boolean
   correctAnswer: string
@@ -603,11 +723,24 @@ export async function submitAnswer(payload: z.infer<typeof SubmitAnswerPayload>)
         where: { sessionId_questionIndex: { sessionId: payload.sessionId, questionIndex: payload.questionIndex } },
         select: { isCorrect: true, correctAnswer: true },
       })
+
+      // P1-6：P2002 發生時，檢查是否所有題目都已提交。
+      // 若是，呼叫 finalizeSession 確保獎勵已發放（若尚未發放）。
+      // 這解決「Attempt 已提交但 session 尚未完成」的失敗窗口。
+      const answeredCount = await prisma.attempt.count({
+        where: { sessionId: payload.sessionId },
+      })
+      const isAllDone = answeredCount >= practiceSession.totalQuestions
+      if (isAllDone) {
+        // 非阻塞呼叫 finalizeSession（冪等，重複呼叫安全）
+        finalizeSession(payload.sessionId).catch(() => {})
+      }
+
       if (existing) {
         return {
           correct: existing.isCorrect,
           correctAnswer: existing.correctAnswer,
-          finished: practiceSession.completedAt !== null,
+          finished: isAllDone || practiceSession.status !== 'IN_PROGRESS',
           sessionId: payload.sessionId,
           explanation: q.explanation,
         }
@@ -616,7 +749,7 @@ export async function submitAnswer(payload: z.infer<typeof SubmitAnswerPayload>)
       return {
         correct: isAnswerCorrect(payload.userAnswer, q.answer),
         correctAnswer: q.answer,
-        finished: practiceSession.completedAt !== null,
+        finished: isAllDone || practiceSession.status !== 'IN_PROGRESS',
         sessionId: payload.sessionId,
         explanation: q.explanation,
       }
@@ -625,120 +758,17 @@ export async function submitAnswer(payload: z.infer<typeof SubmitAnswerPayload>)
   }
 
   // P1-4：使用 session.kind 判斷練習類型，不再依賴 questionsJson 標記
-  const isSpecialSession = practiceSession.kind !== 'NORMAL'
-  const isChallengeSession = practiceSession.kind === 'CHALLENGE'
   const isPromotionTest = practiceSession.kind === 'PROMOTION'
-  let qualifyPromotion = false  // 升學測試達標標記，供完成後的回傳值使用
+  let qualifyPromotion = false
 
   if (finished) {
-    const childId = practiceSession.childId
-
-    // 型別保護：雖然 Prisma schema 中 childId 為必填，但某些環境下可能被推斷為 string | null。
-    // 若 childId 遺失則直接拋錯，避免傳給 updateStars/updateStreak 時出錯。
-    if (!childId) {
-      throw new Error('練習 session 缺少孩子資訊')
-    }
-
-    // ============ idempotency gate：用 updateMany + status:IN_PROGRESS 條件式更新 ============
-    // P1-4：改用 status 而非 completedAt 判斷完成狀態。
-    // 多題併發提交時，只有第一個請求能成功將 status 從 IN_PROGRESS 改為 COMPLETED，
-    // 後續請求的 completed.count === 0，就不會重複發放星星/streak/badge。
-    // 此 gate 必須在掌握度/遊戲化之前執行，確保冪等性。
-    const completed = await prisma.practiceSession.updateMany({
-      where: { id: payload.sessionId, status: 'IN_PROGRESS' },
-      data: { status: 'COMPLETED', completedAt: new Date() },
-    })
-
-    if (completed.count === 0) {
-      // 已有其他併發請求完成了此 session → 不重複發獎勵
-      return {
-        correct,
-        correctAnswer,
-        finished: true,
-        sessionId: payload.sessionId,
-        explanation: q.explanation,
-        promotion: null,
-      }
-    }
-
-    // 平行化掌握度更新（特殊 session 不更新掌握度）
-    const masteryPromise = isSpecialSession
-      ? Promise.resolve()
-      : updateMastery(payload.sessionId)
-
-    const [sessionAttempts] = await Promise.all([
-      prisma.attempt.findMany({ where: { sessionId: payload.sessionId } }),
-      masteryPromise,
-    ])
-
-    // ============ 遊戲化 ============
-    const starsEarned = sessionAttempts.filter(
-      (a) => a.isCorrect && !a.assisted
-    ).length
-    const allCorrect = sessionAttempts.every(
-      (a) => a.isCorrect
-    )
-
-    // P2-4：計算分欄位，確保各頁面正確率口徑一致
-    const gradedCount = sessionAttempts.filter((a) => !a.assisted).length
-    const assistedCount = sessionAttempts.filter((a) => a.assisted).length
-
-    // 平行寫入 correctCount、gradedQuestionCount、assistedCount、星星、連續天數
-    await Promise.all([
-      prisma.practiceSession.update({
-        where: { id: payload.sessionId },
-        data: {
-          correctCount: starsEarned,
-          gradedQuestionCount: gradedCount,
-          assistedCount,
-        },
-      }),
-      updateStars(childId, starsEarned),
-      updateStreak(childId),
-    ])
-
-    // ============ 升學測試處理（需在徽章檢查之前判定）============
-    let passedPromotion = false
-    // qualifyPromotion 已在外部定義
-    let targetGrade: string | null = null
-    if (isPromotionTest) {
-      try {
-        const storedQuestions = JSON.parse(practiceSession.questionsJson ?? '[]')
-        const rawTarget = Array.isArray(storedQuestions) ? storedQuestions[0]?.__targetGrade : undefined
-        targetGrade = typeof rawTarget === 'string' ? rawTarget : null
-        // 升學及格判斷：只看「目前年級」題目（孩子已學過的內容），
-        // 下一年級預覽題（__fromGrade === targetGrade）不計入及格率，
-        // 避免孩子因為沒學過的新內容而無法升學。
-        const legitAttempts = sessionAttempts.filter((a) => !a.assisted)
-        const currentGradeAttempts = legitAttempts.filter((a) => {
-          const q = storedQuestions[a.questionIndex]
-          // 沒有 __fromGrade 標記的舊 session 一律視為目前年級題（向後相容）
-          return !q?.__fromGrade || q.__fromGrade !== targetGrade
-        })
-        const currentCorrect = currentGradeAttempts.filter((a) => a.isCorrect).length
-        const passRate = currentGradeAttempts.length > 0
-          ? currentCorrect / currentGradeAttempts.length
-          : 0
-        // 目前年級正確率 ≥ 80% 即達升學門檻（預覽題答對另外加星鼓勵）
-        if (passRate >= 0.8 && targetGrade) {
-          qualifyPromotion = true
-          passedPromotion = true
-          // 注意：不在此自動升級 gradeLevel，由使用者手動確認後才升級
-          // 雙倍星星獎勵也在確認升級時發放
-        }
-      } catch { /* ignore */ }
-    }
-
-    await checkBadges({
-      childId,
-      sessionCorrectCount: starsEarned,
-      sessionTotalQuestions: practiceSession.totalQuestions,
-      allCorrect,
-      isPromotion: isPromotionTest,
-      passedPromotion,
-      isChallenge: isChallengeSession,
-      kind: practiceSession.kind,
-    })
+    // ============ 呼叫可重入的 finalizeSession（P1-6）============
+    // finalizeSession 內部使用 SessionReward unique key 確保冪等性：
+    //   - 第一次呼叫：執行 status→COMPLETED、mastery、stars、streak、badges
+    //   - 重複呼叫：SessionReward 已存在 → 直接跳過，不重複發獎
+    // 這解決了 Attempt 提交後～獎勵發放之間 process crash 的兩個失敗窗口。
+    const result = await finalizeSession(payload.sessionId)
+    qualifyPromotion = result.qualifyPromotion
   }
 
   // 僅在練習完成時重新驗證快取（不包含 /practice layout，避免觸發意外 re-render 導致跳轉）
@@ -925,18 +955,33 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
     throw new Error(`目前年級正確率 ${Math.round(passRate * 100)}% 未達 80%，無法升學`)
   }
 
-  // ============ 使用 transaction 防 race condition ============
-  // P1-9：conditional update 保證只有一個請求能完成升級及發獎勵。
-  // 檢查 promotionRewarded（而非 promotionPassedAt），確保獎勵只發一次。
+  // ============ 使用 transaction + PromotionClaim 防 race condition ============
+  // P1-9：PromotionClaim.sessionId 為 unique，create 成功者才能升級。
+  // 不同 promotion session（不同 grade 升學）使用不同 sessionId，每次皆可發 bonus。
   await prisma.$transaction(async (tx) => {
-    // 再次讀取最新狀態（在 transaction 內）
+    // 嘗試建立 PromotionClaim（unique sessionId 保證只成功一次）
+    try {
+      await tx.promotionClaim.create({
+        data: {
+          childId,
+          sessionId: lastPromotionSession.id,
+          fromGrade: child.gradeLevel as GradeLevel,
+          targetGrade: targetGrade as GradeLevel,
+        },
+      })
+    } catch {
+      // 同一 promotion session 已被 claim → 已有其他併發請求處理完畢
+      return
+    }
+
+    // 再次讀取最新 gradeLevel（transaction 內，避免讀到舊值）
     const current = await tx.childProfile.findUnique({
       where: { id: childId },
-      select: { gradeLevel: true, promotionRewarded: true },
+      select: { gradeLevel: true },
     })
     if (!current) throw new Error('找不到孩子檔案')
     if (current.gradeLevel === targetGrade) {
-      // 已被其他併發請求升級
+      // 已被其他併發請求升級（但 PromotionClaim 已建立，視為成功）
       return
     }
 
@@ -951,18 +996,17 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
       },
     })
 
-    // 雙倍星星獎勵（僅發一次：promotionRewarded 為 false 時才發放）
-    if (!current.promotionRewarded && lastPromotionSession.correctCount > 0) {
+    // bonus 星星獎勵：每筆 PromotionClaim 各自發放
+    if (lastPromotionSession.correctCount > 0) {
       await tx.childProfile.update({
         where: { id: childId },
-        data: { stars: { increment: lastPromotionSession.correctCount }, promotionRewarded: true },
-      })
-    } else if (!current.promotionRewarded) {
-      await tx.childProfile.update({
-        where: { id: childId },
-        data: { promotionRewarded: true },
+        data: { stars: { increment: lastPromotionSession.correctCount } },
       })
     }
+    await tx.promotionClaim.update({
+      where: { sessionId: lastPromotionSession.id },
+      data: { bonusAwarded: true },
+    })
   })
 
   // 重新驗證快取：儀表板與練習選單都會讀到新年級

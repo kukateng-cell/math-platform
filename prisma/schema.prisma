@@ -108,16 +108,16 @@ model ChildProfile {
   lastPracticeAt DateTime?               // 上次練習日期（供 streak 計算）
   promotionCount Int       @default(0)   // 升學通過次數（供 promotion-star 徽章計算）
 
-  // ============ 升學追蹤（P1-9：防重複獎勵 race condition）============
+  // ============ 升學追蹤（P1-9：PromotionClaim 取代 promotionRewarded）============
   promotionPassedAt  DateTime?  // 最後一次通過升學測試的時間
   promotionTarget    GradeLevel?    // 通過的目標年級
-  promotionRewarded  Boolean    @default(false)  // 是否已發放升學獎勵
 
   parent            User?             @relation(fields: [parentId], references: [id], onDelete: Cascade)
   parentLinks       ParentChild[]     @relation("ChildLinks")
   masterySnapshots  MasterySnapshot[]
   sessions          PracticeSession[]
   badges            ChildBadge[]
+  promotionClaims   PromotionClaim[]
 
   @@index([parentId])
   @@index([email])
@@ -220,6 +220,8 @@ model PracticeSession {
   skill    Skill            @relation(fields: [skillId], references: [id])
   parent   User?            @relation(fields: [parentId], references: [id])
   attempts Attempt[]
+  sessionReward SessionReward?
+  promotionClaim PromotionClaim?
 
   @@index([childId])
   @@index([skillId])
@@ -248,6 +250,42 @@ model Attempt {
   @@unique([sessionId, questionIndex]) // 防止同一題重複提交刷星星/掌握度
   @@index([sessionId])
   @@index([questionId])
+}
+
+// ============ PromotionClaim（P1-9：per-promotion 防 race condition）============
+// 每次手動確認升學時建立一筆唯一記錄（sessionId 為 unique），
+// 確保同一 promotion session 只會被 claim 一次（防 race condition）。
+// 不同 promotion session（如 G1→G2、G2→G3）使用不同 sessionId，
+// 每次升學皆能正確發放 bonus，取代全域 promotionRewarded boolean。
+model PromotionClaim {
+  id          String    @id @default(cuid())
+  childId     String
+  sessionId   String    @unique
+  fromGrade   GradeLevel
+  targetGrade GradeLevel
+  bonusAwarded Boolean  @default(false)  // bonus 星星是否已發放
+  createdAt   DateTime  @default(now())
+
+  child   ChildProfile   @relation(fields: [childId], references: [id], onDelete: Cascade)
+  session PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@index([sessionId])
+}
+
+// ============ Session 獎勵追蹤（P1-6：可重入 finalizeSession）============
+// 確保獎勵（mastery / stars / streak / badges）至多發放一次。
+// sessionId 為 unique，create 失敗 = 已發放過 → 跳過。
+model SessionReward {
+  id            String   @id @default(cuid())
+  sessionId     String   @unique
+  masteryAppliedAt DateTime?
+  rewardAppliedAt  DateTime?
+  createdAt     DateTime @default(now())
+
+  session PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 // ============ 掌握度 ============
