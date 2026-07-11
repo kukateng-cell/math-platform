@@ -5,9 +5,17 @@ import { prisma } from '@/lib/prisma'
 import { getVerifiedSession } from '@/lib/session'
 import { accessibleGrades } from '@/lib/grade'
 import { QuestionParamsSchema } from '@/lib/definitions'
+import { GradeLevel } from '@/generated/prisma'
 
 // P1-10：有效的年級值（與 Prisma GradeLevel enum 一致）
 const VALID_GRADE_LEVELS = ['K', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6'] as const
+
+// P2-4：從 FormData 安全取出 ID（含長度驗證）
+function getId(formData: FormData): string {
+  const id = String(formData.get('id') || '').trim()
+  if (!id || id.length > 50) throw new Error('參數不合法')
+  return id
+}
 
 // 管理員授權檢查（每個 action 都要先驗）
 // 使用 getVerifiedSession() 查 DB 確認 role 和 tokenVersion，
@@ -49,7 +57,7 @@ export async function createSkill(state: AdminFormState, formData: FormData): Pr
 
   try {
     await prisma.skill.create({
-      data: { code, name, description, gradeLevel, prerequisiteId },
+      data: { code, name, description, gradeLevel: gradeLevel as GradeLevel, prerequisiteId },
     })
   } catch {
     return { message: '建立失敗（代碼可能重複）' }
@@ -60,7 +68,7 @@ export async function createSkill(state: AdminFormState, formData: FormData): Pr
 
 export async function toggleSkill(formData: FormData) {
   await requireAdmin()
-  const id = String(formData.get('id'))
+  const id = getId(formData)
   const skill = await prisma.skill.findUnique({ where: { id } })
   if (skill) {
     await prisma.skill.update({ where: { id }, data: { isActive: !skill.isActive } })
@@ -166,7 +174,7 @@ export async function createQuestion(state: AdminFormState, formData: FormData):
 
 export async function toggleQuestion(formData: FormData) {
   await requireAdmin()
-  const id = String(formData.get('id'))
+  const id = getId(formData)
   const q = await prisma.questionTemplate.findUnique({ where: { id } })
   if (q) {
     await prisma.questionTemplate.update({ where: { id }, data: { isActive: !q.isActive } })
@@ -177,7 +185,7 @@ export async function toggleQuestion(formData: FormData) {
 // ============ 技能編輯 ============
 export async function updateSkill(state: AdminFormState, formData: FormData): Promise<AdminFormState> {
   await requireAdmin()
-  const id = String(formData.get('id') || '')
+  const id = getId(formData)
   const name = String(formData.get('name') || '').trim()
   const description = String(formData.get('description') || '').trim() || null
   const gradeLevel = String(formData.get('gradeLevel') || 'G1')
@@ -220,7 +228,7 @@ export async function updateSkill(state: AdminFormState, formData: FormData): Pr
 
   await prisma.skill.update({
     where: { id },
-    data: { name, description, gradeLevel, prerequisiteId, order: isNaN(order) ? 0 : order },
+    data: { name, description, gradeLevel: gradeLevel as GradeLevel, prerequisiteId, order: isNaN(order) ? 0 : order },
   })
   revalidatePath('/admin')
   revalidatePath('/admin/skills')
@@ -230,7 +238,7 @@ export async function updateSkill(state: AdminFormState, formData: FormData): Pr
 // ============ 技能刪除（含相依檢查）============
 export async function deleteSkill(formData: FormData) {
   await requireAdmin()
-  const id = String(formData.get('id'))
+  const id = getId(formData)
 
   // 檢查是否有技能以此為前置
   const dependents = await prisma.skill.findMany({
@@ -261,7 +269,7 @@ export async function deleteSkill(formData: FormData) {
 // ============ 技能排序 ============
 export async function moveSkillUp(formData: FormData) {
   await requireAdmin()
-  const id = String(formData.get('id'))
+  const id = getId(formData)
 
   const skill = await prisma.skill.findUnique({ where: { id } })
   if (!skill) return
@@ -284,7 +292,7 @@ export async function moveSkillUp(formData: FormData) {
 
 export async function moveSkillDown(formData: FormData) {
   await requireAdmin()
-  const id = String(formData.get('id'))
+  const id = getId(formData)
 
   const skill = await prisma.skill.findUnique({ where: { id } })
   if (!skill) return
@@ -308,7 +316,7 @@ export async function moveSkillDown(formData: FormData) {
 // ============ 題目編輯 ============
 export async function updateQuestion(state: AdminFormState, formData: FormData): Promise<AdminFormState> {
   await requireAdmin()
-  const id = String(formData.get('id') || '')
+  const id = getId(formData)
   const skillId = String(formData.get('skillId') || '')
   const prompt = String(formData.get('prompt') || '').trim()
   const answer = String(formData.get('answer') || '').trim()
@@ -472,7 +480,7 @@ export async function createBadge(state: BadgeFormState, formData: FormData): Pr
 
 export async function updateBadge(state: BadgeFormState, formData: FormData): Promise<BadgeFormState> {
   await requireAdmin()
-  const id = String(formData.get('id') || '')
+  const id = getId(formData)
   const name = String(formData.get('name') || '').trim()
   const icon = String(formData.get('icon') || 'medal').trim()
   const condition = String(formData.get('condition') || '').trim()
@@ -494,7 +502,7 @@ export async function updateBadge(state: BadgeFormState, formData: FormData): Pr
 
 export async function deleteBadge(formData: FormData) {
   await requireAdmin()
-  const id = String(formData.get('id'))
+  const id = getId(formData)
   // P2-13：改為停用而非刪除（保留孩子已獲得的歷史徽章）
   // 檢查是否有孩子已獲得此徽章
   const childCount = await prisma.childBadge.count({ where: { badgeId: id } })
@@ -524,7 +532,8 @@ export async function getAllChildrenStats() {
     include: {
       parent: { select: { name: true, email: true } },
       sessions: {
-        where: { status: 'COMPLETED' },
+        // P2-9：只統計 COMPLETED + NORMAL 練習
+        where: { status: 'COMPLETED', kind: 'NORMAL' },
         orderBy: { startedAt: 'desc' },
         take: 5,
         select: { correctCount: true, totalQuestions: true, gradedQuestionCount: true, startedAt: true },
@@ -534,7 +543,7 @@ export async function getAllChildrenStats() {
       },
       _count: {
         select: {
-          sessions: { where: { status: 'COMPLETED' } },
+          sessions: { where: { status: 'COMPLETED', kind: 'NORMAL' } },
         },
       },
     },
@@ -550,7 +559,7 @@ export async function getAllChildrenStats() {
 
   return children.map((c) => {
     // 按孩子 gradeLevel 計算可觸及的技能數（與 Dashboard 一致）
-    const grades = accessibleGrades(c.gradeLevel)
+    const grades = accessibleGrades(c.gradeLevel as string)
     const totalSkills = grades.reduce((sum, g) => sum + (skillsCountByGrade.get(g) ?? 0), 0)
     const practicedSkills = c.masterySnapshots.filter((m) => m.recentTotal > 0).length
     const masteredSkills = c.masterySnapshots.filter(

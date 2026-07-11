@@ -128,6 +128,8 @@ export default async function ChildOverviewPage({
           sessions: {
             orderBy: { startedAt: 'desc' },
             take: 10,
+            // P2-9：只顯示 COMPLETED + NORMAL 練習
+            where: { status: 'COMPLETED', kind: 'NORMAL' },
             include: { skill: true },
           },
           badges: {

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { GradeLevel } from '@/generated/prisma'
 
 // ============ 掌握度快照更新 ============
 // 每次練習結束後，依最近 N 題（不計 assisted）重算掌握度
@@ -17,9 +18,10 @@ export async function updateMastery(sessionId: string) {
   const { childId, skillId } = practiceSession
 
   // 取該技能最近 RECENT_WINDOW 題（非 assisted），按時間倒序
+  // P2-9：只取 COMPLETED + NORMAL session 的作答
   const recentAttempts = await prisma.attempt.findMany({
     where: {
-      session: { childId, skillId },
+      session: { childId, skillId, status: 'COMPLETED', kind: 'NORMAL' },
       assisted: false,
     },
     orderBy: { createdAt: 'desc' },
@@ -171,7 +173,7 @@ export async function isGradeAllMastered(
   gradeLevel: string
 ): Promise<boolean> {
   const skills = await prisma.skill.findMany({
-    where: { gradeLevel, isActive: true },
+    where: { gradeLevel: gradeLevel as GradeLevel, isActive: true },
     select: { id: true },
   })
   if (skills.length === 0) return false

@@ -9,10 +9,11 @@ import { generateQuestion, shuffle } from '@/lib/question'
 import { updateMastery, getRecommendation, isGradeAllMastered, type Recommendation } from '@/lib/mastery'
 import { updateStars, updateStreak, checkBadges } from '@/lib/gamification'
 import { getNextGrade } from '@/lib/grade'
-import { accessibleGrades, canAccessGrade } from '@/lib/grade'
+import { accessibleGrades, canAccessGrade, gradeRank } from '@/lib/grade'
 import { isAnswerCorrect } from '@/lib/answer-i18n'
 import { startOfToday } from '@/lib/timezone'
 import { z } from 'zod'
+import type { GradeLevel } from '@/generated/prisma'
 
 const QUESTIONS_PER_SESSION = 10
 
@@ -26,13 +27,19 @@ type PracticeAuth =
   | null
 
 async function getPracticeAuth(): Promise<PracticeAuth> {
-  // 先嘗試家長 session
-  const session = await getSession()
-  if (session) return { type: 'parent', userId: session.userId }
+  // P2-7：同時檢查兩種 session，根據情況選擇正確身份。
+  // 若兩個 cookie 同時存在（異常狀態），優先 child session（因為練習路由是孩子操作），
+  // 但家長仍然可以透過練習路由陪伴孩子做題。
+  // 注意：createSession/createChildSession 已會清除對方的 cookie，
+  // 兩者同時存在只是過渡期或殘留狀態。
 
-  // 再嘗試孩子 session
+  // 先嘗試孩子 session（練習路由的主要使用者）
   const childSession = await getChildSession()
   if (childSession) return { type: 'child', childId: childSession.childId }
+
+  // 再嘗試家長 session（家長陪伴做題時）
+  const session = await getSession()
+  if (session) return { type: 'parent', userId: session.userId }
 
   return null
 }
@@ -791,7 +798,7 @@ export async function getChildSkills(childId: string) {
   if (!child) return null
 
   // 年級權限：低年級不可看高年級；高年級可往下複習低年級
-  const grades = accessibleGrades(child.gradeLevel)
+  const grades = accessibleGrades(child.gradeLevel as string)
 
   // P1-6：一般練習技能選單只計非 challenge 題
   const skills = await prisma.skill.findMany({
@@ -800,9 +807,18 @@ export async function getChildSkills(childId: string) {
     include: { _count: { select: { questions: { where: { isActive: true, isChallenge: false } } } } },
   })
 
+  // P2-6：跨年級排序——先依年級順序（K→G6），再依同年級內的 order。
+  // DB 的 orderBy 只能按單一欄位，不同年級可能有重複 order 值（如 G3/G4 都有 17、18），
+  // 不先按年級排會導致跨年級技能順序錯亂，影響推薦流程。
+  const sortedSkills = [...skills].sort((a, b) => {
+    const gradeDiff = gradeRank(a.gradeLevel as string) - gradeRank(b.gradeLevel as string)
+    if (gradeDiff !== 0) return gradeDiff
+    return a.order - b.order
+  })
+
   return {
     child,
-    skills: skills.map((s) => {
+    skills: sortedSkills.map((s) => {
       const mastery = child.masterySnapshots.find((m) => m.skillId === s.id)
       return {
         id: s.id,
@@ -928,10 +944,10 @@ export async function confirmPromotion(childId: string, targetGrade: string) {
     await tx.childProfile.update({
       where: { id: childId },
       data: {
-        gradeLevel: targetGrade,
+        gradeLevel: targetGrade as GradeLevel,
         promotionCount: { increment: 1 },
         promotionPassedAt: new Date(),
-        promotionTarget: targetGrade,
+        promotionTarget: targetGrade as GradeLevel,
       },
     })
 
@@ -1004,7 +1020,7 @@ export async function startPromotionTest(childId: string) {
 
   // 也取得下一年級的題目（用來出「預覽題」提前適應新內容）
   const nextSkills = await prisma.skill.findMany({
-    where: { gradeLevel: next, isActive: true },
+    where: { gradeLevel: next as GradeLevel, isActive: true },
     include: { questions: { where: { isActive: true, isChallenge: false } } },
   })
   const nextTotalQuestions = nextSkills.reduce((sum, s) => sum + s.questions.length, 0)
@@ -1128,7 +1144,7 @@ export async function startChallengePractice(childId: string) {
   if (!child) throw new Error('找不到孩子檔案')
 
   // 取得孩子可接觸年級下的所有挑戰題
-  const grades = accessibleGrades(child.gradeLevel)
+  const grades = accessibleGrades(child.gradeLevel as string)
   const challengeQuestions = await prisma.questionTemplate.findMany({
     where: { isActive: true, isChallenge: true, skill: { gradeLevel: { in: grades } } },
     include: { skill: { select: { name: true } } },

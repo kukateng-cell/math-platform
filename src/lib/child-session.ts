@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { getSessionKey } from '@/lib/secret'
 
 const CHILD_COOKIE = 'math-child'
+const PARENT_COOKIE = 'math-session'
 
 export type ChildSessionPayload = {
   childId: string
@@ -11,6 +12,7 @@ export type ChildSessionPayload = {
 }
 
 // 建立孩子練習 session（僅供練習路由使用，無法存取家長端）
+// P2-7：登入孩子時清除家長 cookie，避免身份混淆
 export async function createChildSession(payload: ChildSessionPayload) {
   const token = await new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256' })
@@ -19,6 +21,8 @@ export async function createChildSession(payload: ChildSessionPayload) {
     .sign(getSessionKey())
 
   const cookieStore = await cookies()
+  // 清除家長 session cookie（避免同時存在兩個身份）
+  cookieStore.delete(PARENT_COOKIE)
   cookieStore.set(CHILD_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -45,4 +49,11 @@ export async function getChildSession(): Promise<ChildSessionPayload | null> {
 export async function deleteChildSession() {
   const cookieStore = await cookies()
   cookieStore.delete(CHILD_COOKIE)
+}
+
+// P2-7：全登出——同時清除家長與孩子 cookie
+export async function deleteAllSessions() {
+  const cookieStore = await cookies()
+  cookieStore.delete(CHILD_COOKIE)
+  cookieStore.delete(PARENT_COOKIE)
 }

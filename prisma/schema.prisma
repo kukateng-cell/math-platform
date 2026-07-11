@@ -93,7 +93,7 @@ model ChildProfile {
   // 學生可以有自己的帳號獨立登入（Email OTP，免密碼）
   email     String?  @unique
   nickname  String
-  gradeLevel String  // K, G1, G2 ...
+  gradeLevel GradeLevel  // K, G1, G2 ...
 
   // 可選：由家長建立時才有 parentId；學生自主註冊時為 null
   parentId  String?
@@ -110,7 +110,7 @@ model ChildProfile {
 
   // ============ 升學追蹤（P1-9：防重複獎勵 race condition）============
   promotionPassedAt  DateTime?  // 最後一次通過升學測試的時間
-  promotionTarget    String?    // 通過的目標年級
+  promotionTarget    GradeLevel?    // 通過的目標年級
   promotionRewarded  Boolean    @default(false)  // 是否已發放升學獎勵
 
   parent            User?             @relation(fields: [parentId], references: [id], onDelete: Cascade)
@@ -135,7 +135,7 @@ model Skill {
   code        String    @unique // e.g. "count-compare", "add-within-10"
   name        String
   description String?
-  gradeLevel  String // K, G1, G2（程式碼層驗證，見 grade.ts / definitions.ts）
+  gradeLevel  GradeLevel // K, G1, G2（enum 校驗）
   order       Int      @default(0)
   // 前置技能（可選），規則式推薦用
   prerequisiteId String?
@@ -151,6 +151,7 @@ model Skill {
 
   @@index([prerequisiteId])
   @@index([gradeLevel])
+  @@unique([gradeLevel, order])
 }
 
 // ============ 題目模板 ============

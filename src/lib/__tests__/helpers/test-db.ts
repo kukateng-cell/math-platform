@@ -12,6 +12,7 @@
 
 import 'dotenv/config'
 import { PrismaClient } from '@/generated/prisma/client.js'
+import type { GradeLevel } from '@/generated/prisma/client.js'
 import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
 import pg from 'pg'
@@ -64,7 +65,7 @@ export async function createTestParent(overrides: {
 /** 建立測試孩子（可選綁定到家長） */
 export async function createTestChild(overrides: {
   nickname?: string
-  gradeLevel?: string
+  gradeLevel?: GradeLevel
   parentId?: string | null
   mode?: 'STANDARD' | 'SELF_STUDY'
 } = {}) {
@@ -83,7 +84,7 @@ export async function createTestChild(overrides: {
 export async function createTestSkill(overrides: {
   code?: string
   name?: string
-  gradeLevel?: string
+  gradeLevel?: GradeLevel
 } = {}) {
   const code = overrides.code || `test_skill_${Date.now()}`
   return prisma.skill.create({
