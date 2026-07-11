@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose'
-import { createHmac, randomInt, timingSafeEqual } from 'crypto'
+import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto'
 import { getOtpKey } from '@/lib/secret'
 import { prisma } from '@/lib/prisma'
 
@@ -279,6 +279,21 @@ export async function verifyTempToken(
   } catch {
     return null
   }
+}
+
+// ====================================================================
+// 誘餌 tempToken（帳號枚舉防護，P1-4）
+// --------------------------------------------------------------------
+// 忘記密碼 / 自主學生登入等流程在「帳號不存在」時，若回傳空字串 tempToken，
+// 攻擊者可從 Network payload 的 tempToken 是否為空判斷帳號存在性。
+// 誘餌 token 以隨機 userId 簽發，格式（簽章、purpose、expiry）與真實 token
+// 完全一致，攻擊者無法從 payload 區分。下一步 OTP 驗證時，因 OTP 從未為此
+// 隨機 userId 產生，比對必然失敗，只會回傳通用錯誤（「驗證碼錯誤或已過期」），
+// 不會建立任何 DB 記錄、也不會洩漏帳號存在性。
+// 每次 request 使用獨立 randomUUID，使 rate-limit bucket 與真實帳號行為一致。
+// ====================================================================
+export async function createDummyTempToken(purpose: TempTokenPurpose): Promise<string> {
+  return createTempToken(randomUUID(), purpose)
 }
 
 // ====================================================================
