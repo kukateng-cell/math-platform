@@ -11,9 +11,16 @@ export type SessionPayload = {
   role: 'PARENT' | 'ADMIN'
   // tokenVersion：對應 User.tokenVersion，用於角色變更後即時失效舊 session
   tokenVersion?: number
+  // sessionSchemaVersion：JWT payload 結構版號。
+  // 舊版 JWT（無此欄位）會在 getSession() 被直接拒絕，強制重新登入。
+  sessionSchemaVersion?: number
 }
 
 const COOKIE_NAME = 'math-session'
+
+// 目前 session payload 的結構版號。若 JWT 內容或驗證邏輯有破壞性變更，
+// 遞增此數值即可讓所有舊 session 失效（例如本次修正：要求 tokenVersion 必填）。
+const SESSION_SCHEMA_VERSION = 2
 
 // 加密產生 JWT
 // 簽章金鑰由 getSessionKey()（@/lib/secret）統一管理並帶 fail-fast 檢查，
@@ -41,9 +48,10 @@ export async function decrypt(token: string | undefined = ''): Promise<SessionPa
 
 // 建立 session cookie（登入/註冊成功時呼叫）
 // payload 需包含 tokenVersion（來自 User.tokenVersion），用於角色變更後即時失效。
+// 簽發時自動蓋上當前 sessionSchemaVersion，以便未來 schema 升級時淘汰舊 session。
 export async function createSession(payload: SessionPayload) {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  const token = await encrypt(payload)
+  const token = await encrypt({ ...payload, sessionSchemaVersion: SESSION_SCHEMA_VERSION })
   const cookieStore = await cookies()
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
@@ -83,8 +91,18 @@ export async function getSession(): Promise<SessionPayload | null> {
     })
     if (!user) return null
 
-    // tokenVersion 不符 → session 已被撤銷（密碼重設 / 角色變更），視為未登入
-    if (session.tokenVersion !== undefined && session.tokenVersion !== user.tokenVersion) {
+    // ⚠️ P1-2 修正：
+    // 1. sessionSchemaVersion 不符或缺漏 → 視為舊格式 session，一律拒絕（強制重新登入）
+    // 2. tokenVersion 缺漏（舊版 JWT） → 拒絕；
+    //    tokenVersion 與 DB 不符 → session 已被撤銷（密碼重設 / 角色變更），同樣拒絕。
+    // 採用 fail-closed：任何一項不符即視為未登入，避免舊 session 在撤銷後仍可用。
+    if (session.sessionSchemaVersion !== SESSION_SCHEMA_VERSION) {
+      return null
+    }
+    if (session.tokenVersion === undefined) {
+      return null
+    }
+    if (session.tokenVersion !== user.tokenVersion) {
       return null
     }
 
