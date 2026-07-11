@@ -13,10 +13,22 @@ const OTP_MAX_ATTEMPTS = 5
 // ============ OTP code 雜湊 ============
 // OTP 明文只在產生時短暫存在於記憶體中用來寄信；存入 DB 與記憶體備援
 // 一律存 HMAC-SHA256(hex)。即使 DB 外洩，攻擊者也無法直接看到驗證碼。
-function hashOtp(identifier: string, code: string): string {
-  // 加入 identifier 避免同一 OTP 在不同帳號下 hash 相同
-  return createHmac('sha256', KEY).update(`${identifier}:${code}`).digest('hex')
+// P1-3：hash 同時包含 identifier + purpose，避免不同流程的 OTP hash 相同、
+// 也防止跨流程冒用。
+function hashOtp(identifier: string, purpose: string, code: string): string {
+  return createHmac('sha256', KEY).update(`${identifier}:${purpose}:${code}`).digest('hex')
 }
+
+// ============ OTP 用途（purpose）============
+// P1-3：identifier 在不同流程可能相同（例如家長登入與忘記密碼皆以 userId 為
+// identifier），必須靠 purpose 區隔。purpose 同時是 OtpCode 聯合唯一鍵的一環、
+// 也參與 hash 計算，確保不同流程的 OTP 無法互相覆蓋或冒用。
+export type OtpPurpose =
+  | 'PARENT_SIGNUP'   // 家長註冊（identifier = email）
+  | 'PARENT_LOGIN'    // 家長登入（identifier = userId）
+  | 'PASSWORD_RESET'  // 家長忘記密碼（identifier = userId）
+  | 'STUDENT_SIGNUP'  // 學生自助註冊（identifier = email）
+  | 'STUDENT_LOGIN'   // 學生自助登入（identifier = childId）
 
 // ============ OTP 驗證碼（優先使用 DB，降級至記憶體）============
 // 若 OtpCode 表尚未建立，自動降級至記憶體 Map 確保功能正常。
@@ -42,24 +54,35 @@ async function otpIsDbAvailable(): Promise<boolean> {
 }
 
 // 產生 6 位數驗證碼（使用 crypto.randomInt，P2-11）
-export async function generateOtp(identifier: string): Promise<string> {
+export async function generateOtp(identifier: string, purpose: OtpPurpose): Promise<string> {
   const code = String(randomInt(100000, 1000000)) // 6 位數
   const now = new Date()
+  const expiresAt = new Date(now.getTime() + OTP_EXPIRY_MS)
+  const codeHash = hashOtp(identifier, purpose, code)
 
   if (await otpIsDbAvailable()) {
     try {
-      // P2-11：使用 transaction 確保 delete + create 原子性，避免併發競態
-      await prisma.$transaction([
-        prisma.otpCode.deleteMany({ where: { identifier } }),
-        prisma.otpCode.create({
-          data: {
-            identifier,
-            code: hashOtp(identifier, code),  // 存 HMAC 雜湊，不存明文
-            expiresAt: new Date(now.getTime() + OTP_EXPIRY_MS),
-            resentAt: now,
-          },
-        }),
-      ])
+      // P1-3：atomic upsert。依賴 @@unique([identifier, purpose])，Prisma 產生
+      // 單一 INSERT ... ON CONFLICT 陳述。兩個併發 generateOtp：一個插入成功，
+      // 另一個變成 update，DB 中永遠只有一筆有效 OTP（不會有「最新行被刪後
+      // 舊行復活」的問題）。同時重置 attemptCount/lockedAt。
+      await prisma.otpCode.upsert({
+        where: { identifier_purpose: { identifier, purpose } },
+        update: {
+          code: codeHash,
+          expiresAt,
+          resentAt: now,
+          attemptCount: 0,
+          lockedAt: null,
+        },
+        create: {
+          identifier,
+          purpose,
+          code: codeHash,  // 存 HMAC 雜湊，不存明文
+          expiresAt,
+          resentAt: now,
+        },
+      })
       return code
     } catch {
       if (process.env.NODE_ENV === 'production') {
@@ -69,18 +92,18 @@ export async function generateOtp(identifier: string): Promise<string> {
     }
   }
 
-  // 記憶體備援
-  memoryOtpStore.set(identifier, { codeHash: hashOtp(identifier, code), expiresAt: Date.now() + OTP_EXPIRY_MS, resentAt: Date.now() })
+  // 記憶體備援（key 包含 purpose，避免不同流程互相覆蓋）
+  memoryOtpStore.set(`${identifier}:${purpose}`, { codeHash, expiresAt: Date.now() + OTP_EXPIRY_MS, resentAt: Date.now() })
   return code
 }
 
 // 檢查是否在冷卻期內（60 秒內不可重發）
-export async function canResendOtp(identifier: string): Promise<boolean> {
+export async function canResendOtp(identifier: string, purpose: OtpPurpose): Promise<boolean> {
   if (await otpIsDbAvailable()) {
     try {
-      const entry = await prisma.otpCode.findFirst({
-        where: { identifier },
-        orderBy: { createdAt: 'desc' },
+      // P1-3：(identifier, purpose) 聯合唯一鍵，最多一筆，直接 findUnique
+      const entry = await prisma.otpCode.findUnique({
+        where: { identifier_purpose: { identifier, purpose } },
       })
       if (!entry) return true
       return Date.now() - entry.resentAt.getTime() >= RESEND_COOLDOWN_MS
@@ -91,18 +114,17 @@ export async function canResendOtp(identifier: string): Promise<boolean> {
       otpDbAvailable = null
     }
   }
-  const entry = memoryOtpStore.get(identifier)
+  const entry = memoryOtpStore.get(`${identifier}:${purpose}`)
   if (!entry) return true
   return Date.now() - entry.resentAt >= RESEND_COOLDOWN_MS
 }
 
 // 取得剩餘冷卻秒數
-export async function getResendCooldownSeconds(identifier: string): Promise<number> {
+export async function getResendCooldownSeconds(identifier: string, purpose: OtpPurpose): Promise<number> {
   if (await otpIsDbAvailable()) {
     try {
-      const entry = await prisma.otpCode.findFirst({
-        where: { identifier },
-        orderBy: { createdAt: 'desc' },
+      const entry = await prisma.otpCode.findUnique({
+        where: { identifier_purpose: { identifier, purpose } },
       })
       if (!entry) return 0
       const remaining = RESEND_COOLDOWN_MS - (Date.now() - entry.resentAt.getTime())
@@ -114,7 +136,7 @@ export async function getResendCooldownSeconds(identifier: string): Promise<numb
       otpDbAvailable = null
     }
   }
-  const entry = memoryOtpStore.get(identifier)
+  const entry = memoryOtpStore.get(`${identifier}:${purpose}`)
   if (!entry) return 0
   const remaining = RESEND_COOLDOWN_MS - (Date.now() - entry.resentAt)
   return Math.max(0, Math.ceil(remaining / 1000))
@@ -130,38 +152,53 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 // 驗證 OTP：過期或錯誤回傳 false，成功則刪除（一次性）
 // P1-1：加入 attemptCount 與 lockedAt 檢查。錯誤達上限即作廢並鎖定。
-export async function verifyOtp(identifier: string, code: string): Promise<boolean> {
+// P1-3：
+//   - 錯誤次數使用 atomic increment（{ increment: 1 }），併發錯誤嘗試不會低估。
+//   - 驗證成功使用 conditional deleteMany（同時比對 id 與 code），確保併發下
+//     只有最先完成的那一個請求成功，其餘回傳 false（OTP 一次性消耗）。
+export async function verifyOtp(identifier: string, purpose: OtpPurpose, code: string): Promise<boolean> {
   if (await otpIsDbAvailable()) {
     try {
-      const entry = await prisma.otpCode.findFirst({
-        where: { identifier },
-        orderBy: { createdAt: 'desc' },
+      const entry = await prisma.otpCode.findUnique({
+        where: { identifier_purpose: { identifier, purpose } },
       })
       if (!entry) return false
       if (Date.now() > entry.expiresAt.getTime()) {
-        await prisma.otpCode.delete({ where: { id: entry.id } })
+        await prisma.otpCode.deleteMany({ where: { id: entry.id } }).catch(() => {})
         return false
       }
       // P1-1：檢查是否已鎖定（錯誤次數過多）
       if (entry.lockedAt) return false
       if (entry.attemptCount >= OTP_MAX_ATTEMPTS) {
-        await prisma.otpCode.update({ where: { id: entry.id }, data: { lockedAt: new Date() } })
+        await prisma.otpCode.update({ where: { id: entry.id }, data: { lockedAt: new Date() } }).catch(() => {})
         return false
       }
       // P2-11：常數時間比較，避免 timing 攻擊
-      const candidate = hashOtp(identifier, code.trim())
-      if (!constantTimeEqual(candidate, entry.code)) {
-        // P1-1：錯誤次數遞增，達上限即鎖定
-        const newAttempt = entry.attemptCount + 1
-        if (newAttempt >= OTP_MAX_ATTEMPTS) {
-          await prisma.otpCode.update({ where: { id: entry.id }, data: { attemptCount: newAttempt, lockedAt: new Date() } })
-        } else {
-          await prisma.otpCode.update({ where: { id: entry.id }, data: { attemptCount: newAttempt } })
-        }
-        return false
+      const candidate = hashOtp(identifier, purpose, code.trim())
+      if (constantTimeEqual(candidate, entry.code)) {
+        // P1-3：conditional deleteMany。WHERE id = ? AND code = ?
+        //   - 併發的兩個正確驗證：第一個刪除成功（count=1），第二個找不到列（count=0）→ 只成功一次。
+        //   - 若 generateOtp 在讀取後又改了 code（重發），code 不相符 → count=0，
+        //     舊碼自動失效，不會誤刪新碼。
+        const result = await prisma.otpCode.deleteMany({
+          where: { id: entry.id, code: entry.code },
+        })
+        return result.count === 1
       }
-      await prisma.otpCode.delete({ where: { id: entry.id } }) // 一次性使用
-      return true
+      // P1-3：atomic increment，併發錯誤嘗試不會低估次數
+      const updated = await prisma.otpCode.update({
+        where: { id: entry.id },
+        data: { attemptCount: { increment: 1 } },
+        select: { attemptCount: true },
+      }).catch(() => null)
+      // 達上限即鎖定（讀回 increment 後的新值判斷）
+      if (updated && updated.attemptCount >= OTP_MAX_ATTEMPTS) {
+        await prisma.otpCode.update({
+          where: { id: entry.id },
+          data: { lockedAt: new Date() },
+        }).catch(() => {})
+      }
+      return false
     } catch {
       if (process.env.NODE_ENV === 'production') {
         throw new Error('[OTP] DB read failed in production')
@@ -169,16 +206,16 @@ export async function verifyOtp(identifier: string, code: string): Promise<boole
       otpDbAvailable = null
     }
   }
-  const entry = memoryOtpStore.get(identifier)
+  const entry = memoryOtpStore.get(`${identifier}:${purpose}`)
   if (!entry) return false
   if (Date.now() > entry.expiresAt) {
-    memoryOtpStore.delete(identifier)
+    memoryOtpStore.delete(`${identifier}:${purpose}`)
     return false
   }
-  const candidate = hashOtp(identifier, code.trim())
+  const candidate = hashOtp(identifier, purpose, code.trim())
   // P2-11：常數時間比較（記憶體備援版）
   if (!constantTimeEqual(candidate, entry.codeHash)) return false
-  memoryOtpStore.delete(identifier) // 一次性使用
+  memoryOtpStore.delete(`${identifier}:${purpose}`) // 一次性使用
   return true
 }
 

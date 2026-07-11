@@ -73,8 +73,8 @@ export async function selfStudySignup(state: SelfStudyState, formData: FormData)
   const existing = await prisma.childProfile.findUnique({ where: { email } })
   if (existing) return { error: '此 Email 已被註冊', captcha: await createCaptcha() }
 
-  // 产生 OTP（以 email 为金钥）并寄出
-  const otpCode = await generateOtp(email)
+  // 产生 OTP（以 email 为金钥；purpose=STUDENT_SIGNUP）并寄出
+  const otpCode = await generateOtp(email, 'STUDENT_SIGNUP')
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
@@ -118,8 +118,8 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
     if (!(await checkRateLimit(`otp:student-signup:${signupIntent.email}`, 5, 60_000))) {
       return { error: '嘗試次數過多，請稍後再試' }
     }
-    // 註冊路徑：OTP 以 email 為金鑰
-    if (!(await verifyOtp(signupIntent.email, otpCode))) {
+    // 註冊路徑：OTP 以 email 為金鑰；purpose=STUDENT_SIGNUP
+    if (!(await verifyOtp(signupIntent.email, 'STUDENT_SIGNUP', otpCode))) {
       return { tempToken, error: '驗證碼錯誤或已過期' }
     }
     // 再次確認 email 未被佔用（避免競態：發信後、驗證前被人註冊）
@@ -148,7 +148,7 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
     return { error: '嘗試次數過多，請稍後再試' }
   }
 
-  if (!(await verifyOtp(childId, otpCode))) return { error: '驗證碼錯誤或已過期' }
+  if (!(await verifyOtp(childId, 'STUDENT_LOGIN', otpCode))) return { error: '驗證碼錯誤或已過期' }
 
   const child = await prisma.childProfile.findUnique({ where: { id: childId } })
   if (!child) return { error: '帳號不存在' }
@@ -192,7 +192,7 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
   // 不在 tempToken 是否為空上洩漏帳號存在性。
   let tempToken = ''
   if (child && child.email && child.mode === 'SELF_STUDY') {
-    const otpCode = await generateOtp(child.id)
+    const otpCode = await generateOtp(child.id, 'STUDENT_LOGIN')
     const emailResult = await sendOtpEmail(child.email, otpCode)
     if (emailResult.success) {
       tempToken = await createTempToken(child.id, 'STUDENT_LOGIN_OTP_PENDING')
@@ -224,11 +224,11 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
   // 先嘗試視為「註冊」token（OTP 以 email 為金鑰）
   const signupIntent = await verifySignupToken(tempToken)
   if (signupIntent) {
-    if (!(await canResendOtp(signupIntent.email))) {
-      const cooldown = await getResendCooldownSeconds(signupIntent.email)
+    if (!(await canResendOtp(signupIntent.email, 'STUDENT_SIGNUP'))) {
+      const cooldown = await getResendCooldownSeconds(signupIntent.email, 'STUDENT_SIGNUP')
       return { otpRequired: true, tempToken, message: `請 ${cooldown} 秒後再重新發送` }
     }
-    const otpCode = await generateOtp(signupIntent.email)
+    const otpCode = await generateOtp(signupIntent.email, 'STUDENT_SIGNUP')
     const emailResult = await sendOtpEmail(signupIntent.email, otpCode)
     if (!emailResult.success) {
       console.error('[EMAIL FAILED]', emailResult.error)
@@ -249,8 +249,8 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
   const childId = decoded.userId
 
   // 冷卻檢查
-  if (!(await canResendOtp(childId))) {
-    const cooldown = await getResendCooldownSeconds(childId)
+  if (!(await canResendOtp(childId, 'STUDENT_LOGIN'))) {
+    const cooldown = await getResendCooldownSeconds(childId, 'STUDENT_LOGIN')
     return {
       otpRequired: true,
       tempToken,
@@ -262,7 +262,7 @@ export async function selfStudyResendOtp(state: SelfStudyState, formData: FormDa
   if (!child || !child.email) return { error: '帳號不存在', tempToken }
 
   // 产生新 OTP 并透过 Gmail SMTP 寄出
-  const otpCode = await generateOtp(childId)
+  const otpCode = await generateOtp(childId, 'STUDENT_LOGIN')
   const emailResult = await sendOtpEmail(child.email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)

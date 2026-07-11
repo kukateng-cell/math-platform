@@ -61,8 +61,8 @@ export async function signup(state: FormState, formData: FormData): Promise<Form
     return { errors: { email: ['這個 Email 已經註冊過了'] }, captcha: await createCaptcha() }
   }
 
-  // 產生 OTP（用 email 作為 identifier）
-  const otpCode = await generateOtp(email)
+  // 產生 OTP（用 email 作為 identifier；purpose=PARENT_SIGNUP）
+  const otpCode = await generateOtp(email, 'PARENT_SIGNUP')
 
   // 哈希密碼，暫存
   const passwordHash = await bcrypt.hash(password, 10)
@@ -151,9 +151,9 @@ export async function verifySignupOtp(state: FormState, formData: FormData): Pro
   if (!pending) return { message: '驗證已過期，請重新註冊' }
   const { name, passwordHash } = pending
 
-  // 驗證 OTP（用 email 作 identifier）
+  // 驗證 OTP（用 email 作 identifier；purpose=PARENT_SIGNUP）
   // P1-1：attemptCount/lockedAt 由 OtpCode 模型與 verifyOtp 內部處理
-  if (!(await verifyOtp(email, otpCode))) {
+  if (!(await verifyOtp(email, 'PARENT_SIGNUP', otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
   }
 
@@ -192,12 +192,12 @@ export async function resendSignupOtp(state: FormState, formData: FormData): Pro
     return { message: '階段已過期，請重新註冊' }
   }
 
-  if (!(await canResendOtp(email))) {
-    const cooldown = await getResendCooldownSeconds(email)
+  if (!(await canResendOtp(email, 'PARENT_SIGNUP'))) {
+    const cooldown = await getResendCooldownSeconds(email, 'PARENT_SIGNUP')
     return { message: `請 ${cooldown} 秒後再重新發送` }
   }
 
-  const otpCode = await generateOtp(email)
+  const otpCode = await generateOtp(email, 'PARENT_SIGNUP')
   const emailResult = await sendOtpEmail(email, otpCode)
   if (!emailResult.success) {
     console.error('[EMAIL FAILED]', emailResult.error)
@@ -247,8 +247,8 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
     return { message: 'Email 或密碼不正確', captcha: await createCaptcha() }
   }
 
-  // 產生 OTP 驗證碼
-  const otpCode = await generateOtp(user.id)
+  // 產生 OTP 驗證碼（identifier=userId；purpose=PARENT_LOGIN）
+  const otpCode = await generateOtp(user.id, 'PARENT_LOGIN')
 
   // 透過 Gmail SMTP 寄送驗證碼
   const emailResult = await sendOtpEmail(user.email, otpCode)
@@ -296,7 +296,7 @@ export async function verifyLoginOtp(state: FormState, formData: FormData): Prom
     return { message: '嘗試次數過多，請稍後再試' }
   }
 
-  if (!(await verifyOtp(userId, otpCode))) {
+  if (!(await verifyOtp(userId, 'PARENT_LOGIN', otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
   }
 
@@ -324,13 +324,13 @@ export async function resendOtp(state: FormState, formData: FormData): Promise<F
   const userId = decoded.userId
 
   // 檢查冷卻時間
-  if (!(await canResendOtp(userId))) {
-    const cooldown = await getResendCooldownSeconds(userId)
+  if (!(await canResendOtp(userId, 'PARENT_LOGIN'))) {
+    const cooldown = await getResendCooldownSeconds(userId, 'PARENT_LOGIN')
     return { message: `請 ${cooldown} 秒後再重新發送` }
   }
 
   // 產生新 OTP
-  const otpCode = await generateOtp(userId)
+  const otpCode = await generateOtp(userId, 'PARENT_LOGIN')
 
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (user) {
@@ -450,7 +450,8 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
   // 忘記密碼為家長功能，一律不顯示開發模式 OTP
   let tempToken = ''
   if (user) {
-    const otpCode = await generateOtp(user.id)
+    // 忘記密碼：identifier=userId；purpose=PASSWORD_RESET（與 PARENT_LOGIN 隔離）
+    const otpCode = await generateOtp(user.id, 'PASSWORD_RESET')
     const emailResult = await sendOtpEmail(user.email, otpCode)
     if (!emailResult.success) {
       console.error('[EMAIL FAILED]', emailResult.error)
@@ -491,7 +492,7 @@ export async function verifyResetOtp(state: FormState, formData: FormData): Prom
     return { message: '嘗試次數過多，請稍後再試' }
   }
 
-  if (!(await verifyOtp(userId, otpCode))) {
+  if (!(await verifyOtp(userId, 'PASSWORD_RESET', otpCode))) {
     return { message: '驗證碼錯誤或已過期' }
   }
 
