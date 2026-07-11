@@ -15,10 +15,9 @@ import { revalidatePath } from 'next/cache'
 import { SignJWT, jwtVerify } from 'jose'
 import { getSessionKey } from '@/lib/secret'
 
-// 開發模式或 SHOW_DEV_OTP=true 時，直接在前端顯示 OTP 驗證碼
-// 方便測試環境 / 無 Email 的 admin 帳號使用
-function shouldShowDevOtp(userRole?: string): boolean {
-  return process.env.NODE_ENV === 'development' || process.env.SHOW_DEV_OTP === 'true'
+// 在所有環境直接顯示 OTP 驗證碼（配合外層 role === 'ADMIN' 判斷，僅 admin 可見）
+function shouldShowDevOtp(): boolean {
+  return true
 }
 
 // ============ 重新產生 CAPTCHA（供前端「換一題」按鈕呼叫）============
