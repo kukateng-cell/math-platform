@@ -6,26 +6,26 @@ const prisma = new PrismaClient({ adapter })
 
 async function main() {
   // 1. 確認 DB 欄位型別
-  const columns = await prisma.$queryRaw`
+  const columns = (await prisma.$queryRaw`
     SELECT table_name, column_name, udt_name
     FROM information_schema.columns
     WHERE table_name IN ('ChildProfile', 'Skill')
       AND column_name IN ('gradeLevel', 'promotionTarget')
     ORDER BY table_name, column_name
-  `
+  `) as { table_name: string; column_name: string; udt_name: string }[]
   console.log('=== DB 欄位型別 ===')
   for (const c of columns) {
     console.log(`${c.table_name}.${c.column_name} → udt_name: ${c.udt_name}`)
   }
 
   // 2. 確認 enum 定義存在
-  const enumCheck = await prisma.$queryRaw`
+  const enumCheck = (await prisma.$queryRaw`
     SELECT t.typname, e.enumlabel
     FROM pg_type t
     JOIN pg_enum e ON t.oid = e.enumtypid
     WHERE t.typname = 'GradeLevel'
     ORDER BY e.enumsortorder
-  `
+  `) as { typname: string; enumlabel: string }[]
   console.log('\n=== GradeLevel enum 值 ===')
   for (const e of enumCheck) {
     console.log(`  ${e.enumlabel}`)
