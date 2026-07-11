@@ -296,12 +296,17 @@ model ChildBadge {
 }
 
 // ============ OTP 驗證碼（替代記憶體 Map，serverless 可靠）============
-// 用途：家長登入/忘記密碼的 Email OTP。以 identifier 為 key（通常是 userId）。
-// 冷卻與過期由 expiresAt / resentAt 欄位控制，verifyOtp 成功後刪除（一次性）。
+// 用途：家長登入/註冊/忘記密碼、學生自助登入/註冊的 Email OTP。
+// P1-3：以 (identifier, purpose) 為聯合唯一鍵。不同流程（如家長登入與
+//       忘記密碼，兩者 identifier 皆為 userId）的 OTP 不會互相覆蓋或冒用；
+//       generateOtp 得以使用 atomic upsert，併發不會產生多筆有效 OTP。
+//       verifyOtp 使用 conditional deleteMany 確保一次性消耗、atomic increment
+//       確保錯誤次數不會因併發而低估。
 model OtpCode {
   id         String    @id @default(cuid())
-  identifier String    // 通常是 userId，忘記密碼場景也用 userId
-  code       String    // OTP 的 HMAC-SHA256 hash（含 identifier），不存明文
+  identifier String    // 通常是 userId 或 email，依流程而定
+  purpose    String    // P1-3：OTP 用途（PARENT_SIGNUP/PARENT_LOGIN/PASSWORD_RESET/STUDENT_SIGNUP/STUDENT_LOGIN）
+  code       String    // OTP 的 HMAC-SHA256 hash（含 identifier + purpose），不存明文
   expiresAt  DateTime  // OTP 有效期限（產生後 5 分鐘）
   resentAt   DateTime  // 上次發送時間（用於 60 秒冷卻判斷）
   // P1-1：OTP 錯誤嘗試次數與鎖定時間
@@ -309,7 +314,7 @@ model OtpCode {
   lockedAt     DateTime?
   createdAt  DateTime @default(now())
 
-  @@index([identifier])
+  @@unique([identifier, purpose])
   @@index([expiresAt])
 }
 
