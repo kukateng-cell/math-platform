@@ -7,7 +7,7 @@ import { createSession, deleteSession, getSession } from '@/lib/session'
 import { deleteChildSession } from '@/lib/child-session'
 import { createCaptcha, verifyCaptcha } from '@/lib/captcha'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { generateOtp, verifyOtp, createTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds, createPasswordResetToken, verifyPasswordResetToken } from '@/lib/otp'
+import { generateOtp, verifyOtp, createTempToken, createDummyTempToken, verifyTempToken, canResendOtp, getResendCooldownSeconds, createPasswordResetToken, verifyPasswordResetToken } from '@/lib/otp'
 import { sendOtpEmail } from '@/lib/email'
 import { SignupFormSchema, LoginFormSchema, ChildProfileSchema, type FormState } from '@/lib/definitions'
 import type { User, GradeLevel as ChildGradeLevel } from '@/generated/prisma'
@@ -29,6 +29,11 @@ export async function refreshCaptchaAction(
 
 // PendingSignup 暫存時間（超過此時間的記錄在查詢時自動忽略）
 const PENDING_SIGNUP_TTL_MINUTES = 10
+
+// P1-4：誘餌 bcrypt 雜湊。登入時若使用者不存在，仍對此雜湊執行 bcrypt.compare，
+// 使回應耗時與真實使用者相近，避免攻擊者以 timing 差異枚舉帳號。
+// 此雜湊對應一個隨機字串，任何真實密碼比對結果必為 false。
+const DUMMY_BCRYPT_HASH = '$2a$10$kEBcFogOj2nTrUPpAFQtGeVmdvm596ZU2A9iP45tgJyh9pr1aqNiW'
 
 // ============ 註冊 Step 1：驗證資料 + CAPTCHA → 發送 OTP ============
 // P1-1：加入 identifier/IP rate limit
@@ -243,7 +248,13 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   }
 
   const user: User | null = await prisma.user.findUnique({ where: { email } })
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+  // P1-4：帳號枚舉（timing）防護。不論使用者是否存在都執行一次 bcrypt compare，
+  // 避免攻擊者從回應時間差（使用者不存在時跳過 compare）推斷帳號是否存在。
+  // 不存在時對預先計算的誘餌雜湊比對，結果必為 false 但耗時與真實比對相近。
+  const passwordOk = user
+    ? await bcrypt.compare(password, user.passwordHash)
+    : await bcrypt.compare(password, DUMMY_BCRYPT_HASH)
+  if (!user || !passwordOk) {
     return { message: 'Email 或密碼不正確', captcha: await createCaptcha() }
   }
 
@@ -445,22 +456,28 @@ export async function requestPasswordReset(state: FormState, formData: FormData)
 
   const user = await prisma.user.findUnique({ where: { email } })
 
-  // 基於安全：不論 email 是否存在，回應都一樣（避免列舉帳號）
-  // 但只有 email 真的存在時才會發送 OTP
+  // P1-4：帳號枚舉防護。不論 email 是否存在，一律回傳「格式相同」的 tempToken
+  // 與相同訊息，讓攻擊者無法從 Network payload（tempToken 是否為空）或回應
+  // 文字判斷帳號是否存在。
+  //   - 帳號存在且寄信成功 → 真實 token（下一步可完成重設）
+  //   - 帳號不存在 / SMTP 故障 → 誘餌 token（帶隨機 userId，格式與真實一致；
+  //     下一步 OTP 比對必然失敗，只回傳通用錯誤，不建立任何 DB 記錄）
+  // SMTP 故障時也使用誘餌 token，避免「暫時無法發送」vs「已發送」的訊息差異洩漏。
   // 忘記密碼為家長功能，一律不顯示開發模式 OTP
-  let tempToken = ''
+  let tempToken: string
   if (user) {
     // 忘記密碼：identifier=userId；purpose=PASSWORD_RESET（與 PARENT_LOGIN 隔離）
     const otpCode = await generateOtp(user.id, 'PASSWORD_RESET')
     const emailResult = await sendOtpEmail(user.email, otpCode)
-    if (!emailResult.success) {
+    if (emailResult.success) {
+      tempToken = await createTempToken(user.id, 'PASSWORD_RESET_OTP_PENDING')
+    } else {
       console.error('[EMAIL FAILED]', emailResult.error)
-      return {
-        message: '驗證碼暫時無法發送，請稍後再試',
-        captcha: await createCaptcha(),
-      }
+      // SMTP 故障：改用誘餌 token，回應與成功時無法區分
+      tempToken = await createDummyTempToken('PASSWORD_RESET_OTP_PENDING')
     }
-    tempToken = await createTempToken(user.id, 'PASSWORD_RESET_OTP_PENDING')
+  } else {
+    tempToken = await createDummyTempToken('PASSWORD_RESET_OTP_PENDING')
   }
 
   return {

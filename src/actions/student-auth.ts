@@ -159,9 +159,10 @@ export async function selfStudyVerifyOtp(state: SelfStudyState, formData: FormDa
 
 // ============ 自學模式登入 Step 1：Email + CAPTCHA → OTP（免密碼）============
 // P1-11：外部回應保持一致，避免帳號枚舉
+// P1-4：進一步以誘餌 token 統一 payload shape（tempToken 不再為空）
 export async function selfStudyLogin(state: SelfStudyState, formData: FormData): Promise<SelfStudyState> {
   const { createCaptcha, verifyCaptcha } = await import('@/lib/captcha')
-  const { generateOtp, createTempToken } = await import('@/lib/otp')
+  const { generateOtp, createTempToken, createDummyTempToken } = await import('@/lib/otp')
 
   const validated = SelfStudyLoginSchema.safeParse({
     email: formData.get('email'),
@@ -187,10 +188,12 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
 
   const child = await prisma.childProfile.findUnique({ where: { email } })
 
-  // P1-11：無論 email 是否存在，都回傳相同的訊息（避免帳號枚舉）。
-  // 只有 email 確實存在且為 SELF_STUDY 時才真正寄信。
-  // 不在 tempToken 是否為空上洩漏帳號存在性。
-  let tempToken = ''
+  // P1-4：帳號枚舉防護。不論 email 是否存在，一律回傳「格式相同」的 tempToken
+  // 與相同訊息，讓攻擊者無法從 Network payload（tempToken 是否為空）判斷帳號存在性。
+  //   - 帳號存在（SELF_STUDY）且寄信成功 → 真實 token
+  //   - 帳號不存在 / 非 SELF_STUDY / SMTP 故障 → 誘餌 token（帶隨機 userId，
+  //     格式與真實一致；下一步 OTP 比對必然失敗，只回傳通用錯誤）
+  let tempToken: string
   if (child && child.email && child.mode === 'SELF_STUDY') {
     const otpCode = await generateOtp(child.id, 'STUDENT_LOGIN')
     const emailResult = await sendOtpEmail(child.email, otpCode)
@@ -198,11 +201,14 @@ export async function selfStudyLogin(state: SelfStudyState, formData: FormData):
       tempToken = await createTempToken(child.id, 'STUDENT_LOGIN_OTP_PENDING')
     } else {
       console.error('[EMAIL FAILED]', emailResult.error)
-      // P1-11：寄送失敗也回傳相同訊息（不讓攻擊者知道 email 是否存在）
+      // SMTP 故障：改用誘餌 token，回應與成功時無法區分
+      tempToken = await createDummyTempToken('STUDENT_LOGIN_OTP_PENDING')
     }
+  } else {
+    tempToken = await createDummyTempToken('STUDENT_LOGIN_OTP_PENDING')
   }
 
-  const devOtp = process.env.NODE_ENV === 'development' && tempToken ? undefined : undefined
+  const devOtp = undefined
 
   return {
     otpRequired: true,
