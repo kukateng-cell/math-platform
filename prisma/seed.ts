@@ -14,6 +14,7 @@ function randomPassword(bytes = 18): string {
     .slice(0, 24)
 }
 
+async function main() {
   const isProd = process.env.NODE_ENV === 'production'
   const envAdminEmail = process.env.ADMIN_EMAIL?.trim()
   const envAdminPassword = process.env.ADMIN_PASSWORD?.trim()
@@ -2495,13 +2496,15 @@ function randomPassword(bytes = 18): string {
   }
 
   console.log('✅ Done!')
-}
+} // 結束 else 區塊
+} // 結束 main()
 
 main()
-  .catch((e) => {
+  .catch((e: unknown) => {
     console.error(e)
     process.exit(1)
   })
   .finally(async () => {
     await prisma.$disconnect()
   })
+
