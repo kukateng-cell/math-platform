@@ -9,19 +9,7 @@ import AddChildForm from '@/components/add-child-form'
 import DeleteChildButton from '@/components/delete-child-button'
 import PendingLinkRequests from '@/components/pending-link-requests'
 import { Icon } from '@/components/icon'
-
-// 相對時間
-function relativeTime(date: Date): string {
-  const diff = Date.now() - date.getTime()
-  const mins = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  if (mins < 1) return '剛剛'
-  if (mins < 60) return `${mins} 分鐘前`
-  if (hours < 24) return `${hours} 小時前`
-  if (days < 7) return `${days} 天前`
-  return date.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
-}
+import { relativeTime } from '@/lib/timezone'
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()

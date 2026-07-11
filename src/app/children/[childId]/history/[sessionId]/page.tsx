@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { getChildSession } from '@/lib/child-session'
 import { prisma } from '@/lib/prisma'
 import { displayAnswer } from '@/lib/answer-i18n'
+import { APP_TIMEZONE } from '@/lib/timezone'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,12 +43,14 @@ function formatDuration(ms: number): string {
 }
 
 function formatDate(date: Date): string {
+  // P3-5：固定 Asia/Taipei 時區，避免隨伺服器時區漂移
   return date.toLocaleDateString('zh-TW', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: APP_TIMEZONE,
   })
 }
 

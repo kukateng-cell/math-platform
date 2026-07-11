@@ -38,7 +38,6 @@ async function main() {
       gradeLevel: 'K',
       parentId: parent.id,
       mode: 'STANDARD',
-      pin: '1234',
     },
   })
   await prisma.parentChild.upsert({

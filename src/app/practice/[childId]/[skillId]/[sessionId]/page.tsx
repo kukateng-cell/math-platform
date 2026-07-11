@@ -71,6 +71,7 @@ export default async function PracticeQuestionPage({
         initialIndex={data.answeredCount}
         initialCorrectCount={data.correctCount}
         initialQuestionResults={data.answeredResults}
+        initialDurationMs={data.durationMs}
       />
     </main>
   )

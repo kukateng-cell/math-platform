@@ -33,3 +33,68 @@ export function startOfToday(timeZone = APP_TIMEZONE): Date {
   const todayKey = calendarDayKey(new Date(), timeZone)
   return new Date(todayKey + 'T00:00:00+08:00')
 }
+
+// ============ 顯示用日期格式化 ============
+// P3-5：原本各頁面用 toLocaleString / toLocaleDateString 時未指定 timeZone，
+// 導致顯示時間隨「伺服器本地時區」而變（本機開發 UTC+8，Vercel 預設 UTC）。
+// 以下函式統一固定 Asia/Taipei 時區，確保不論部署在哪個時區顯示都一致。
+
+/**
+ * 將日期格式化為「簡短日期」，例如「7月11日」。
+ * 固定 Asia/Taipei 時區。
+ */
+export function formatDate(date: Date | string): string {
+  return new Date(date).toLocaleDateString('zh-TW', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: APP_TIMEZONE,
+  })
+}
+
+/**
+ * 將日期格式化為「完整日期＋時間」，例如「2026/07/11 下午 2:30」。
+ * 固定 Asia/Taipei 時區。
+ */
+export function formatDateTime(date: Date | string): string {
+  return new Date(date).toLocaleString('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: APP_TIMEZONE,
+  })
+}
+
+/**
+ * 將日期格式化為「短日期＋時間」（Admin 表格用），例如「07/11 14:30」。
+ * 固定 Asia/Taipei 時區。
+ */
+export function formatShortDateTime(date: Date | string): string {
+  return new Date(date).toLocaleString('zh-TW', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: APP_TIMEZONE,
+  })
+}
+
+/**
+ * 相對時間（如「剛剛」「5 分鐘前」「3 天前」）。
+ * 超過 dayThreshold 天則退化為簡短日期（固定 Asia/Taipei 時區）。
+ *
+ * @param dayThreshold 多少天內顯示「N 天前」，預設 7；Admin 概覽傳 30。
+ */
+export function relativeTime(date: Date | string, dayThreshold = 7): string {
+  const d = new Date(date)
+  const diff = Date.now() - d.getTime()
+  const mins = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (mins < 1) return '剛剛'
+  if (mins < 60) return `${mins} 分鐘前`
+  if (hours < 24) return `${hours} 小時前`
+  if (days < dayThreshold) return `${days} 天前`
+  return formatDate(d)
+}

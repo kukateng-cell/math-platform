@@ -258,6 +258,9 @@ export async function getSessionQuestions(
   correctCount: number
   /** 此練習是否已完成（在其他設備完成的場景） */
   completed: boolean
+  /** 已完成練習的總用時（毫秒）。未完成時為 null。
+   *  P3-5：完成 session 重新載入後，完成頁用此值顯示總用時，避免顯示 00:00。 */
+  durationMs: number | null
   /** 已答題的逐題結果（依 questionIndex 排序），用於完成頁的回顧 */
   answeredResults: {
     questionIndex: number
@@ -335,6 +338,12 @@ export async function getSessionQuestions(
     answeredCount: attempts.length,
     correctCount,
     completed: practiceSession.status !== 'IN_PROGRESS',
+    // P3-5：完成 session 重新載入時，用伺服器記錄的 startedAt→completedAt 計算總用時，
+    // 讓完成頁能正確顯示（不再依賴只在記憶體裡的 finalTotalMs）。
+    durationMs:
+      practiceSession.completedAt !== null
+        ? Math.max(0, practiceSession.completedAt.getTime() - practiceSession.startedAt.getTime())
+        : null,
     answeredResults: attempts.map((a) => ({
       questionIndex: a.questionIndex,
       correct: a.isCorrect,

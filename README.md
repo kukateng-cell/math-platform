@@ -7,7 +7,7 @@ K-G6 數學學習平台。家長建立孩子檔案，孩子做題，系統記錄
 - **Next.js 16**（App Router）+ TypeScript
 - **React 19** + **Tailwind CSS v4**（`@import "tailwindcss"`）
 - **Prisma 7**（driver adapter 模式）+ **PostgreSQL**（Supabase）
-- **Server Actions**（非 Route Handlers）
+- 後端主要用 **Server Actions**，輔以 **Route Handlers**（`/api/cron/*` 排程清理、`/api/export/*` CSV 匯出）
 - **jose**（JWT, httpOnly cookie）+ **bcryptjs** 自管 session
 - **Zod** 表單驗證
 - **nodemailer** Email OTP 寄送
@@ -25,7 +25,8 @@ cp .env.example .env   # 若有範例檔；或手動建立 .env
 # SMTP_USER / SMTP_PASS：Gmail App Password（OTP 寄信用）
 
 # 3a. 全新空 DB：同步 schema + 填入種子資料
-npm run db:push
+npm run db:push            # 開發環境快速同步（不寫 migration 紀錄）
+# 建議改用 npm run db:migrate:dev  → 同步 schema 並建立可追蹤的 migration 紀錄
 npm run db:bootstrap
 
 # 3b. 既有 DB（已有學習資料）：僅同步題庫（不刪除既有作答/掌握度）
@@ -36,7 +37,11 @@ npm run db:content:sync
 npm run dev
 ```
 
-> **⚠️ 安全注意**：`db:seed` 和 `db:bootstrap` 會清除所有學習資料（作答、session、掌握度），僅適合全新資料庫。在已有正式資料的環境請使用 `db:content:sync`（非破壞式，只 upsert 技能與題目）。`db:bootstrap` 需要設定 `ALLOW_DESTRUCTIVE_SEED=true` 環境變數。
+> **⚠️ seed 指令的破壞性差異（務必分清楚）**：
+> - `npm run db:bootstrap`：**破壞性**。內部已帶 `ALLOW_DESTRUCTIVE_SEED=true`，會**清除所有作答 / 練習 session / 掌握度 / 題目模板**後重建，**僅適合全新資料庫**。
+> - `npm run db:seed` / `npm run db:content:sync`：**非破壞性**（預設）。偵測到既有作答紀錄時會自動跳過題目重建，只 upsert 技能與題目；在已有正式資料的環境可用來補題庫。
+> - 欲強制重建題庫：`ALLOW_DESTRUCTIVE_SEED=true npm run db:seed`（會清空學習資料，請三思）。
+> - 開發用 `db:push` 只更新 schema 不留 migration 紀錄；**正式環境請改用 `db:migrate:deploy`**（見下方「部署」）。
 
 ## 管理員帳號
 
@@ -144,7 +149,10 @@ src/
 │   ├── dashboard/        # 家長儀表板
 │   ├── login|signup/     # 家長認證
 │   ├── practice/         # 學生做題
-│   └── student/          # 學生自助認證
+│   ├── student/          # 學生自助認證
+│   └── api/              # Route Handlers（非 Server Actions）
+│       ├── cron/cleanup/ # Cron 排程：清理過期 OTP / 臨時認證資料
+│       └── export/       # CSV 匯出（admin 全表 / child 單一孩子）
 ├── components/           # React 元件
 ├── lib/                  # 核心邏輯
 │   ├── prisma.ts         # PrismaClient 單例（含 driver adapter）
@@ -158,7 +166,8 @@ src/
 │   ├── answer-i18n.ts    # 中英文答案等價驗證
 │   └── csv.ts|export-data.ts  # CSV 匯出
 prisma/
-├── schema.prisma         # 資料模型（9 表 + 2 輔助表）
+├── schema.prisma         # 資料模型（10 核心表 + 4 認證/安全輔助表 = 14 表）
+├── migrations/           # Prisma migration 紀錄（正式環境用 migrate deploy 套用）
 └── seed.ts               # 種子資料
 prisma.config.ts          # CLI 連線字串（位於 repo root，非 prisma/ 下）
 vitest.config.ts          # 單元測試設定
@@ -173,14 +182,55 @@ vitest.config.ts          # 單元測試設定
 | `npm run lint` | ESLint 檢查 |
 | `npm run typecheck` | TypeScript 型別檢查（`tsc --noEmit`） |
 | `npm run test` | 單元測試（vitest，覆蓋 grade.ts / answer-i18n.ts 等純邏輯） |
-| `npm run db:push` | 同步 schema 到 PostgreSQL |
-| `npm run db:seed` | 填入種子資料 |
+| `npm run db:push` | 同步 schema 到 PostgreSQL（開發用，不留 migration 紀錄） |
+| `npm run db:migrate:dev` | 開發用：同步 schema 並建立 migration 紀錄 |
+| `npm run db:migrate:deploy` | **正式用**：套用所有 pending migration（不互動、可重複執行） |
+| `npm run db:migrate:status` | 查詢 migration 套用狀態 |
+| `npm run db:bootstrap` | ⚠️ **破壞性**：清空學習資料並重建題庫（需全新 DB） |
+| `npm run db:seed` | 非破壞性填入種子資料（偵測到作答紀錄會跳過重建） |
+| `npm run db:content:sync` | 非破壞性：只 upsert 技能與題目（= `db:seed`） |
+| `npm run admin:bootstrap` | 安全建立 / 重設管理員帳號（不影響學習資料） |
 | `npm run db:seed:demo` | 填入示範資料 |
 | `npm run db:clean:demo` | 清除示範資料 |
+| `npm run db:seed:challenge` | 填入挑戰題（升學測驗） |
+| `npm run cleanup:auth` | 手動清理過期臨時認證資料（同 cron 端點） |
 
-## 部署注意事項
+## 部署（正式環境）
 
-- **環境變數**：需設定 `SESSION_SECRET`、`DATABASE_URL`、`SMTP_HOST/PORT/USER/PASS`
-- **資料庫**：正式環境建議使用 PostgreSQL（本專案使用 Supabase）
-- **Session 金鑰**：`SESSION_SECRET` 必須為強隨機字串（`openssl rand -base64 32`），嚴禁使用預設值
+### 1. 環境變數
+
+| 變數 | 必填 | 說明 |
+| --- | --- | --- |
+| `SESSION_SECRET` | ✅ | JWT 金鑰，強隨機字串（`openssl rand -base64 32`），嚴禁使用預設值 |
+| `DATABASE_URL` | ✅ | PostgreSQL 連線字串（Supabase pooled，port 6543） |
+| `DIRECT_URL` | 選填 | 給 migrate / db push 用的「非 pooled」連線（port 5432），無則退回 `DATABASE_URL` |
+| `SMTP_HOST` / `SMTP_PORT` | ✅ | SMTP 伺服器（如 `smtp.gmail.com:465`） |
+| `SMTP_USER` / `SMTP_PASS` | ✅ | Gmail App Password 或專業郵件服務憑證（OTP 寄信用） |
+| `ADMIN_EMAIL` | ✅ | 管理員帳號 Email，**必須是可收 OTP 的真實信箱**（seed 在正式環境會強制檢查） |
+| `ADMIN_PASSWORD` | ✅ | 管理員密碼（至少 8 碼，不可為 `admin123`）；未設定會自動產生隨機密碼並印在終端 |
+| `ALLOW_DESTRUCTIVE_SEED` | ❌ | 設為 `true` 才允許 seed 清空學習資料（正式環境請勿設定） |
+| `CRON_SECRET` | 選填 | 保護 `/api/cron/cleanup` 端點的共用密鑰 |
+
+### 2. 資料庫 migration（正式環境請勿用 db:push）
+
+```bash
+# 套用所有 pending migration（冪等、可重複執行、CI/CD 友善）
+npm run db:migrate:deploy
+
+# 確認套用狀態
+npm run db:migrate:status
+
+# 補題庫（非破壞性，不會清空既有學習資料）
+npm run db:content:sync
+
+# 建立管理員帳號（首次部署）
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=your-strong-password npm run admin:bootstrap
+```
+
+> **為何不用 `db:push`？** `db:push` 直接對齊 schema 但不留 migration 紀錄，無法追蹤變更歷史，也不保證多環境一致。正式環境請一律用 `db:migrate:deploy` 套用 `prisma/migrations/` 下的 migration。
+
+### 3. 其他
+
+- **資料庫**：正式環境使用 PostgreSQL（本專案使用 Supabase）
 - **Email**：建議使用 Gmail App Password 或 Resend 等專業服務
+- **Cron 清理**：定期呼叫 `/api/cron/cleanup`（Vercel Cron / 外部排程器）清理過期 OTP 與臨時認證資料

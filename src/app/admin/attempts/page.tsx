@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getRecentAttempts } from '@/actions/admin'
 import { Icon } from '@/components/icon'
+import { formatShortDateTime } from '@/lib/timezone'
 
 export default async function AdminAttemptsPage() {
   const attempts = await getRecentAttempts(50)
@@ -33,12 +34,7 @@ export default async function AdminAttemptsPage() {
               {attempts.map((a) => (
                 <tr key={a.id} className="border-b border-neutral-100 last:border-0 dark:border-gray-800">
                   <td className="px-4 py-2 text-neutral-400 dark:text-gray-500">
-                    {new Date(a.createdAt).toLocaleString('zh-TW', {
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatShortDateTime(a.createdAt)}
                   </td>
                   <td className="px-4 py-2">{a.session.child.nickname}</td>
                   <td className="px-4 py-2 text-neutral-600 dark:text-gray-300">{a.session.skill.name}</td>

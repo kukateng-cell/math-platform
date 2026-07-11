@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { BadgeWithProgress } from '@/actions/achievement'
 import { Icon, badgeIconName } from './icon'
+import { formatDate } from '@/lib/timezone'
 
 type Props = {
   badges: BadgeWithProgress[]
@@ -94,7 +95,7 @@ export default function AchievementBadges({ badges, compact }: Props) {
                 <span className="text-xs font-bold sm:text-sm">{b.name}</span>
                 {b.earnedAt && (
                   <span className="text-[10px] opacity-75">
-                    {new Date(b.earnedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}
+                    {formatDate(b.earnedAt)}
                   </span>
                 )}
               </button>
@@ -162,7 +163,7 @@ function BadgeDetail({ badge, onClose }: { badge: BadgeWithProgress; onClose: ()
         {badge.earned ? (
           <div className="mt-4 flex items-center justify-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
             <Icon name="check-circle" className="h-4 w-4" /> 已獲得
-            {badge.earnedAt && `（${new Date(badge.earnedAt).toLocaleDateString('zh-TW')}）`}
+            {badge.earnedAt && `（${formatDate(badge.earnedAt)}）`}
           </div>
         ) : (
           <div className="mt-4">

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getAllChildrenStats } from '@/actions/admin'
 import { Icon } from '@/components/icon'
+import { relativeTime } from '@/lib/timezone'
 
 // 年級中文
 function gradeLabel(level: string): string {
@@ -14,19 +15,6 @@ function gradeLabel(level: string): string {
     G6: '六年級',
   }
   return map[level] ?? level
-}
-
-// 相對時間
-function relativeTime(date: Date): string {
-  const diff = Date.now() - date.getTime()
-  const mins = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  if (mins < 1) return '剛剛'
-  if (mins < 60) return `${mins} 分鐘前`
-  if (hours < 24) return `${hours} 小時前`
-  if (days < 30) return `${days} 天前`
-  return date.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
 }
 
 export default async function AdminChildrenPage() {
@@ -196,7 +184,7 @@ export default async function AdminChildrenPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-neutral-500 dark:text-gray-400">
-                      {c.lastSession ? relativeTime(c.lastSession.startedAt) : '—'}
+                      {c.lastSession ? relativeTime(c.lastSession.startedAt, 30) : '—'}
                     </td>
                   </tr>
                 ))}
